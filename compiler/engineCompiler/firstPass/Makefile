@@ -15,8 +15,8 @@ Module=adder
 Source=./$(Module).c
 
 LexerParser_fpJavas= GorillaPP_grammar_fpParser.java GorillaPP_grammar_fpLexer.java
-LexerParser_fpMainJavas= $(LexerParser_fpJavas) \
-Main_fp.java Variable.java Variables.java CodeGen.java FpCodeGen.java
+#LexerParser_fpMainJavas= $(LexerParser_fpJavas) Main_fp.java Variable.java Variables.java CodeGen.java FpCodeGen.java
+LexerParser_fpMainJavas= $(LexerParser_fpJavas) Variable.java Variables.java CodeGen.java FpCodeGen.java
 LexerParser_fpFiles= $(LexerParser_fpMainJavas) GorillaPP_grammar_fp.tokens 
 
 all: generate_fp 
@@ -30,12 +30,12 @@ $(LexerParser_fpFiles): GorillaPP_grammar_fp.g
 	javac -classpath ./antlr-3.4-complete.jar -Xlint:unchecked $(LexerParser_fpMainJavas) 
 
 clean:
-	rm -rf *.class; rm -rf $(LexerParser_fpJavas); 
+	rm -rf GorillaPP*.class Variable.class Variables.class 'Variable$$Type.class' CodeGen.class FpCodeGen.class; rm -rf $(LexerParser_fpJavas); 
 	rm -rf *.magillac; rm -f *.scala; 
 	rm -f *.tokens
 
 cleanAll:
-	rm -rf *.class; rm -rf $(LexerParser_fpJavas); 
+	rm -rf GorillaPP*.class Variable.class Variables.class 'Variable$$Type.class' CodeGen.class FpCodeGen.class; rm -rf $(LexerParser_fpJavas); 
 	rm -rf *.magillac; rm -f *.scala; 
 	rm -f *.c; rm -f *.h; rm -f *.tokens
 

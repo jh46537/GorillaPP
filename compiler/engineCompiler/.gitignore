@@ -1,0 +1,8 @@
+*.scala
+*.c
+*.h
+*.tokens
+*.magillac
+*.java
+*.class
+enginesMD

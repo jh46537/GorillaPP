@@ -29,7 +29,7 @@ $(LexerParserFiles): GorillaPP_grammar.g
 	javac -classpath ./antlr-3.4-complete.jar -Xlint *.java
 
 cleanAll:
-	rm -rf *.class; rm -rf $(LexerParserFiles); rm -rf *.magillac; rm -f *.scala; rm -f *.c; rm -f *.h
+	rm -rf GorillaPP*.class; rm -rf $(LexerParserFiles); rm -rf *.magillac; rm -f *.scala; rm -f *.c; rm -f *.h
 
 clean:
-	rm -rf *.class; rm -rf $(LexerParserFiles); rm -rf *.magillac; rm -f *.scala
+	rm -rf GorillaPP*.class; rm -rf $(LexerParserFiles); rm -rf *.magillac; rm -f *.scala
