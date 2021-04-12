@@ -7,7 +7,7 @@ if ($#ARGV == 1) {
 }
 
 $libDir = "../../lib/";
-$DPFPlibDir = $libDir . "floatingPoints/doublePrecision/";
+$DPFPlibDir = $libDir . "floatingPoint/doublePrecision/";
 $partDir = "xilinx/virtex6/xc6vhx250t/";
 %lib = ( 
   FPDPAdder => {
@@ -133,7 +133,7 @@ sub copyLibFiles {
 }
 
 if ($synSim == "syn") {
-  `cp ../../lib/floatingPoints/common/chiselWrapper.scala .`;
+  `cp ../../lib/floatingPoint/common/chiselWrapper.scala .`;
 }
 
 foreach $line (@file_line_array) {
