@@ -15,10 +15,12 @@ rm:
  
 
 $(prjs): %: $(basedir)/src/%.scala
-	cd $(basedir)/sbt; $(SBT) "project KmeansAndMesh" "run $@ $(SBTARGS)"
+	@#cd $(basedir); $(SBT) "project KmeansAndMesh" "run $@ $(SBTARGS)"
+	cd $(basedir); $(SBT) "run $@ $(SBTARGS)"
 
 $(prj_out): %.out: $(basedir)/src/%.scala
-	cd $(basedir)/sbt; $(SBT) "project KmeansAndMesh" "run $* $(SBTARGS)" | tee $(basedir)/emulator/$@
+	@#cd $(basedir); $(SBT) "project KmeansAndMesh" "run $* $(SBTARGS)" | tee emulator/$@
+	cd $(basedir); $(SBT) "run $* $(SBTARGS)" | tee emulator/$@
 
 clean: 
 	rm -f *.out *.o emulator.h *-emulator.* $(prjs) $(addsuffix .h, $(prjs)) $(addsuffix .cpp, $(prjs))

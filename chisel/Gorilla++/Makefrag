@@ -1,4 +1,4 @@
-SBT := java -Xmx8096M -Xss8M -XX:MaxPermSize=2G -jar sbt-launch.jar
+SBT := sbt
 
 prjs = \
 	Top

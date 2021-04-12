@@ -345,7 +345,7 @@ scope Symbols {
     }
     //Write global lvalue string to file  
     try {
-      BufferedWriter out = new BufferedWriter(new FileWriter("global_lvalues.magillac"));
+      BufferedWriter out = new BufferedWriter(new FileWriter("globalLvalues.magillac"));
       out.write(scope.global_lvalue_string);
       out.close();
     } catch (IOException e) {
