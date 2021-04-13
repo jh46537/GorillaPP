@@ -107,7 +107,7 @@ sub compile_engine {
 }
 ###################### Create the macro file ################
 `cp  ../../../compiler/engineCompiler/$headersCompileType/genericHeader macros.scala`;
-`echo "trait include extends GorillaUtil {\n val dummy = 0 \n" >> macros.scala`;
+`echo "trait include extends GorillaUtil {\n  val dummy = 0" >> macros.scala`;
 ###################### Compile the header files ##############
 initializeMacrosAndTypes("multiThread");
 initializeMacrosAndTypes("pipelined"); 
@@ -125,7 +125,7 @@ foreach $hFile (@headerFiles) {
   }
 }
 ###################
-`echo "}\n" >> macros.scala`;
+`echo "}" >> macros.scala`;
 
 ################# Find the engines ###################
 @engineFileNames = ();
@@ -199,7 +199,7 @@ foreach $line (@file_line_array) {
   if ($line =~ /.*Replicate.*/) {
     $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Replicate\((.*)\)/$1$2 $3 = Replicate \($4, extCompName="$3")/;
   }
-  if ($line =~ /.*result.*/ && ! ($line =~ /\/\/.*/)) {
+  if ($line =~ /.*val +result.*/ && ! ($line =~ /\/\/.*/)) {
      print $line;
      print "  val generatedTop = result._2()\n";
      print "  generatedTop.io <> io\n";

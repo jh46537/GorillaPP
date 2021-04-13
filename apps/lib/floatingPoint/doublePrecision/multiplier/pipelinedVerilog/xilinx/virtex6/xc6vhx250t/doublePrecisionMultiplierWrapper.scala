@@ -1,10 +1,6 @@
-package Tutorial
+import chisel3._
+import chisel3.util._
 
-import Chisel._
-import Node._
-import Literal._
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.ArrayBuffer
 
-class types_float_double_grp_fu_93_ACMP_dmul_3_io extends fuBB(() => UFix(width=64)) {
+class types_float_double_grp_fu_93_ACMP_dmul_3_io extends fuBB(() => UInt(64.W)) {
 }
