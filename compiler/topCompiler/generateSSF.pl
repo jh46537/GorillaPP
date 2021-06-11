@@ -42,9 +42,10 @@ do {
   }
   close(INPUT);
   close(OUTPUT);
-  `>>version`;
-  `echo "//XX variable version $version" > version`; 
-  `cat version SSF/$SSFModule.scala > temp.scala`;
+  #`>>version`;
+  #`echo "//XX variable version $version" > version`;
+  #`cat version SSF/$SSFModule.scala > temp.scala`;
+  `cat SSF/$SSFModule.scala >temp.scala`;
   #print "Version is $version\n";
 } while ($moreChanges);
 `mv temp.scala SSF/$SSFModule.scala`;

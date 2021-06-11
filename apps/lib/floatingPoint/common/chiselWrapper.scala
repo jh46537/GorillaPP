@@ -5,27 +5,27 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 
-class dualInput[T <: Data](data: () => T) extends Bundle {
-  val in1 = Input(data())
-  val in2 = Input(data())
+class dualInput[T <: Data](data: T) extends Bundle {
+  val in1 = Input(data)
+  val in2 = Input(data)
 }
 
-class fuBB[T <: Data](ioType: () => T) extends BlackBox {
-  val io = new Bundle {
-    val a = Input(ioType())
-    val b = Input(ioType())
-    val result = Output(ioType())
+class fuBB[T <: Data](ioType: T) extends BlackBox {
+  val io = IO(new Bundle {
+    val a = Input(ioType)
+    val b = Input(ioType)
+    val result = Output(ioType)
     val ce = Input(Bool())
     val rdy = Output(Bool())
-  }
+  })
 }
 
-class FUSynWrapper[ioT <: Data](ioType: () => ioT)(fuGen: () => fuBB[ioT])(stages: Int)(extCompName: String)
-  extends gComponentLeaf(() => new dualInput(ioType))(ioType)(ArrayBuffer())(extCompName=extCompName)
+class FUSynWrapper[ioT <: Data](ioType: ioT, fuGen: => fuBB[ioT], stages: Int, extCompName: String)
+  extends gComponentLeaf(new dualInput(ioType), ioType, ArrayBuffer(), extCompName)
   with include
 {
   val tagPipe = new gPipe(stages)
-  val bb = fuGen()
+  val bb = Module(fuGen)
   tagPipe.io.in.valid := io.in.valid
   tagPipe.io.in.tag := io.in.tag
   tagPipe.io.out.ready := io.out.ready

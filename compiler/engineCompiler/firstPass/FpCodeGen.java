@@ -226,9 +226,9 @@ public class FpCodeGen extends CodeGen {
        "\").getOrElse(elseV)._2\n"; 
       definitionString += 
        "val " + offPort + "Port = " + 
-       "new gOffBundleND(() => " + 
+       "new gOffBundleND(" +
        offloadPortsReqType.get(offPort) + 
-       ", () => " + offloadPortsRepType.
+       ", " + offloadPortsRepType.
         get(offPort) + 
        ")\n";
       definitionString += 
@@ -255,13 +255,13 @@ public class FpCodeGen extends CodeGen {
   } 
 
   public void handleInPragma (String type) {
-    ioString += "(() => " + 
+    ioString += "(" +
      C2ChiselType(type) + ")";
     inputType = type;
   }
 
   public void handleOutPragma (String type) {
-    ioString += "(() => " + 
+    ioString += "(" +
      C2ChiselType(type) + ") (ArrayBuffer(";
     outputType = type;
   }
@@ -277,8 +277,8 @@ public class FpCodeGen extends CodeGen {
       offloadPortsRepType.put(offPort, 
        C2ChiselType(repType));
       ioString += "(\"" + offPort + 
-       "\", () => " + C2ChiselType(reqType) + 
-       " , () => " + C2ChiselType(repType) + ")";
+       "\", " + C2ChiselType(reqType) +
+       " , " + C2ChiselType(repType) + ")";
     }
   }
 

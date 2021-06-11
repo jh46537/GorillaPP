@@ -152,13 +152,15 @@ generateTop: $(generatedCompositions)
 
 ./%.scala: ./%LibGenerated.scala
 	$(topCompilerDir)/generateTop.pl $* > $@ 
+	$(topCompilerDir)/../scripts/chisel_migrate.py $@
 	rm -f $< 
 
 PrepareChiselCompile:	
+	echo -n "\n\n\n" >> Top.scala
 	cat ../src/test/TopTest.scala >> Top.scala
 	cd ../../../chisel/Gorilla++/emulator; make rm
-	cp *.scala ../../../chisel/Gorilla++/src/ 
-	cp ../../lib/*.scala ../../../chisel/Gorilla++/src/
+	cp *.scala ../../../chisel/Gorilla++/src/main/scala/
+	cp ../../lib/*.scala ../../../chisel/Gorilla++/src/main/scala/
 
 cpOriginalTopConfig:
 	cp TopConfig.orig TopConfig

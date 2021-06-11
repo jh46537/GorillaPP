@@ -87,6 +87,22 @@ scope Symbols {
 }
 
 @members {
+  String chisel2GeneralChiselType(String type) {
+    String s;
+    if ($Symbols::typedefs.containsKey(type)) {
+          s = (String) $Symbols::typedefs.get(type);
+    } else {
+      s = type;
+    }
+
+    int end = s.indexOf("(");
+    if (end != -1) {
+      return s.substring(0, end);
+    } else {
+      return s;
+    }
+  }
+
   String C2ChiselType(String type) {
     String s;
     if ($Symbols::typedefs.containsKey(type)) {
@@ -588,7 +604,7 @@ scope Symbols {
   }
 
   void handlePreGlobalDeclaration() {
-    $Symbols::ioString += "))";
+    $Symbols::ioString += ")";
     Iterator offIt = $Symbols::offloadPorts.iterator();
     while (offIt.hasNext()) {
       String offPort = (String) offIt.next();
@@ -603,20 +619,24 @@ scope Symbols {
     $Symbols::definitionString += "val outputReg_valid = Reg(" + 
      "resetVal=Bool(false))\n"; 
     $Symbols::definitionString += "val outputReg_tag = Reg(" + 
-     "resetVal=UFix(width=tagWidth))\n"; 
+     "resetVal=UFix(width=TAGWIDTH))\n"; 
     Iterator offIt = $Symbols::offloadPorts.iterator();
     while (offIt.hasNext()) {
       String offPort = (String) offIt.next();
       $Symbols::definitionString += 
-       "def mymyOff" + offPort+ 
-       " = myOff.asInstanceOf[Bundle].elements.find(_._1 == \"" + offPort + 
-       "\").getOrElse(elseV)._2\n"; 
-      $Symbols::definitionString += 
-       "val " + offPort + "Port = new gOffBundleND(() => " + 
-       $Symbols::offloadPortsReqType.get(offPort) + 
-       ", () => " + $Symbols::offloadPortsRepType.get(offPort) + ")\n";
-      $Symbols::definitionString += 
-       offPort + "Port <>" + " mymyOff" + offPort + "\n";
+       "val " + offPort + "Port" + offPort+
+       //" = myOff.asInstanceOf[Bundle].elements." +
+       //"getOrElse(\"" + offPort + "\", nullOff)." +
+       " = myOff.asInstanceOf[Bundle].elements(\"" + offPort "\")."
+       "asInstanceOf[gOffBundle[" +
+       chisel2GeneralChiselType($Symbols::offloadPortsReqType.get(offPort)) + ", " +
+       chisel2GeneralChiselType($Symbols::offloadPortsRepType.get(offPort)) + "]]\n";
+      //$Symbols::definitionString +=
+      // "val " + offPort + "Port = Wire(new gOffBundleND(" +
+      // $Symbols::offloadPortsReqType.get(offPort) +
+      // ", " + $Symbols::offloadPortsRepType.get(offPort) + "))\n";
+      //$Symbols::definitionString +=
+      // offPort + "Port <>" + " mymyOff" + offPort + "\n";
     } 
   }
 
@@ -630,7 +650,7 @@ scope Symbols {
        $Symbols::instrOfOffload.get(offPort) + "RThread\n";  
       $Symbols::combinationalString += offPort + 
        "Port.req.valid :=  (" + $Symbols::instrOfOffload.get(offPort) + 
-       "RThread != NONE_SELECTED) && !" + offPort + 
+       "RThread =/= NONE_SELECTED) && !" + offPort +
        "ValidReceived(" + $Symbols::instrOfOffload.get(offPort) + "RThread) && (" + 
        OffValidString + ")\n"; 
       $Symbols::combinationalString += offPort + 
@@ -645,7 +665,7 @@ scope Symbols {
         $Symbols::definitionString += "val " + $Symbols::instrName + 
          "PRegSS_valid = " + "Reg(resetVal=Bool(false))\n";
         $Symbols::definitionString += "val " + $Symbols::instrName + 
-         "PRegSS_tag = " + "Reg(resetVal=UFix(width=tagWidth))\n";
+         "PRegSS_tag = " + "Reg(resetVal=UFix(width=TAGWIDTH))\n";
         $Symbols::definitionString += "val " + $Symbols::instrName + 
          "PRegSS_Input = " + "Reg(resetVal=" + 
          C2ChiselType($Symbols::inputType) + ")\n";
@@ -668,7 +688,7 @@ scope Symbols {
         $Symbols::definitionString += "val " + $Symbols::instrName + 
          "PRegPreOff_valid = " + "Reg(resetVal=Bool(false))\n";
         $Symbols::definitionString += "val " + $Symbols::instrName + 
-         "PRegPreOff_tag = " + "Reg(resetVal=UFix(width=tagWidth))\n";
+         "PRegPreOff_tag = " + "Reg(resetVal=UFix(width=TAGWIDTH))\n";
         $Symbols::definitionString += "val " + $Symbols::instrName + 
          "PRegPreOff_Input = " + "Reg(resetVal=" + 
          C2ChiselType($Symbols::inputType) + ")\n";
@@ -690,7 +710,7 @@ scope Symbols {
        "NumOfThreads) {" + "Reg(resetVal=Bool(false))}\n";
       $Symbols::definitionString += "val " + $Symbols::instrName + 
        "PRegPostOff_tag = " + "Vec(" + $Symbols::instrName + 
-       "NumOfThreads) {" + "Reg(resetVal=UFix(width=tagWidth))}\n";
+       "NumOfThreads) {" + "Reg(resetVal=UFix(width=TAGWIDTH))}\n";
       if (!isLastInstr($Symbols::instrName)) {
         $Symbols::definitionString += "val " + $Symbols::instrName + 
          "PRegPostOff_Input = " + "Vec(" + $Symbols::instrName + 
@@ -707,7 +727,7 @@ scope Symbols {
        "PRegPostOff_ready = Bool()\n";
       $Symbols::combinationalString +=  $Symbols::instrName + 
        "PRegPostOff_ready := " + $Symbols::instrName + 
-       "RThread != NONE_SELECTED \n";
+       "RThread =/= NONE_SELECTED \n";
     }
     $Symbols::instrNumber++;
     $Symbols::isPreOff = true;
@@ -726,7 +746,7 @@ scope Symbols {
        "\n when (" + $Symbols::instrName + "PRegPreOff_valid && " +  
        preOffNextStageReady($Symbols::instrName) + ") {\n";  
       $Symbols::globalContextEditString += "when (" +  
-       $Symbols::instrName + "VThread != NONE_SELECTED" + 
+       $Symbols::instrName + "VThread =/= NONE_SELECTED" +
        ") {\n";  
     }
     defaultCopyAll($Symbols::instrName);
@@ -757,10 +777,10 @@ scope Symbols {
     $Symbols::OffValidString.put(offIdString, 
      $Symbols::OffValidString.get(offIdString) + 
       preOffValid($Symbols::instrName) + " && " +
-      "(" + $Symbols::instrName + "RThread != NONE_SELECTED)");
+      "(" + $Symbols::instrName + "RThread =/= NONE_SELECTED)");
     $Symbols::OffReqString.put(offIdString, 
      $Symbols::OffReqString.get(offIdString) + 
-     "((" + $Symbols::instrName + "RThread != NONE_SELECTED)" + 
+     "((" + $Symbols::instrName + "RThread =/= NONE_SELECTED)" +
      "," + $Symbols::offString + ")");
     if (localVarDefined(targetString) && 
      !C2ChiselType((String)$Symbols::localsType.get(targetString)).contains("new")) {
@@ -787,13 +807,13 @@ scope Symbols {
       $Symbols::offloadPortsRepType.put(offPortString, C2ChiselType(repTypeString));
       if ($Symbols::firstOffload) {
         $Symbols::ioString += 
-         "(\"" + offPortString  + "\", () => " + C2ChiselType(reqTypeString) + 
-         " , () => " + C2ChiselType(repTypeString) + ")";
+         "(\"" + offPortString  + "\", " + C2ChiselType(reqTypeString) +
+         " , " + C2ChiselType(repTypeString) + ")";
         $Symbols::firstOffload = false;
       } else {
         $Symbols::ioString += 
-         ", (\"" + offPortString  + "\", () => " + C2ChiselType(reqTypeString) + 
-         " , () => " + C2ChiselType(repTypeString) + ")";
+         ", (\"" + offPortString  + "\", " + C2ChiselType(reqTypeString) +
+         " , " + C2ChiselType(repTypeString) + ")";
       }
     }
   }
@@ -1143,13 +1163,13 @@ other_pragma
 
 in_pragma
   : '#pragma' 'INPUT'   in_type=ID  {  
-      $Symbols::ioString += "(() => " + C2ChiselType($in_type.text) + ")";
+      $Symbols::ioString += C2ChiselType($in_type.text) + ", ";
         $Symbols::inputType = $in_type.text;
   };
 
 out_pragma
   : '#pragma' 'OUTPUT'  out_type=ID  {  
-      $Symbols::ioString += "(() => " + C2ChiselType($out_type.text) + ") (ArrayBuffer(";
+      $Symbols::ioString += C2ChiselType($out_type.text) + ", ArrayBuffer(";
         $Symbols::outputType = $out_type.text;
   };
 

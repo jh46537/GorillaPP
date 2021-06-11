@@ -112,6 +112,23 @@ scope Symbols {
 
 @members {
   public enum OUT_STREAM { REQUEST_BUILDER, CONTEXT_EDIT, JUMP};
+
+  String chisel2GeneralChiselType(String type) {
+    String s;
+    if ($Symbols::typedefs.containsKey(type)) {
+          s = (String) $Symbols::typedefs.get(type);
+    } else {
+      s = type;
+    }
+
+    int end = s.indexOf("(");
+    if (end != -1) {
+      return s.substring(0, end);
+    } else {
+      return s;
+    }
+  }
+
   String c2ChiselType(String type) {
     String s;
     if ($Symbols::typedefs.containsKey(type)) {
@@ -517,7 +534,7 @@ external_declaration
          $Symbols::definitionString = 
          $Symbols::typeDefinitionString;}| 
        (in_pragma out_pragma off_pragma* other_pragma* {
-         $Symbols::ioString += "))";
+         $Symbols::ioString += ")";
          Iterator off_it = 
           $Symbols::offloadPorts.iterator();
   	     while (off_it.hasNext()) {
@@ -537,20 +554,22 @@ external_declaration
          while (off_it.hasNext()) {
            String offPort = (String) off_it.next();
            $Symbols::definitionString += 
-            "def mymyOff" + offPort+ 
-            " = myOff.asInstanceOf[Bundle]." + 
-            "elements.find" + 
-            "(_._1 == \"" + offPort + 
-            "\").getOrElse(elseV)._2\n"; 
-	       $Symbols::definitionString += 
-            "val " + offPort + 
-            "Port = new gOffBundleND(() => " + 
-            $Symbols::offloadPortsReqType.get(offPort) + 
-            ", () => " + $Symbols::offloadPortsRepType.
-             get(offPort) + ")\n";
-	       $Symbols::definitionString += 
-            offPort + "Port <>" + " mymyOff" + offPort + 
-            "\n";
+            "def " + offPort + "Port" +
+            //" = myOff.asInstanceOf[Bundle].elements." +
+            //"getOrElse(\"" + offPort + "\", nullOff)." +
+            " = myOff.asInstanceOf[Bundle].elements(\"" + offPort + "\")." +
+            "asInstanceOf[gOffBundle[" +
+            chisel2GeneralChiselType($Symbols::offloadPortsReqType.get(offPort)) + ", " +
+            chisel2GeneralChiselType($Symbols::offloadPortsRepType.get(offPort)) + "]]\n";
+	    //   $Symbols::definitionString +=
+            //"val " + offPort +
+            //"Port = Wire(new gOffBundleND(" +
+            //$Symbols::offloadPortsReqType.get(offPort) +
+            //", " + $Symbols::offloadPortsRepType.
+            // get(offPort) + "))\n";
+	    //   $Symbols::definitionString +=
+            //offPort + "Port <>" + " mymyOff" + offPort +
+            //"\n";
 	      } 
 	    } magilla_instr+ {
               Iterator off_it = 
@@ -566,7 +585,7 @@ external_declaration
                 offPort + "Port.req.tag :=  rThread\n";  
                $Symbols::combinationalString += offPort + 
                 "Port.req.valid :=  " + 
-                "(rThread != NONE_SELECTED) && !" + 
+                "(rThread =/= NONE_SELECTED) && !" +
                 offPort + "_valid_received(rThread) && (" + 
                 OffValidString + ")\n"; 
                $Symbols::combinationalString += offPort + 
@@ -604,11 +623,11 @@ magilla_instr
             $Symbols::contextEditString = ""; 
           } ('('')') '{' instr_body'}' {	
             $Symbols::globalRequestBuilderString += 
-             "\n when (rThread != NONE_SELECTED &&" + 
+             "\n when (rThread =/= NONE_SELECTED &&" +
              " State(rThread) === " + 
              $GORILLA_INSTR_NAME.text ;	
             $Symbols::globalContextEditString += 
-             "\n when (vThread != NONE_SELECTED &&" +  
+             "\n when (vThread =/= NONE_SELECTED &&" + 
              "State(vThread) === " + 
              $GORILLA_INSTR_NAME.text;	
             $Symbols::globalRequestBuilderString +=  
@@ -697,15 +716,13 @@ other_pragma
 
 in_pragma
 	: '#pragma' 'INPUT'   in_type=ID  {	
-	    $Symbols::ioString += "(() => " + 
-         c2ChiselType($in_type.text) + ")";
+        $Symbols::ioString += c2ChiselType($in_type.text) + ", ";
         $Symbols::inputType = $in_type.text;
 	};
 
 out_pragma
 	: '#pragma' 'OUTPUT'  out_type=ID  {	
-	    $Symbols::ioString += "(() => " + 
-         c2ChiselType($out_type.text) + ") (ArrayBuffer(";
+        $Symbols::ioString += c2ChiselType($out_type.text) + ", ArrayBuffer(";
         $Symbols::outputType = $out_type.text;
 	};
 
@@ -725,15 +742,15 @@ off_pragma
          c2ChiselType($rep_type.text));
         if ($Symbols::firstOffload) {
 	      $Symbols::ioString += 
-            "(\"" + $offPort.text  + "\", () => " + 
+            "(\"" + $offPort.text  + "\", " +
             c2ChiselType($req_type.text) + 
-            " , () => " + c2ChiselType($rep_type.text) + ")";
+            " , " + c2ChiselType($rep_type.text) + ")";
           $Symbols::firstOffload = false;
         } else {
           $Symbols::ioString += 
-           ", (\"" + $offPort.text  + "\", () => " + 
+           ", (\"" + $offPort.text  + "\", " +
            c2ChiselType($req_type.text) + 
-           " , () => " + c2ChiselType($rep_type.text) + ")";
+           " , " + c2ChiselType($rep_type.text) + ")";
         }
       }
 	};
@@ -884,11 +901,11 @@ offload_expression
         }
         $Symbols::OffValidString.put($offId.text, 
          $Symbols::OffValidString.get($offId.text) + 
-         " (rThread != NONE_SELECTED && State(rThread)" +  
+         " (rThread =/= NONE_SELECTED && State(rThread)" +
          " === " + $Symbols::gorillaInstrName + ")");
          $Symbols::OffReqString.put($offId.text, 
            $Symbols::OffReqString.get($offId.text) + 
-           " ((rThread != NONE_SELECTED && State(rThread) === " + 
+           " ((rThread =/= NONE_SELECTED && State(rThread) === " +
            $Symbols::gorillaInstrName + ")" + 
            "," +  $Symbols::offString + ")");
            if (localVarDefined($target.text) && 

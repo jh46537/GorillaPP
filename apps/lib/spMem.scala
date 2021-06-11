@@ -49,37 +49,41 @@ class memWriteOnlyRep32_t extends memWriteOnlyRep(32)
 
 
 object spMem {
-  def apply(height: Int, width: Int) = {
-    val md = new gComponentMD(() => new memReq(log2Up(height), width),
-                              () => new memRep(width), ArrayBuffer())
-      (md, () => new spMemComponent(height, width)).asInstanceOf[(
-        gComponentMD[Data,Data],
-        () => gComponent[Data,Data]
-      )]
-  }
+  def apply(height: Int, width: Int) =
+    new gComponentGen(
+      new spMemComponent(height, width),
+      new memReq(log2Up(height), width),
+      new memRep(width),
+      ArrayBuffer()
+    )
 }
 
-object rwSpMem {
-  def apply(height: Int, width: Int) = {
-    val mdRead = new gComponentMD(
-      () => new memReadOnlyReq(log2Up(height), width),
-      () => new memReadOnlyRep(width), ArrayBuffer())
-    val mdWrite = new gComponentMD(
-      () => new memWriteOnlyReq(log2Up(height), width),
-      () => new memWriteOnlyRep(width), ArrayBuffer())
-
-    val h = (() => new rwSpMemComponent(height, width))
-
-    (mdRead, mdWrite, h).asInstanceOf[(
-      gComponentMD[Data,Data],
-      gComponentMD[Data,Data],
-      () => rwSpMemComponent
-    )]
-  }
-}
+//object rwSpMem {
+//  def apply(height: Int, width: Int) = {
+//    val mdRead = new gComponentMD(
+//      new memReadOnlyReq(log2Up(height), width),
+//      new memReadOnlyRep(width), ArrayBuffer())
+//    val mdWrite = new gComponentMD(
+//      new memWriteOnlyReq(log2Up(height), width),
+//      new memWriteOnlyRep(width), ArrayBuffer())
+//
+//    val h = (new rwSpMemComponent(height, width))
+//
+//    (mdRead, mdWrite, h).asInstanceOf[(
+//      gComponentMD[Data,Data],
+//      gComponentMD[Data,Data],
+//      rwSpMemComponent
+//    )]
+//  }
+//}
 
 class spMemComponent(height: Int, width: Int)
-  extends gComponentLeaf(() => new memReq(addrSize=log2Up(height), dataSize=width))(() => new memRep(dataSize=width))(ArrayBuffer())(extCompName="spMem")
+  extends gComponentLeaf(
+    new memReq(log2Up(height), width),
+    new memRep(width),
+    ArrayBuffer(),
+    extCompName="spMem"
+  )
   with include
 {
   val read::write::Nil = Enum(2)
@@ -102,12 +106,12 @@ class spMemComponent(height: Int, width: Int)
 }
 
 class rwSpMemComponent(height: Int, width: Int) extends Module with include {
-  val io = new Bundle {
-    val read = new gInOutBundle(() => new memReadOnlyReq(addrSize=log2Up(height), dataSize=width),
-     () => new memReadOnlyRep(dataSize=width))
-    val write = new gInOutBundle(() => new memWriteOnlyReq(addrSize=log2Up(height), dataSize=width),
-     () => new memWriteOnlyRep(dataSize=width))
-  }
+  val io = IO(new Bundle {
+    val read = new gInOutBundle(new memReadOnlyReq(addrSize=log2Up(height), dataSize=width),
+     new memReadOnlyRep(dataSize=width))
+    val write = new gInOutBundle(new memWriteOnlyReq(addrSize=log2Up(height), dataSize=width),
+     new memWriteOnlyRep(dataSize=width))
+  })
 
   val read::write::Nil = Enum(2)
   val readTagReg = Reg(UInt((TAGWIDTH*2).W))
@@ -137,7 +141,12 @@ class rwSpMemComponent(height: Int, width: Int) extends Module with include {
 }
 
 class spMemDualAddress(height: Int, width: Int)
-  extends gComponentLeaf(() => new memReqDualAddress(addrSize=log2Up(height), dataSize=width))(() => new memRep(dataSize=width))(ArrayBuffer())(extCompName="spMemDualAddress")
+  extends gComponentLeaf(
+    new memReqDualAddress(log2Up(height), width),
+    new memRep(width),
+    ArrayBuffer(),
+    extCompName="spMemDualAddress"
+  )
 {
   val readCmd::writeCmd::Nil = Enum(2)
   val ram = SyncReadMem(height, UInt(width.W))

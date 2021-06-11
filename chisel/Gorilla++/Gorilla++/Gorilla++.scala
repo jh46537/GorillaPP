@@ -3,7 +3,40 @@ import chisel3.util._
 
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.immutable.ListMap
+import scala.util._
 
+class DynamicBundle extends Bundle {
+  private var _data = ArrayBuffer[(String, Data)]()
+
+  private def modifyField(obj: AnyRef, name: String, value: Any) {
+    def impl(clazz: Class[_] ) {
+      Try(clazz.getDeclaredField(name)).toOption match {
+        case Some(field) =>
+          field.setAccessible(true)
+          clazz.getMethod(name).invoke(obj) // force init
+          field.set(obj, value)
+        case None =>
+          if (clazz.getSuperclass != null) {
+            impl(clazz.getSuperclass)
+          }
+      }
+    }
+    impl(obj.getClass)
+  }
+
+  override def cloneType = DynamicBundle(_data).asInstanceOf[this.type]
+}
+
+object DynamicBundle {
+  def apply(data: ArrayBuffer[(String, Data)] = ArrayBuffer()): DynamicBundle = {
+    val dynamicBundle = new DynamicBundle
+    dynamicBundle._data = data
+    val new_elements = dynamicBundle.elements ++ data.foldLeft(ListMap[String, Data]())((a, b) => a + (b._1 -> b._2))
+    dynamicBundle.modifyField(dynamicBundle, "elements", new_elements)
+    dynamicBundle
+  }
+}
 
 object gArbiterCtrl {
   def apply(request: Seq[Bool]): Seq[Bool] = request.length match {
@@ -26,11 +59,11 @@ class gioDistributor[T <: Data](n: Int, data: => T) extends Bundle {
 }
 
 class RREncode(n: Int) extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val valid = Input(Vec(n, Bool()))
     val chosen = Output(UInt((log2Up(n+1)).W))
     val ready = Input(Bool())
-  }
+  })
 
   val last_grant = RegInit((0).U((log2Up(n)).W))
   val g = gArbiterCtrl((0 until n).map(i => io.valid(i) && (i).U > last_grant) ++ io.valid)
@@ -49,7 +82,7 @@ class RREncode(n: Int) extends Module {
 }
 
 class gRRArbiter[T <: Data](n: Int, data: => T) extends Module with TagTrait {
-  val io = new gioArbiter(n, data)
+  val io = IO(new gioArbiter(n, data))
 
   val last_grant = RegInit((0).U((log2Up(n)).W))
   val g = gArbiterCtrl((0 until n).map(i => io.in(i).valid && (i).U > last_grant) ++ io.in.map(_.valid))
@@ -77,13 +110,13 @@ class gRRArbiter[T <: Data](n: Int, data: => T) extends Module with TagTrait {
 }
 
 class gRRDistributor[T <: Data](n: Int, data: => T) extends Module {
-  val io = new gioDistributor(n, data)
+  val io = IO(new gioDistributor(n, data))
 
   val last_grant = RegInit((0).U((log2Up(n)).W))
   val g = gArbiterCtrl((0 until n).map(i => io.out(i).ready && (i).U > last_grant) ++ io.out.map(_.ready))
   val grant = (0 until n).map(i => g(i) && (i).U > last_grant || g(i+n))
   (0 until n).map(i => io.out(i).valid := grant(i) && io.in.valid)
-  name_it()
+  //name_it()
   var choose = (n-1).U
   for (i <- n-2 to 0 by -1)
     choose = Mux(io.out(i).ready, (i).U, choose)
@@ -100,7 +133,7 @@ class gRRDistributor[T <: Data](n: Int, data: => T) extends Module {
 }
 
 class gTaggedRRArbiter[T <: Data](n: Int, data: => T) extends Module with TagTrait {
-  val io = new gioArbiter(n, data)
+  val io = IO(new gioArbiter(n, data))
 
   val last_grant = RegInit((0).U((log2Up(n)).W))
   val g = gArbiterCtrl((0 until n).map(i => io.in(i).valid && (i).U > last_grant) ++ io.in.map(_.valid))
@@ -128,7 +161,7 @@ class gTaggedRRArbiter[T <: Data](n: Int, data: => T) extends Module with TagTra
 }
 
 class gTaggedDistributor[T <: Data](n: Int, data: => T) extends Module with TagTrait {
-  val io = new gioDistributor(n, data)
+  val io = IO(new gioDistributor(n, data))
 
   (0 until n).map(i => io.out(i).bits := io.in.bits)
   (0 until n).map(i => io.out(i).tag := tagLower(io.in.tag))
@@ -145,34 +178,18 @@ class gFIFOIO[T <: Data](data: => T) extends Bundle with TagTrait {
 
   def fire(dummy: Int = 0) = ready && valid
 
-  override def clone =
-    try {
-      super.clone()
-    }
-    catch {
-      case e: java.lang.Exception => {
-        new gFIFOIO(data).asInstanceOf[this.type]
-      }
-    }
+  override def cloneType = (new gFIFOIO(data)).asInstanceOf[this.type]
 }
 
 class gFIFOIOND[T <: Data](data: => T) extends Bundle with TagTrait {
-  val ready = Bool()
-  val valid = Bool()
-  val bits = data
-  val tag = UInt((TAGWIDTH*2).W)
+  val ready = Wire(Bool())
+  val valid = Wire(Bool())
+  val bits = Wire(data)
+  val tag = Wire(UInt((TAGWIDTH*2).W))
 
   def fire(dummy: Int = 0) = ready && valid
 
-  override def clone =
-    try {
-      super.clone()
-    }
-    catch {
-      case e: java.lang.Exception => {
-        new gFIFOIOND(data).asInstanceOf[this.type]
-      }
-    }
+  override def cloneType = (new gFIFOIOND(data)).asInstanceOf[this.type]
 }
 
 class gInOutBundle[inT <: Data, outT <: Data](inData: => inT, outData: => outT) extends Bundle {
@@ -181,30 +198,36 @@ class gInOutBundle[inT <: Data, outT <: Data](inData: => inT, outData: => outT) 
   val pcIn = Flipped(Valid(new PcBundle))
   val pcOut = Valid(new PcBundle)
 
-  override def clone = { new gInOutBundle(inData, outData).asInstanceOf[this.type] }
+  override def cloneType = (new gInOutBundle(inData, outData)).asInstanceOf[this.type]
 }
 
 class gOffBundle[inT <: Data, outT <: Data](reqData: => inT, repData: => outT) extends Bundle {
   val req = new gFIFOIO(reqData)
   val rep = Flipped(new gFIFOIO(repData))
 
-  override def clone = { new gOffBundle(reqData, repData).asInstanceOf[this.type] }
+  override def cloneType = (new gOffBundle(reqData, repData)).asInstanceOf[this.type]
 }
 
 class gOffBundleND[inT <: Data, outT <: Data](reqData: => inT, repData: => outT) extends Bundle {
   val req = new gFIFOIOND(reqData)
   val rep = new gFIFOIOND(repData)
 
-  override def clone = { new gOffBundleND(reqData, repData).asInstanceOf[this.type] }
+  override def cloneType = (new gOffBundleND(reqData, repData)).asInstanceOf[this.type]
 }
 
-class gComponentBase[inT <: Data, outT <: Data](inData: => inT, outData: => outT) extends Module {
-  val io = new gInOutBundle(inData, outData)
+class gInOutOffBundle[inT <: Data, outT <: Data](inData: => inT, outData: => outT, offBundle: => DynamicBundle = DynamicBundle())
+  extends gInOutBundle(inData, outData)
+{
+  val off = offBundle
 
-  val inData = inData
-  val outData = outData
+  override def cloneType = (new gInOutOffBundle(inData, outData, offBundle)).asInstanceOf[this.type]
+}
 
-  override def clone = { new gComponentBase(inData, outData).asInstanceOf[this.type] }
+abstract class gComponentBase[inT <: Data, outT <: Data](inData: => inT, outData: => outT) extends Module with GorillaUtil {
+  //val io = IO(new gInOutBundle(inData, outData))
+
+  def cloneType: this.type
+  //override def cloneType = (new gComponentBase(inData, outData)).asInstanceOf[this.type]
 }
 
 class PcBundle extends Bundle {
@@ -216,17 +239,9 @@ class PcBundle extends Bundle {
 }
 
 class gComponentLeaf[inT <: Data, outT <: Data](
-  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, () => Data, () => Data)], extCompName: String = ""
+  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
 ) extends gComponent(inData, outData, offloadData, extCompName)
 {
-  def setStaticComp(b: Bundle, staticComp: Module): Unit = {
-    for ((n, i) <- b.elements) {
-      i.staticComp = staticComp
-      if (i.isInstanceOf[Bundle]) {
-        setStaticComp(i.asInstanceOf[Bundle], staticComp)
-      }
-    }
-  }
 
   if (compilerControl.pcEnable) {
     val pcOutValid = RegInit(false.B)
@@ -261,46 +276,47 @@ class gComponentLeaf[inT <: Data, outT <: Data](
 }
 
 class gComponent[inT <: Data, outT <: Data](
-  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, () => Data, () => Data)], extCompName: String = ""
+  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
 ) extends gComponentBase(inData, outData)
 {
-  override def clone = { new gComponent(inData, outData, offloadData, extCompName).asInstanceOf[this.type] }
+  override def cloneType = (new gComponent(inData, outData, offloadData, extCompName)).asInstanceOf[this.type]
 
-  val offloadData = offloadData
+  val offBundle = DynamicBundle(offloadData.map((d) => (d._1, { val dBundle = new gOffBundle(d._2, d._3); dBundle.suggestName(d._1); dBundle})))
+  //offBundle.suggestName("off")
+  val io = IO(new gInOutOffBundle(inData, outData, offBundle))
 
-  val off = Bundle(offloadData.map((t) => (t._1, {val tt=new gOffBundle(t._2, t._3); tt.name=t._1; tt})))
-  off.name = "off"
-  io += off
-  name_it()
+  //name_it()
   if (extCompName != "") {
-    name = extCompName + "__class__" + this.getClass.getSimpleName
+    suggestName(extCompName + "__class__" + this.getClass.getSimpleName)
   }
-  println("In module " + name + " ,num of offload ports " + offloadData.size)
+  println("In module " + toNamed + ", num of offload ports " + offloadData.size)
 
-  val elseV = ("nullOff", new gOffBundle(32.U, 32.U))
-  def ioOff = io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
+  //val nullOff = Wire(new Bundle{ val nullOff = new gOffBundle(UInt(32.W), UInt(32.W)) })
+  //val nullOffOff = Wire(new gOffBundle(UInt(32.W), UInt(32.W)))
+  //def ioOff = io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+  def ioOff = io.elements("off").asInstanceOf[Bundle]
 
-  val moduleId = Pcounters.registerModule(name)
+  val moduleId = Pcounters.registerModule(toNamed.toString)
   var pcMuxed = (0).U((Pcounters.PCWIDTH).W)
   val offloadRateArray =
     if (offloadData.size == 0)
-      Vec(1, (Pcounters.PCWIDTH).U)
+      RegInit(VecInit(Seq.fill(1)((0).U((Pcounters.PCWIDTH).W))))
     else
       RegInit(VecInit(Seq.fill(offloadData.size)((0).U((Pcounters.PCWIDTH).W))))
   val pcPaused = RegInit(false.B)
-  val engineUtilization = RegInit((Pcounters.PCWIDTH).U)
-  val inTokens = RegInit((Pcounters.PCWIDTH).U)
-  val outTokens = RegInit((Pcounters.PCWIDTH).U)
+  val engineUtilization = RegInit(0.U((Pcounters.PCWIDTH).W))
+  val inTokens = RegInit(0.U((Pcounters.PCWIDTH).W))
+  val outTokens = RegInit(0.U((Pcounters.PCWIDTH).W))
 
   if (compilerControl.pcEnable) {
-    offloadData.foreach(x => println("Port name is " + x._1))
+    //offloadData.foreach(x => println("Port name is " + x._1))
     val offPCBackPressure =
       if (offloadData.size == 0)
-        Vec(1, (Pcounters.PCWIDTH).U)
+        RegInit(VecInit(Seq.fill(1)((0).U((Pcounters.PCWIDTH).W))))
       else
         RegInit(VecInit(Seq.fill(offloadData.size)((0).U((Pcounters.PCWIDTH).W))))
 
-    //println("Module name is " + name )
+    //println("Module name is " + toNamed.toString)
     var portId = 1 //leave zero for broadcast
     val inPCBackPressure = RegInit((0).U((Pcounters.PCWIDTH).W))
     def getInPCBackPressure = {inPCBackPressure}
@@ -358,8 +374,8 @@ class gComponent[inT <: Data, outT <: Data](
         offPCBackPressure(portId-3) := (0).U((Pcounters.PCWIDTH).W)
       }
       .elsewhen (
-        i.asInstanceOf[gOffBundle[Bundle, Bundle]].req.valid &&
-        !i.asInstanceOf[gOffBundle[Bundle, Bundle]].req.ready && !pcPaused)
+        i.asInstanceOf[gOffBundle[Data, Data]].req.valid &&
+        !i.asInstanceOf[gOffBundle[Data, Data]].req.ready && !pcPaused)
       {
         offPCBackPressure(portId-3) := offPCBackPressure(portId-3) + (1).U((Pcounters.PCWIDTH).W)
       }
@@ -393,19 +409,19 @@ class gComponent[inT <: Data, outT <: Data](
 }
 
 class gComponentGen[inT <: Data, outT <: Data](
-  comp: => gComponent[inT, outT], inData: => inT, outData: => outT,
-  offloadData: ArrayBuffer[(String, () => Data, () => Data)], extCompName: String = ""
+  comp: => gComponent[inT, outT], _inData: => inT, _outData: => outT,
+  _offloadData: ArrayBuffer[(String, Data, Data)], _extCompName: String = ""
 )
 {
-  val inData = inData
-  val outData = outData
-  val offloadData = offloadData
-  val extCompName = extCompName
+  val inData = _inData
+  val outData = _outData
+  val offloadData = _offloadData
+  val extCompName = _extCompName
 
   def apply(): gComponent[inT, outT] = comp
 }
 
-//class gComponentMD[inT <: Data, outT <: Data](inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, () => Data, () => Data)]) {
+//class gComponentMD[inT <: Data, outT <: Data](inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)]) {
 //  val inDataGen = inData
 //  val outDataGen = outData
 //  val offloadDataGen = offloadData
@@ -415,37 +431,39 @@ class gComponentGen[inT <: Data, outT <: Data](
 
 class gChainedComponent[inT <: Data, connT <: Data, outT <: Data](
   inDataSrc: => inT, outDataSrc: => connT, inDataSink: => connT, outDataSink: => outT,
-  offloadData: ArrayBuffer[(String, () => Data, () => Data)],
+  offloadData: ArrayBuffer[(String, Data, Data)],
   srcCompGen: gComponentGen[inT, connT], sinkCompGen: gComponentGen[connT, outT],
   extCompName: String
 ) extends gComponent(inDataSrc, outDataSink, offloadData, extCompName) with GorillaUtil
 {
-  val srcComp = srcCompGen()
-  val sinkComp = sinkCompGen()
+  val srcComp = Module(srcCompGen())
+  val sinkComp = Module(sinkCompGen())
 
-  if (srcComp.parent != this) {
-    srcComp.parent.children -= srcComp
-    srcComp.parent = this
-  }
-  if (!this.children.contains(srcComp))
-    this.children += srcComp
-  if (sinkComp.parent != this) {
-    sinkComp.parent.children -= sinkComp
-    sinkComp.parent = this
-  }
-  if (!this.children.contains(sinkComp))
-    this.children += sinkComp
+  //if (srcComp.parent != this) {
+  //  srcComp.parent.children -= srcComp
+  //  srcComp.parent = this
+  //}
+  //if (!this.children.contains(srcComp))
+  //  this.children += srcComp
+  //if (sinkComp.parent != this) {
+  //  sinkComp.parent.children -= sinkComp
+  //  sinkComp.parent = this
+  //}
+  //if (!this.children.contains(sinkComp))
+  //  this.children += sinkComp
 
-  println("In gChained")
-  printChildren(this)
+  //println("In gChained")
+  //printChildren(this)
 
   io.in <> srcComp.io.in
   io.out <> sinkComp.io.out
   srcComp.io.out <> sinkComp.io.in
   //Connect the offload interfaces of offloaded component to the enclosing
   //component's offload interfaces
-  def sourceOff = srcComp.io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
-  def sinkOff = sinkComp.io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
+  //def sourceOff = srcComp.io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+  def sourceOff = srcComp.io.elements("off").asInstanceOf[Bundle]
+  //def sinkOff = sinkComp.io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+  def sinkOff = sinkComp.io.elements("off").asInstanceOf[Bundle]
   val cOffElements = sinkOff.elements.filter((t) => {
     sourceOff.elements.exists((t1) => {t._1 == t1._1})
   })
@@ -456,41 +474,41 @@ class gChainedComponent[inT <: Data, connT <: Data, outT <: Data](
   for ((n, i) <- ioOff.elements) {
     for ((n1, i1) <- sinkOff.elements) {
       if (n == n1 && !sourceOff.elements.exists((t) => {t._1 == n1})) {
-        i1.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].req
-        i1.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].rep
+        i1.asInstanceOf[gOffBundle[Data, Data]].req <> i.asInstanceOf[gOffBundle[Data, Data]].req
+        i1.asInstanceOf[gOffBundle[Data, Data]].rep <> i.asInstanceOf[gOffBundle[Data, Data]].rep
       }
     }
   }
   for ((n, i) <- ioOff.elements) {
     for ((n1, i1) <- sourceOff.elements) {
       if (n == n1 && !sinkOff.elements.exists((t) => {t._1 == n1})) {
-        i1.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].req
-        i1.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].rep
+        i1.asInstanceOf[gOffBundle[Data, Data]].req <> i.asInstanceOf[gOffBundle[Data, Data]].req
+        i1.asInstanceOf[gOffBundle[Data, Data]].rep <> i.asInstanceOf[gOffBundle[Data, Data]].rep
       }
     }
   }
 
-  val reqArbs = cOffData.map(i => (new gTaggedRRArbiter(2)) {i._2()})
-  val repDists = cOffData.map(i => (new gTaggedDistributor(2)) {i._3()})
+  val reqArbs = cOffData.map(i => new gTaggedRRArbiter(2, i._2))
+  val repDists = cOffData.map(i => new gTaggedDistributor(2, i._3))
   var i = 0
 
   for ((name1, reqInterface, replyInterface) <- cOffData) {
     for ((name, interface) <- ioOff.elements) {
       if (name1 == name) {
-        interface.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> reqArbs(i).io.out
-        interface.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> repDists(i).io.in
+        interface.asInstanceOf[gOffBundle[Data, Data]].req <> reqArbs(i).io.out
+        interface.asInstanceOf[gOffBundle[Data, Data]].rep <> repDists(i).io.in
       }
     }
     for ((name, interface) <- sourceOff.elements) {
       if (name1 == name) {
-        interface.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> reqArbs(i).io.in(0)
-        interface.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> repDists(i).io.out(0)
+        interface.asInstanceOf[gOffBundle[Data, Data]].req <> reqArbs(i).io.in(0)
+        interface.asInstanceOf[gOffBundle[Data, Data]].rep <> repDists(i).io.out(0)
       }
     }
     for ((name, interface) <- sinkOff.elements) {
       if (name1 == name) {
-        interface.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> reqArbs(i).io.in(1)
-        interface.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> repDists(i).io.out(1)
+        interface.asInstanceOf[gOffBundle[Data, Data]].req <> reqArbs(i).io.in(1)
+        interface.asInstanceOf[gOffBundle[Data, Data]].rep <> repDists(i).io.out(1)
       }
     }
     i = i + 1
@@ -504,30 +522,31 @@ class gChainedComponent[inT <: Data, connT <: Data, outT <: Data](
 
 class gOffloadedComponent[inT <: Data, outT <: Data, inOffT <: Data, outOffT <: Data](
   inData: => inT, outData: => outT, inOff: => inOffT, outOff: => outOffT,
-  offloadData: ArrayBuffer[(String, () => Data, () => Data)],
+  offloadData: ArrayBuffer[(String, Data, Data)],
   mainCompGen: gComponentGen[inT, outT], offCompGen: gComponentGen[inOffT, outOffT],
   offPort: String, extCompName: String
 ) extends gComponent(inData, outData, offloadData, extCompName) with GorillaUtil
 {
   //println("This is gOffloadedComponent, offPort is " , offPort)
-  val mainComp = mainCompGen()
-  val offComp = offCompGen()
 
-  if (mainComp.parent != this) {
-    mainComp.parent.children -= mainComp
-    mainComp.parent = this
-  }
-  if (!this.children.contains(mainComp))
-    this.children += mainComp
-  if (offComp.parent != this) {
-    offComp.parent.children -= offComp
-    offComp.parent = this
-  }
-  if (!this.children.contains(offComp))
-    this.children += offComp
+  val mainComp = Module(mainCompGen())
+  val offComp = Module(offCompGen())
 
-  println("In gOffloaded")
-  printChildren(this)
+  //if (mainComp.parent != this) {
+  //  mainComp.parent.children -= mainComp
+  //  mainComp.parent = this
+  //}
+  //if (!this.children.contains(mainComp))
+  //  this.children += mainComp
+  //if (offComp.parent != this) {
+  //  offComp.parent.children -= offComp
+  //  offComp.parent = this
+  //}
+  //if (!this.children.contains(offComp))
+  //  this.children += offComp
+
+  //println("In gOffloaded")
+  //printChildren(this)
 
   //val (left, right) = offloadDataMain.span( _._1 == offPort)
   //if (left.isEmpty) println("Gorilla++ Error: no offloaded port " + offPort + " in module")
@@ -539,21 +558,23 @@ class gOffloadedComponent[inT <: Data, outT <: Data, inOffT <: Data, outOffT <: 
   io.in <> mainComp.io.in
   io.out <> mainComp.io.out
 
-  def mainOff = mainComp.io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
-  def offOff = offComp.io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
+  //def mainOff = mainComp.io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+  def mainOff = mainComp.io.elements("off").asInstanceOf[Bundle]
+  //def offOff = offComp.io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+  def offOff = offComp.io.elements("off").asInstanceOf[Bundle]
   //Connect main component offload interface with argument port name to in/out of the offload component
   //Connect the rest of main component offload interfaces to the enclosing component's offload interfaces
   for ((n, i) <- mainOff.elements) {
-    println("offload name is " + n)
+    //println("offload name is " + n)
     if (n == offPort && i.isInstanceOf[gOffBundle[inOffT, outOffT]]) {
       i.asInstanceOf[gOffBundle[inOffT, outOffT]].req <> offComp.io.in
       i.asInstanceOf[gOffBundle[inOffT, outOffT]].rep <> offComp.io.out
     }
-    else if (i.isInstanceOf[gOffBundle[Bundle, Bundle]]) {
+    else {
       for ((n1, i1) <- ioOff.elements) {
         if (n == n1) {
-          i1.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].req
-          i1.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].rep
+          i1.asInstanceOf[gOffBundle[Data, Data]].req <> i.asInstanceOf[gOffBundle[Data, Data]].req
+          i1.asInstanceOf[gOffBundle[Data, Data]].rep <> i.asInstanceOf[gOffBundle[Data, Data]].rep
         }
       }
     }
@@ -562,8 +583,8 @@ class gOffloadedComponent[inT <: Data, outT <: Data, inOffT <: Data, outOffT <: 
   for ((n, i) <- offOff.elements) {
     for ((n1, i1) <- ioOff.elements) {
       if (n == n1) {
-        i1.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].req
-        i1.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].rep
+        i1.asInstanceOf[gOffBundle[Data, Data]].req <> i.asInstanceOf[gOffBundle[Data, Data]].req
+        i1.asInstanceOf[gOffBundle[Data, Data]].rep <> i.asInstanceOf[gOffBundle[Data, Data]].rep
       }
     }
   }
@@ -581,36 +602,38 @@ class gOffloadedComponentRWPorts[
   inData: => inT, outData: => outT,
   readInOff: => readInOffT, readOutOff: => readOutOffT,
   writeInOff: => writeInOffT, writeOutOff: => writeOutOffT,
-  offloadData: ArrayBuffer[(String, () => Data, () => Data)],
+  offloadData: ArrayBuffer[(String, Data, Data)],
   mainCompGen: gComponentGen[inT, outT], offCompGen: => rwSpMemComponent,
   offPort: String, extCompName: String
 ) extends gComponent(inData, outData, offloadData, extCompName) with GorillaUtil
 {
-  val mainComp = mainCompGen()
-  val offComp = offCompGen
+  val mainComp = Module(mainCompGen())
+  val offComp = Module(offCompGen)
 
-  if (mainComp.parent != this) {
-    mainComp.parent.children -= mainComp
-    mainComp.parent = this
-  }
-  if (!this.children.contains(mainComp))
-    this.children += mainComp
-  if (offComp.parent != this) {
-    offComp.parent.children -= offComp
-    offComp.parent = this
-  }
-  if (!this.children.contains(offComp))
-    this.children += offComp
+  //if (mainComp.parent != this) {
+  //  mainComp.parent.children -= mainComp
+  //  mainComp.parent = this
+  //}
+  //if (!this.children.contains(mainComp))
+  //  this.children += mainComp
+  //if (offComp.parent != this) {
+  //  offComp.parent.children -= offComp
+  //  offComp.parent = this
+  //}
+  //if (!this.children.contains(offComp))
+  //  this.children += offComp
 
   io.in <> mainComp.io.in
   io.out <> mainComp.io.out
 
-  def mainOff = mainComp.io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
-  def offOff = offComp.io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
+  //def mainOff = mainComp.io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+  def mainOff = mainComp.io.elements("off").asInstanceOf[Bundle]
+  //def offOff = offComp.io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+  def offOff = offComp.io.elements("off").asInstanceOf[Bundle]
   //Connect main component offload interface with argument port name to in/out of the offload component
   //Connect the rest of main component offload interfaces to the enclosing component's offload interfaces
   for ((n, i) <- mainOff.elements) {
-    println("offload name is " + n)
+    //println("offload name is " + n)
     if (n == (offPort + "Read") && i.isInstanceOf[gOffBundle[readInOffT, readOutOffT]]) {
       i.asInstanceOf[gOffBundle[readInOffT, readOutOffT]].req <> offComp.io.read.in
       i.asInstanceOf[gOffBundle[readInOffT, readOutOffT]].rep <> offComp.io.read.out
@@ -619,11 +642,11 @@ class gOffloadedComponentRWPorts[
       i.asInstanceOf[gOffBundle[writeInOffT, writeOutOffT]].req <> offComp.io.write.in
       i.asInstanceOf[gOffBundle[writeInOffT, writeOutOffT]].rep <> offComp.io.write.out
     }
-    else if (i.isInstanceOf[gOffBundle[Bundle, Bundle]]) {
+    else {
       for ((n1, i1) <- ioOff.elements) {
         if (n == n1) {
-          i1.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].req
-          i1.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].rep
+          i1.asInstanceOf[gOffBundle[Data, Data]].req <> i.asInstanceOf[gOffBundle[Data, Data]].req
+          i1.asInstanceOf[gOffBundle[Data, Data]].rep <> i.asInstanceOf[gOffBundle[Data, Data]].rep
         }
       }
     }
@@ -634,8 +657,8 @@ class gOffloadedComponentRWPorts[
   //for ((n, i) <- offOff.elements) {
   //  for ((n1, i1) <- ioOff.elements) {
   //    if (n == n1) {
-  //      i1.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].req
-  //      i1.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> i.asInstanceOf[gOffBundle[Bundle, Bundle]].rep
+  //      i1.asInstanceOf[gOffBundle[Data, Data]].req <> i.asInstanceOf[gOffBundle[Data, Data]].req
+  //      i1.asInstanceOf[gOffBundle[Data, Data]].rep <> i.asInstanceOf[gOffBundle[Data, Data]].rep
   //    }
   //  }
   //}
@@ -646,40 +669,40 @@ class gOffloadedComponentRWPorts[
 }
 
 class distributorComponent[T <: Data](n: Int, data: => T) extends Module {
-  val io = new gioDistributor(n, data)
+  val io = IO(new gioDistributor(n, data))
 }
 
 class RRDistributorComponent[T <: Data](n: Int, data: => T) extends distributorComponent(n, data) {
   val rrDist = new gRRDistributor(n, data)
-  name_it()
+  //name_it()
   io <> rrDist.io
 }
 
 class distributorEngine[T <: Data](n: Int, data: => T) extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val out = new gFIFOIO(data)
     val in = Flipped(new gFIFOIO(data))
     val outIndex = Output(UInt((log2Up(n)).W))
-  }
+  })
 }
 
 class aggregatorComponent[T <: Data](n: Int, data: => T) extends Module {
-  val io = new gioArbiter(n, data)
+  val io = IO(new gioArbiter(n, data))
 }
 
 class RRAggregatorComponent[T <: Data](n: Int, data: => T) extends aggregatorComponent(n, data) {
   val rrArb = new gRRArbiter(n, data)
-  rrArb.name_it()
-  name_it()
+  //rrArb.name_it()
+  //name_it()
   io <> rrArb.io
 }
 
 class aggregatorEngine[T <: Data](n: Int, data: => T) extends Module {
-  val io = new Bundle {
+  val io = IO(new Bundle {
     val out = Flipped(new gFIFOIO(data))
     val in = new gFIFOIO(data)
     val inIndex = Output(UInt((log2Up(n)).W))
-  }
+  })
 }
 
 class pDistributor[T <: Data](n: Int, data: => T,
@@ -714,7 +737,7 @@ class pDistributor[T <: Data](n: Int, data: => T,
 //}
 
 //class gReplicatedComponentDistAgg[inT <: Data, outT <: Data](
-//  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, () => Data, () => Data)],
+//  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)],
 //  compGen: gComponentGen[inT, outT], n: Int,
 //  distributorGen: (Int, => inT) => distributorComponent[inT],
 //  aggregatorGen: (Int, => outT) => aggregatorComponent[outT]
@@ -722,33 +745,34 @@ class pDistributor[T <: Data](n: Int, data: => T,
 //{}
 
 class gReplicatedComponent[inT <: Data, outT <: Data](
-  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, () => Data, () => Data)],
+  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)],
   compGen: gComponentGen[inT, outT], n: Int, extCompName: String
 ) extends gComponent(inData, outData, offloadData, extCompName) with GorillaUtil
 {
-  val components = Range(0, n).map(i => compGen())
-  components.foreach(i => {
-    if (i.parent != this) {
-      i.parent.children -= i
-      i.parent = this
-    }
-    if (!this.children.contains(i))
-      this.children += i
-  })
+  val components = Range(0, n).map(i => Module(compGen()))
+  //components.foreach(i => {
+  //  if (i.parent != this) {
+  //    i.parent.children -= i
+  //    i.parent = this
+  //  }
+  //  if (!this.children.contains(i))
+  //    this.children += i
+  //})
 
   //val inputDist = distributorGen(n, inData)
   val inputDist = (new RRDistributorComponent(n, inData))
   val outputArb = (new RRAggregatorComponent(n, outData))
-  outputArb.name_it()
+  //outputArb.name_it()
   //val outputArb = aggregatorGen(n, outData)
-  val reqArbs = offloadData.map(i => (new gTaggedRRArbiter(n)) {i._2()})
-  //val reqArbs = offloadData.map(i => (new gRRArbiter(n)) {i._2()})
-  val repDists = offloadData.map(i => (new gTaggedDistributor(n)) {i._3()})
+  val reqArbs = offloadData.map(i => new gTaggedRRArbiter(n, i._2))
+  //val reqArbs = offloadData.map(i => new gRRArbiter(n, i._2))
+  val repDists = offloadData.map(i => new gTaggedDistributor(n, i._3))
+  //val repDists = offloadData.map(i => new gRRDistributor(n, i._3))
   //val repDists = offloadData.map(i => (new gRRDistributor(n)) {i._3()})
-  reqArbs.foreach(i => i.name_it())
+  //reqArbs.foreach(i => i.name_it())
 
-  println("In gReplicated")
-  printChildren(this)
+  //println("In gReplicated")
+  //printChildren(this)
 
   //offloadData.map(i => Range(0, n-1).map(reqArbs(i).in(j) := components(j)
   io.in <> inputDist.io.in
@@ -757,39 +781,43 @@ class gReplicatedComponent[inT <: Data, outT <: Data](
   Range(0, n).foreach(i => outputArb.io.in(i) <> components(i).io.out)
 
   var i = 0
-  //val elseV = ("nullOff", new gOffBundle(() => (32).U, () => (32).U))
-  def cOff = io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
+  //def cOff = io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+  def cOff = io.elements("off").asInstanceOf[Bundle]
 
   for ((name, interface) <- cOff.elements) {
-    interface.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> reqArbs(i).io.out
-    interface.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> repDists(i).io.in
+    interface.asInstanceOf[gOffBundle[Data, Data]].req <> reqArbs(i).io.out
+    interface.asInstanceOf[gOffBundle[Data, Data]].rep <> repDists(i).io.in
     i = i + 1
   }
 
   for (j <- 0 until n) {
     i = 0
-    val elseV = ("nullOff", new gOffBundle(() => (32).U, () => (32).U))
-    def cOff = components(j).io.elements.find(_._1 == "off").getOrElse(elseV)._2.asInstanceOf[Bundle]
+    //def cOff = components(j).io.elements.getOrElse("off", nullOff).asInstanceOf[Bundle]
+    def cOff = components(j).io.elements("off").asInstanceOf[Bundle]
     //Chain the performance counter interfaces
     if (j > 0) {
-      def pcIn = components(j).io.elements.find(_._1 == "pcIn").getOrElse(elseV)._2.asInstanceOf[Bundle]
-      def pcOutPrevious = components(j-1).io.elements.find(_._1 == "pcOut").getOrElse(elseV)._2.asInstanceOf[Bundle]
+      //def pcIn = components(j).io.elements.getOrElse("pcIn", nullOff).asInstanceOf[Bundle]
+      def pcIn = components(j).io.elements("pcIn").asInstanceOf[Bundle]
+      //def pcOutPrevious = components(j-1).io.elements.getOrElse("pcOut", nullOff).asInstanceOf[Bundle]
+      def pcOutPrevious = components(j-1).io.elements("pcOut").asInstanceOf[Bundle]
       pcIn <> pcOutPrevious
     }
     for ((name, interface) <- cOff.elements) {
-      if (interface.isInstanceOf[gOffBundle[Bundle, Bundle]]) {
-        interface.asInstanceOf[gOffBundle[Bundle, Bundle]].req <> reqArbs(i).io.in(j)
-        interface.asInstanceOf[gOffBundle[Bundle, Bundle]].rep <> repDists(i).io.out(j)
-      }
+      //if (interface.isInstanceOf[gOffBundle[Data, Data]]) {
+        interface.asInstanceOf[gOffBundle[Data, Data]].req <> reqArbs(i).io.in(j)
+        interface.asInstanceOf[gOffBundle[Data, Data]].rep <> repDists(i).io.out(j)
+      //}
       i = i + 1
     }
   }
 
   //Attached the first component pc input to the main pc input
-  def pcIn0 = components(0).io.elements.find(_._1 == "pcIn").getOrElse(elseV)._2.asInstanceOf[Bundle]
+  //def pcIn0 = components(0).io.elements.getOrElse("pcIn", nullOff).asInstanceOf[Bundle]
+  def pcIn0 = components(0).io.elements("pcIn").asInstanceOf[Bundle]
   io.pcIn <> pcIn0
   //Attached the last component pc out to the main pc output
-  def pcOutN = components(n-1).io.elements.find(_._1 == "pcOut").getOrElse(elseV)._2.asInstanceOf[Bundle]
+  //def pcOutN = components(n-1).io.elements.getOrElse("pcOut", nullOff).asInstanceOf[Bundle]
+  def pcOutN = components(n-1).io.elements("pcOut").asInstanceOf[Bundle]
   io.pcOut <> pcOutN
 }
 
@@ -811,11 +839,11 @@ object Pcounters {
     elements.count(e => e.moduleId == moduleIDs.getOrElse(moduleName, 0) && e.pcType == backPressure)-2
   }
   def registerPC(name: String, pcType: UInt, moduleId: Int, portId: Int) {
-    elements = elements + new PcElement(name, pcType, moduleId, portId)
-    println("PCREPORT: PC is registered name: " + name + " type " + pcType.litValue().intValue() + " moduleId " + moduleId + " portId " + portId)
+    elements += new PcElement(name, pcType, moduleId, portId)
+    //println("PCREPORT: PC is registered name: " + name + " type " + pcType.litValue().intValue() + " moduleId " + moduleId + " portId " + portId)
   }
   def registerModule(name: String) = {
-    println("PCREPORT: module " + name + " registered for pc moduleId is " + moduleId)
+    //println("PCREPORT: module " + name + " registered for pc moduleId is " + moduleId)
     moduleIDs += (name -> moduleId)
     moduleId = moduleId + 1
     moduleId - 1
@@ -829,17 +857,17 @@ trait TagTrait {
 }
 
 trait GorillaUtil extends TagTrait {
-  def updateElementsCache(bundle: Bundle, field: Data, fieldName: String): Unit = {
-    if (bundle.elementsCache != null) {
-    var i = bundle.elementsCache.findIndexOf(x => x._1 == fieldName)
-      if (i == -1) {
-        println("Gorilla++Error: bundle does not have field " + fieldName)
-      }
-      bundle.elementsCache.update(i, (fieldName, field))
-    }
-  }
+  //def updateElementsCache(bundle: Bundle, field: Data, fieldName: String): Unit = {
+  //  if (bundle.elementsCache != null) {
+  //  var i = bundle.elementsCache.findIndexOf(x => x._1 == fieldName)
+  //    if (i == -1) {
+  //      println("Gorilla++Error: bundle does not have field " + fieldName)
+  //    }
+  //    bundle.elementsCache.update(i, (fieldName, field))
+  //  }
+  //}
 
-  def mergeOffloads(offloadData1: ArrayBuffer[(String, () => Data, () => Data)], offloadData2: ArrayBuffer[(String, () => Data, () => Data)]) = {
+  def mergeOffloads(offloadData1: ArrayBuffer[(String, Data, Data)], offloadData2: ArrayBuffer[(String, Data, Data)]) = {
     val offNames1 = offloadData1.map((t) => t._1).toSet
     val offNames2 = offloadData2.map((t) => t._1).toSet
     val offloadData1Minus2 = offloadData1.filter((t) => {
@@ -854,14 +882,14 @@ trait GorillaUtil extends TagTrait {
     bGen: gComponentGen[Data, Data]
   ): gComponentGen[Data, Data] =
   {
-    val extCompName = extCompName + "__type__chained__"
+    val newExtCompName = extCompName + "__type__chained__"
     val inData = aGen.inData
     val outData = bGen.outData
     val offloadData = mergeOffloads(aGen.offloadData, bGen.offloadData)
 
-    new gComponentGen[inData, outData](
-      new gChainedComponent(aGen.inData, aGen.outData, bGen.inData, bGen.outData, offloadData, aGen, bGen, extCompName),
-      inData, outData, offloadData, extCompName
+    new gComponentGen(
+      new gChainedComponent(aGen.inData, aGen.outData, bGen.inData, bGen.outData, offloadData, aGen, bGen, newExtCompName),
+      inData, outData, offloadData, newExtCompName
     )
   }
   def Chain(
@@ -891,35 +919,35 @@ trait GorillaUtil extends TagTrait {
     offPort: String
   ): gComponentGen[inT, outT] =
   {
-    val (left, right) = main.offloadData.span(_._1 != offPort)
+    val (left, right) = mainGen.offloadData.span(_._1 != offPort)
 
-    println("Offload called for port " + offPort)
-    println("main offlaod ports are")
-    mainGen.offloadData.foreach(x => println(x._1))
-    println("left offlaod ports are")
-    left.foreach(x => println(x._1))
-    println("right offlaod ports are")
-    right.foreach(x => println(x._1))
+    //println("Offload called for port " + offPort)
+    //println("main offlaod ports are")
+    //mainGen.offloadData.foreach(x => println(x._1))
+    //println("left offlaod ports are")
+    //left.foreach(x => println(x._1))
+    //println("right offlaod ports are")
+    //right.foreach(x => println(x._1))
 
     val restOfOffloadedDataMain = {if (right.isEmpty) left else left ++ right.tail}
 
-    println("in Offload main offPorts is ")
-    mainGen.offloadData.foreach(x => println(x._1))
-    println("in Offload offload offPorts is ")
-    offGen.offloadData.foreach(x => println(x._1))
+    //println("in Offload main offPorts is ")
+    //mainGen.offloadData.foreach(x => println(x._1))
+    //println("in Offload offload offPorts is ")
+    //offGen.offloadData.foreach(x => println(x._1))
 
     val offOff = mergeOffloads(restOfOffloadedDataMain, offGen.offloadData)
-    println("merged offlaod ports are")
-    offOff.foreach(x => println(x._1))
+    //println("merged offlaod ports are")
+    //offOff.foreach(x => println(x._1))
 
-    val extCompName = extCompName + "__type__offloaded__" + offPort
+    val newExtCompName = extCompName + "__type__offloaded__" + offPort
 
-    new gComponentGen[inData, outData](
+    new gComponentGen(
       new gOffloadedComponent(
         mainGen.inData, mainGen.outData, offGen.inData, offGen.outData, offOff,
-        mainGen, offGen, offPort, extCompName
+        mainGen, offGen, offPort, newExtCompName
       ),
-      mainGen.inData, mainGen.outData, offOff, extCompName
+      mainGen.inData, mainGen.outData, offOff, newExtCompName
     )
   }
   //def Offload[
@@ -928,8 +956,8 @@ trait GorillaUtil extends TagTrait {
   //  writeInOffT<: Data, writeOutOffT<: Data
   //](
   //  extCompName: String,
-  //  a: (gComponentMD[inT, outT], () => gComponent[inT, outT]),
-  //  b: (gComponentMD[readInOffT, readOutOffT], gComponentMD[writeInOffT, writeOutOffT], () => rwSpMemComponent),
+  //  a: (gComponentMD[inT, outT], gComponent[inT, outT]),
+  //  b: (gComponentMD[readInOffT, readOutOffT], gComponentMD[writeInOffT, writeOutOffT], rwSpMemComponent),
   //  offPort: String
   //) =
   //{
@@ -941,9 +969,9 @@ trait GorillaUtil extends TagTrait {
   //  val res = () =>
   //    new gOffloadedComponentRWPorts(a._1.inDataGen) (a._1.outDataGen) (b._1.inDataGen) (b._1.outDataGen) (b._2.inDataGen) (b._2.outDataGen) (offoff) (a._2) (b._3) (offPort) (extCompName + "__type__offloaded__" + offPort)
 
-  //  (new gComponentMD(a._1.inDataGen, a._1.outDataGen, offoff).asInstanceOf[gComponentMD[Data, Data]], res.asInstanceOf[() => gComponent[Data, Data]])
+  //  (new gComponentMD(a._1.inDataGen, a._1.outDataGen, offoff).asInstanceOf[gComponentMD[Data, Data]], res.asInstanceOf[gComponent[Data, Data]])
   //}
-  def Offload(
+  def Offload[inT <: Data, outT <: Data](
     extCompName: String,
     mainGen: gComponentGen[inT, outT],
     offGens: (gComponentGen[Data, Data], String)*
@@ -953,10 +981,10 @@ trait GorillaUtil extends TagTrait {
   }
   //def Offload(
   //  extCompName: String,
-  //  a: (gComponentMD[Data, Data], () => gComponent[Data, Data]),
-  //  b: ArrayBuffer[((gComponentMD[Data, Data], gComponentMD[Data, Data], () => rwSpMemComponent), String)]
+  //  a: (gComponentMD[Data, Data], gComponent[Data, Data]),
+  //  b: ArrayBuffer[((gComponentMD[Data, Data], gComponentMD[Data, Data], rwSpMemComponent), String)]
   //):
-  //  (gComponentMD[Data, Data], () => gComponent[Data, Data]) =
+  //  (gComponentMD[Data, Data], gComponent[Data, Data]) =
   //{
   //  b.foldLeft (a) {(x,y) => Offload(x, y._1, y._2, extCompName + "__type__offloaded__" + y._2)}
   //}
@@ -967,24 +995,24 @@ trait GorillaUtil extends TagTrait {
     n: Int
   ): gComponentGen[inT, outT] =
   {
-    val extCompName = extCompName + "__type__replicated__"
+    val newExtCompName = extCompName + "__type__replicated__"
 
-    new gComponentGen[inT, outT](
+    new gComponentGen(
       new gReplicatedComponent(
-        compGen.inData, compGen.outData, compGen.offloadData, compGen, n, extCompName
+        compGen.inData, compGen.outData, compGen.offloadData, compGen, n, newExtCompName
       ),
-      compGen.inData, compGen.outData, compGen.offloadData, extCompName
+      compGen.inData, compGen.outData, compGen.offloadData, newExtCompName
     )
   }
 
   val broadcastDistribute = (255).U
 
-  def printChildren(p: Module) {
-    p.children.foreach(c => {
-      println("Design hierarchy --- parent " + p.name + " child " + c.name)
-      printChildren(c)
-    })
-  }
+  //def printChildren(p: Module) {
+  //  p.children.foreach(c => {
+  //    println("Design hierarchy --- parent " + p.name + " child " + c.name)
+  //    printChildren(c)
+  //  })
+  //}
 
   //def printPC(p: Module) {
   //  if (compilerControl.pcEnable) {

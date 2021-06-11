@@ -95,13 +95,13 @@ while (my $line = <INPUT>) {
     $first_state = $first_instr . "PRegSS";
   }
   $line =~ s/(.*)#FIRST_STATE(.*)/$1$first_state$2/g;
-  $line =~ s/(.*)#IO(.*)/$1 $io $2/g;
+  $line =~ s/(.*)#IO(.*)/$1$io$2/g;
   $line =~ s/(.*)#NUM_OF_THREADS(.*)/$1$numOfThreads$2/g;
 
   if ($line =~ /#DUMP_FILE\W*(\w*.magillac)/){
     open FILE, "<", $1 or die "can not open file" . $1;
     while (my $file_line = <FILE>) {
-      print "   " . $file_line;
+      print "  " . $file_line;
     } 
   }
 		

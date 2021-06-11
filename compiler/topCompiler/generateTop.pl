@@ -104,6 +104,7 @@ sub compile_engine {
     `cp ../../../compiler/engineCompiler/$compileType/genericHeader ./$mhName.scala`;
     `cat ../../../compiler/engineCompiler/$compileType/definition.magillac >> ./$mhName.scala`;
   } 
+  `../../../compiler/scripts/chisel_migrate.py $mhName.scala`;
 }
 ###################### Create the macro file ################
 `cp  ../../../compiler/engineCompiler/$headersCompileType/genericHeader macros.scala`;
@@ -175,33 +176,36 @@ foreach $line (@file_line_array) {
     $ioString = $ioStrings{$engineName};
     $ioString =~ s/\((.*)\)\((.*)\) \((.*)\)/\($1, $2, $3\)/; 
     if (!exists($generatedMD{$engineName})) {
-      print  "  val " . $engineName . "_MD =" .  " new gComponentMD" . $ioString . "\n"; 
+      #print  "  val " . $engineName . "_MD =" .  " new gComponentMD" . $ioString . "\n";
       $generatedMD{$engineName} = 1;
     }
-    $engine_MD = $engineName . "_MD";
-    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Engine\(\"(.*)\.c\"\)(.*)/$1$2 $3 =  ($engine_MD , () => new $engineName (extCompName=\"$3\") ).asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], () => gComponent[Chisel.Data,Chisel.Data])]/;
-    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*MTEngine\(\"(.*)\.c\"\,\W*\w*\W*\)(.*)/$1$2 $3 =  ($engine_MD , () => new $engineName (extCompName=\"$3\")).asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], () => gComponent[Chisel.Data,Chisel.Data])]/;
+    #$engine_MD = $engineName . "_MD";
+    #$line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Engine\(\"(.*)\.c\"\)(.*)/$1$2 $3 =  ($engine_MD , new $engineName (extCompName=\"$3\") ).asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], gComponent[Chisel.Data,Chisel.Data])]/;
+    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Engine\(\"(.*)\.c\"\)(.*)/$1$2$3 = new gComponentGen(new $engineName(\"$3\"), $ioString, \"$3\")/;
+    #$line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*MTEngine\(\"(.*)\.c\"\,\W*\w*\W*\)(.*)/$1$2 $3 =  ($engine_MD , new $engineName (extCompName=\"$3\")).asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], gComponent[Chisel.Data,Chisel.Data])]/;
+    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*MTEngine\(\"(.*)\.c\"\,\W*\w*\W*\)(.*)/$1$2$3 = new gComponentGen(new $engineName(\"$3\"), $ioString, \"$3\")/;
 
 ###Pipeline compiler Active
-    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*PipeEngine\(\"(.*)\.c\"\)(.*)/$1$2 $3 =  ($engine_MD , () => new $engineName (extCompName=\"$3\")).asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], () => gComponent[Chisel.Data,Chisel.Data])]/;
-
+    #$line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*PipeEngine\(\"(.*)\.c\"\)(.*)/$1$2 $3 =  ($engine_MD , new $engineName (extCompName=\"$3\")).asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], gComponent[Chisel.Data,Chisel.Data])]/;
+    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*PipeEngine\(\"(.*)\.c\"\)(.*)/$1$2$3 = new gComponentGen(new $engineName(\"$3\"), $ioString, \"$3\")/;
   }
   if ($line =~ /(\W*)(\w+)?\b(\w+)\W*=\W*DummyPipeEngine\(\W*(\w*)\W*\)(.*)/) {
     $pipeDef = "gPipe(" . $4 . ")";   
-    $line = "$1$2 $3 =  ($3" . "_MD , () => (new $pipeDef)).asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], () => gComponent[Chisel.Data,Chisel.Data])]\n";
+    #$line = "$1$2 $3 =  ($3" . "_MD , (new $pipeDef)).asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], gComponent[Chisel.Data,Chisel.Data])]\n";
+    $line = "$1$2$3 = new $pipeDef\n";
   }
   if ($line =~ /.*Offload.*/) {
-    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Offload\((.*)\)/$1$2 $3 = Offload \($4, extCompName="$3")/;
+    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Offload\((.*)\)/$1$2$3 = Offload\("$3", $4)/;
   }
   if ($line =~ /.*Chain.*/) {
-    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Chain\((.*)\)/$1$2 $3 = Chain \($4, extCompName="$3")/;
+    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Chain\((.*)\)/$1$2$3 = Chain\("$3", $4)/;
   }
   if ($line =~ /.*Replicate.*/) {
-    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Replicate\((.*)\)/$1$2 $3 = Replicate \($4, extCompName="$3")/;
+    $line =~ s/(\W*)(\w+)?\b(\w+)\W*=\W*Replicate\((.*)\)/$1$2$3 = Replicate\("$3", $4)/;
   }
   if ($line =~ /.*val +result.*/ && ! ($line =~ /\/\/.*/)) {
      print $line;
-     print "  val generatedTop = result._2()\n";
+     print "  val generatedTop = Module(result())\n";
      print "  generatedTop.io <> io\n";
   } else {
      print $line;
