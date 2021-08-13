@@ -156,7 +156,7 @@ generateTop: $(generatedCompositions)
 	rm -f $< 
 
 PrepareChiselCompile:	
-	echo -n "\n\n\n" >> Top.scala
+	printf "\n\n\n" >> Top.scala
 	cat ../src/test/TopTest.scala >> Top.scala
 	cd ../../../chisel/Gorilla++/emulator; make rm
 	cp *.scala ../../../chisel/Gorilla++/src/main/scala/

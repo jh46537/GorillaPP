@@ -123,10 +123,15 @@ scope Symbols {
 
     int end = s.indexOf("(");
     if (end != -1) {
-      return s.substring(0, end);
-    } else {
-      return s;
+      s = s.substring(0, end);
     }
+
+    int start = s.indexOf("new");
+    if (start != -1) {
+      s = s.substring(start + 4, s.length());
+    }
+
+    return s;
   }
 
   String c2ChiselType(String type) {
@@ -589,8 +594,9 @@ external_declaration
                 offPort + "_valid_received(rThread) && (" + 
                 OffValidString + ")\n"; 
                $Symbols::combinationalString += offPort + 
-                "Port.req.bits := MuxCase(UFix(0, 32)," + 
-                "Seq(" + OffReqString + "))" + "\n";
+                "Port.req.bits := MuxCase(Reg(" + $Symbols::offloadPortsReqType.get(offPort) + ")," + 
+                //"Seq(" + OffReqString.substring(0, OffReqString.length() - 1) + ".asUInt)))\n";
+                "Seq(" + OffReqString + "))\n";
               }
  	    });
 
@@ -742,15 +748,15 @@ off_pragma
          c2ChiselType($rep_type.text));
         if ($Symbols::firstOffload) {
 	      $Symbols::ioString += 
-            "(\"" + $offPort.text  + "\", " +
+            "(\"" + $offPort.text + "\", " +
             c2ChiselType($req_type.text) + 
-            " , " + c2ChiselType($rep_type.text) + ")";
+            ", " + c2ChiselType($rep_type.text) + ")";
           $Symbols::firstOffload = false;
         } else {
           $Symbols::ioString += 
-           ", (\"" + $offPort.text  + "\", " +
+           ", (\"" + $offPort.text + "\", " +
            c2ChiselType($req_type.text) + 
-           " , " + c2ChiselType($rep_type.text) + ")";
+           ", " + c2ChiselType($rep_type.text) + ")";
         }
       }
 	};
@@ -897,7 +903,7 @@ offload_expression
           $Symbols::OffValidString.put($offId.text, 
           $Symbols::OffValidString.get($offId.text) + " || ");
           $Symbols::OffReqString.put($offId.text, 
-          $Symbols::OffReqString.get($offId.text) + " , ");
+          $Symbols::OffReqString.get($offId.text) + ", ");
         }
         $Symbols::OffValidString.put($offId.text, 
          $Symbols::OffValidString.get($offId.text) + 
@@ -1005,8 +1011,8 @@ variable_in_def
               if (c2ChiselType($Symbols::typeName).contains("new")) {
                 //It is a bundle
                 $Symbols::definitionString += 
-                 ("val " + $variable.text + " = new " + 
-                 $Symbols::typeName + "\n");
+                 ("val " + $variable.text + " = Wire(new " + 
+                 $Symbols::typeName + ")\n");
               }  
             } else if ($Symbols::isHeaderFile) {
 	      $Symbols::definitionString +=  
@@ -1173,7 +1179,7 @@ and_expression
 	;
 equality_expression
 	: relational_expression (('=='{outString("===");}|
-          '!='{outString("!=");}) relational_expression)*
+          '!='{outString("=/=");}) relational_expression)*
 	;
 
 relational_expression
@@ -1205,15 +1211,9 @@ multiplicative_expression
 cast_expression
 	: '(' type_name {
             $Symbols::isCasted = true;
-            outString("(" + 
-             c2ChiselType($type_name.text) +
-             ")" +  ".fromBits(Bits(0, width=(" + 
-             c2ChiselType($type_name.text) + 
-             ").getWidth) | " +
-             "(");
           } ')' 
           cast_expression { 
-            outString(").toBits)");
+            outString(".asTypeOf(" + c2ChiselType($type_name.text) + ")");
           }
 	  | unary_expression
 	;
@@ -1314,9 +1314,9 @@ array_index_high
 	:DECIMAL_LITERAL;
 */
 constant
-    :   hl=HEX_LITERAL {outString("UFix(" + hex2decimal($hl.text.substring(2)) + ", width = 32)");}
+    :   hl=HEX_LITERAL {outString("UFix(" + hex2decimal($hl.text.substring(2)) + ")");}
     |   OCTAL_LITERAL
-    |   dl=DECIMAL_LITERAL {outString("UFix(" + $dl.text + ", width = 32)");}
+    |   dl=DECIMAL_LITERAL {outString("UFix(" + $dl.text + ")");}
     |	CHARACTER_LITERAL
     |	STRING_LITERAL
     |   BINARY_LITERAL 

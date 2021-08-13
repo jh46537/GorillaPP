@@ -97,10 +97,15 @@ scope Symbols {
 
     int end = s.indexOf("(");
     if (end != -1) {
-      return s.substring(0, end);
-    } else {
-      return s;
+      s = s.substring(0, end);
     }
+
+    int start = s.indexOf("new");
+    if (start != -1) {
+      s = s.substring(start + 4, s.length());
+    }
+
+    return s;
   }
 
   String C2ChiselType(String type) {
@@ -594,8 +599,8 @@ scope Symbols {
       // we declare it here and later we dont define it at first def site
       if (C2ChiselType($Symbols::typeName).contains("new")) {
         //It is a bundle
-        $Symbols::definitionString += ("val " + variableString + " = new " + 
-         $Symbols::typeName + "\n");
+        $Symbols::definitionString += ("val " + variableString + " = Wire(new " + 
+         $Symbols::typeName + ")\n");
       }   
     } else if ($Symbols::isHeaderFile) {
       $Symbols::definitionString +=  
@@ -627,7 +632,7 @@ scope Symbols {
        "val " + offPort + "Port" + offPort+
        //" = myOff.asInstanceOf[Bundle].elements." +
        //"getOrElse(\"" + offPort + "\", nullOff)." +
-       " = myOff.asInstanceOf[Bundle].elements(\"" + offPort "\")."
+       " = myOff.asInstanceOf[Bundle].elements(\"" + offPort + "\")." +
        "asInstanceOf[gOffBundle[" +
        chisel2GeneralChiselType($Symbols::offloadPortsReqType.get(offPort)) + ", " +
        chisel2GeneralChiselType($Symbols::offloadPortsRepType.get(offPort)) + "]]\n";
@@ -654,8 +659,9 @@ scope Symbols {
        "ValidReceived(" + $Symbols::instrOfOffload.get(offPort) + "RThread) && (" + 
        OffValidString + ")\n"; 
       $Symbols::combinationalString += offPort + 
-       "Port.req.bits := MuxCase(UFix(0, 32)," + 
-       "Seq(" + OffReqString + "))\n";  
+       "Port.req.bits := MuxCase(Reg(" + $Symbols::offloadPortsReqType.get(offPort) + ")," + 
+       //"Seq(" + OffReqString.substring(0, OffReqString.length() - 1) + ".asUInt)))\n";  
+       "Seq(" + OffReqString + "))\n";
     }
   }
 
@@ -772,7 +778,7 @@ scope Symbols {
       $Symbols::OffValidString.put(offIdString, 
        $Symbols::OffValidString.get(offIdString) + " || ");
       $Symbols::OffReqString.put(offIdString, 
-       $Symbols::OffReqString.get(offIdString) + " , ");
+       $Symbols::OffReqString.get(offIdString) + ", ");
     }
     $Symbols::OffValidString.put(offIdString, 
      $Symbols::OffValidString.get(offIdString) + 
@@ -807,13 +813,13 @@ scope Symbols {
       $Symbols::offloadPortsRepType.put(offPortString, C2ChiselType(repTypeString));
       if ($Symbols::firstOffload) {
         $Symbols::ioString += 
-         "(\"" + offPortString  + "\", " + C2ChiselType(reqTypeString) +
-         " , " + C2ChiselType(repTypeString) + ")";
+         "(\"" + offPortString + "\", " + C2ChiselType(reqTypeString) +
+         ", " + C2ChiselType(repTypeString) + ")";
         $Symbols::firstOffload = false;
       } else {
         $Symbols::ioString += 
-         ", (\"" + offPortString  + "\", " + C2ChiselType(reqTypeString) +
-         " , " + C2ChiselType(repTypeString) + ")";
+         ", (\"" + offPortString + "\", " + C2ChiselType(reqTypeString) +
+         ", " + C2ChiselType(repTypeString) + ")";
       }
     }
   }
@@ -1448,7 +1454,7 @@ and_expression
   : equality_expression ('&' {outString("&");}equality_expression)*
   ;
 equality_expression
-  : relational_expression (('=='{outString("===");}|'!='{outString("!=");}) 
+  : relational_expression (('=='{outString("===");}|'!='{outString("=/=");}) 
     relational_expression)*
   ;
 
@@ -1533,9 +1539,9 @@ bv_index_high
 */
 constant
     : hl=HEX_LITERAL 
-      {outString("UFix(" + hex2decimal($hl.text.substring(2)) + ", width = 32)");}
+      {outString("UFix(" + hex2decimal($hl.text.substring(2)) + ")");}
       | OCTAL_LITERAL
-      | dl=DECIMAL_LITERAL {outString("UFix(" + $dl.text + ", width = 32)");}
+      | dl=DECIMAL_LITERAL {outString("UFix(" + $dl.text + ")");}
       | CHARACTER_LITERAL
       |  STRING_LITERAL
       |   BINARY_LITERAL 

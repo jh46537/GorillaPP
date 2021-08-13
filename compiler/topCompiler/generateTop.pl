@@ -127,6 +127,7 @@ foreach $hFile (@headerFiles) {
 }
 ###################
 `echo "}" >> macros.scala`;
+`../../../compiler/scripts/chisel_migrate.py macros.scala`;
 
 ################# Find the engines ###################
 @engineFileNames = ();

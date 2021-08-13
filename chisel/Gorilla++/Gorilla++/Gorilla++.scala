@@ -192,13 +192,32 @@ class gFIFOIOND[T <: Data](data: => T) extends Bundle with TagTrait {
   override def cloneType = (new gFIFOIOND(data)).asInstanceOf[this.type]
 }
 
-class gInOutBundle[inT <: Data, outT <: Data](inData: => inT, outData: => outT) extends Bundle {
+class gInOutBundle[inT <: Data, outT <: Data](
+  inData: => inT, outData: => outT
+) extends Bundle {
   val in = Flipped(new gFIFOIO(inData))
   val out = new gFIFOIO(outData)
   val pcIn = Flipped(Valid(new PcBundle))
   val pcOut = Valid(new PcBundle)
 
   override def cloneType = (new gInOutBundle(inData, outData)).asInstanceOf[this.type]
+}
+
+class gRWInOutBundle[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWriteT <: Data](
+  inReadData: => inReadT, inWriteData: => inWriteT, outReadData: => outReadT, outWriteData: => outWriteT
+) extends Bundle {
+  val read = new Bundle {
+    val in = Flipped(new gFIFOIO(inReadData))
+    val out = new gFIFOIO(outReadData)
+  }
+  val write = new Bundle {
+    val in = Flipped(new gFIFOIO(inWriteData))
+    val out = new gFIFOIO(outWriteData)
+  }
+  val pcIn = Flipped(Valid(new PcBundle))
+  val pcOut = Valid(new PcBundle)
+
+  override def cloneType = (new gRWInOutBundle(inReadData, inWriteData, outReadData, outWriteData)).asInstanceOf[this.type]
 }
 
 class gOffBundle[inT <: Data, outT <: Data](reqData: => inT, repData: => outT) extends Bundle {
@@ -215,7 +234,10 @@ class gOffBundleND[inT <: Data, outT <: Data](reqData: => inT, repData: => outT)
   override def cloneType = (new gOffBundleND(reqData, repData)).asInstanceOf[this.type]
 }
 
-class gInOutOffBundle[inT <: Data, outT <: Data](inData: => inT, outData: => outT, offBundle: => DynamicBundle = DynamicBundle())
+class gInOutOffBundle[inT <: Data, outT <: Data](
+  inData: => inT, outData: => outT,
+  offBundle: => DynamicBundle = DynamicBundle()
+)
   extends gInOutBundle(inData, outData)
 {
   val off = offBundle
@@ -223,7 +245,21 @@ class gInOutOffBundle[inT <: Data, outT <: Data](inData: => inT, outData: => out
   override def cloneType = (new gInOutOffBundle(inData, outData, offBundle)).asInstanceOf[this.type]
 }
 
-abstract class gComponentBase[inT <: Data, outT <: Data](inData: => inT, outData: => outT) extends Module with GorillaUtil {
+class gRWInOutOffBundle[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWriteT <: Data](
+  inReadData: => inReadT, inWriteData: => inWriteT, outReadData: => outReadT, outWriteData: => outWriteT,
+  offBundle: => DynamicBundle = DynamicBundle()
+)
+  extends gRWInOutBundle(inReadData, inWriteData, outReadData, outWriteData)
+{
+  val off = offBundle
+
+  override def cloneType = (new gRWInOutOffBundle(inReadData, inWriteData, outReadData, outWriteData, offBundle)).asInstanceOf[this.type]
+}
+
+abstract class gComponentBase()
+//abstract class gComponentBase[inT <: Data, outT <: Data](inData: => inT, outData: => outT)
+  extends Module with include
+{
   //val io = IO(new gInOutBundle(inData, outData))
 
   def cloneType: this.type
@@ -239,9 +275,11 @@ class PcBundle extends Bundle {
 }
 
 class gComponentLeaf[inT <: Data, outT <: Data](
-  inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
+  inData: => inT, outData: => outT,
+  offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
 ) extends gComponent(inData, outData, offloadData, extCompName)
 {
+  override def cloneType = (new gComponentLeaf(inData, outData, offloadData, extCompName)).asInstanceOf[this.type]
 
   if (compilerControl.pcEnable) {
     val pcOutValid = RegInit(false.B)
@@ -275,9 +313,48 @@ class gComponentLeaf[inT <: Data, outT <: Data](
   }
 }
 
+class gRWComponentLeaf[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWriteT <: Data](
+  inReadData: => inReadT, inWriteData: => inWriteT, outReadData: => outReadT, outWriteData: => outWriteT,
+  offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
+) extends gRWComponent(inReadData, inWriteData, outReadData, outWriteData, offloadData, extCompName)
+{
+  override def cloneType = (new gRWComponentLeaf(inReadData, inWriteData, outReadData, outWriteData, offloadData, extCompName)).asInstanceOf[this.type]
+
+  if (compilerControl.pcEnable) {
+    val pcOutValid = RegInit(false.B)
+    val pcOutRequest = RegInit(true.B)
+    val pcOutModuleId = RegInit((0).U((16).W))
+    val pcOutPortId = RegInit((0).U((8).W))
+    val pcOutPcValue = RegInit((0).U((Pcounters.PCWIDTH).W))
+    val pcOutPcType = RegInit((0).U((4).W))
+    when (io.pcIn.valid && io.pcIn.bits.moduleId === (moduleId).U((16).W) && io.pcIn.bits.request) {
+      pcOutValid := true.B
+      pcOutPcValue := pcMuxed
+      pcOutRequest := false.B
+      pcOutPcType := io.pcIn.bits.pcType
+      pcOutModuleId := io.pcIn.bits.moduleId
+      pcOutPortId := io.pcIn.bits.portId
+    }
+    .otherwise {
+      pcOutValid := io.pcIn.valid
+      pcOutPcValue := io.pcIn.bits.pcValue
+      pcOutRequest := io.pcIn.bits.request
+      pcOutPcType := io.pcIn.bits.pcType
+      pcOutModuleId := io.pcIn.bits.moduleId
+      pcOutPortId := io.pcIn.bits.portId
+    }
+    io.pcOut.valid := pcOutValid
+    io.pcOut.bits.request := pcOutRequest
+    io.pcOut.bits.moduleId := pcOutModuleId
+    io.pcOut.bits.portId := pcOutPortId
+    io.pcOut.bits.pcValue := pcOutPcValue
+    io.pcOut.bits.pcType := pcOutPcType
+  }
+}
+
 class gComponent[inT <: Data, outT <: Data](
   inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
-) extends gComponentBase(inData, outData)
+) extends gComponentBase()
 {
   override def cloneType = (new gComponent(inData, outData, offloadData, extCompName)).asInstanceOf[this.type]
 
@@ -319,7 +396,6 @@ class gComponent[inT <: Data, outT <: Data](
     //println("Module name is " + toNamed.toString)
     var portId = 1 //leave zero for broadcast
     val inPCBackPressure = RegInit((0).U((Pcounters.PCWIDTH).W))
-    def getInPCBackPressure = {inPCBackPressure}
     val outPCBackPressure = RegInit((0).U((Pcounters.PCWIDTH).W))
 
     val IsPcReset = io.pcIn.valid && io.pcIn.bits.request && io.pcIn.bits.pcType === Pcounters.pcReset
@@ -408,17 +484,166 @@ class gComponent[inT <: Data, outT <: Data](
   }
 }
 
-class gComponentGen[inT <: Data, outT <: Data](
-  comp: => gComponent[inT, outT], _inData: => inT, _outData: => outT,
+class gRWComponent[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWriteT <: Data](
+  inReadData: => inReadT, inWriteData: => inWriteT, outReadData: => outReadT, outWriteData: => outWriteT,
+  offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
+) extends gComponentBase()
+{
+  override def cloneType = (new gRWComponent(inReadData, inWriteData, outReadData, outWriteData, offloadData, extCompName)).asInstanceOf[this.type]
+
+  val offBundle = DynamicBundle(offloadData.map((d) => (d._1, { val dBundle = new gOffBundle(d._2, d._3); dBundle.suggestName(d._1); dBundle})))
+  val io = IO(new gRWInOutOffBundle(inReadData, inWriteData, outReadData, outWriteData, offBundle))
+
+  if (extCompName != "") {
+    suggestName(extCompName + "__class__" + this.getClass.getSimpleName)
+  }
+  println("In module " + toNamed + ", num of offload ports " + offloadData.size)
+
+  def ioOff = io.elements("off").asInstanceOf[Bundle]
+
+  val moduleId = Pcounters.registerModule(toNamed.toString)
+  var pcMuxed = (0).U((Pcounters.PCWIDTH).W)
+  val offloadRateArray =
+    if (offloadData.size == 0)
+      RegInit(VecInit(Seq.fill(1)((0).U((Pcounters.PCWIDTH).W))))
+    else
+      RegInit(VecInit(Seq.fill(offloadData.size)((0).U((Pcounters.PCWIDTH).W))))
+  val pcPaused = RegInit(false.B)
+  val engineUtilization = RegInit(0.U((Pcounters.PCWIDTH).W))
+  val inTokens = RegInit(0.U((Pcounters.PCWIDTH).W))
+  val outTokens = RegInit(0.U((Pcounters.PCWIDTH).W))
+
+  if (compilerControl.pcEnable) {
+    val offPCBackPressure =
+      if (offloadData.size == 0)
+        RegInit(VecInit(Seq.fill(1)((0).U((Pcounters.PCWIDTH).W))))
+      else
+        RegInit(VecInit(Seq.fill(offloadData.size)((0).U((Pcounters.PCWIDTH).W))))
+
+    var portId = 1 //leave zero for broadcast
+    val inPCBackPressure = RegInit((0).U((Pcounters.PCWIDTH).W))
+    val outPCBackPressure = RegInit((0).U((Pcounters.PCWIDTH).W))
+
+    val IsPcReset = io.pcIn.valid && io.pcIn.bits.request && io.pcIn.bits.pcType === Pcounters.pcReset
+    when (IsPcReset) {
+      pcPaused := false.B
+    }
+    when (io.pcIn.valid && io.pcIn.bits.request && io.pcIn.bits.pcType === Pcounters.pcPause) {
+      pcPaused := !pcPaused
+    }
+    //Input back pressure pc
+    Pcounters.registerPC("in", Pcounters.backPressure, moduleId.asInstanceOf[Int], portId)
+    when (IsPcReset) {
+      inPCBackPressure := (0).U((Pcounters.PCWIDTH).W)
+    }
+    .elsewhen (io.read.in.valid && !io.read.in.ready && io.write.in.valid && !io.write.in.ready && !pcPaused) {
+      inPCBackPressure := inPCBackPressure + (1).U((Pcounters.PCWIDTH).W)
+    }
+    pcMuxed = Mux(io.pcIn.bits.portId === (portId).U((Pcounters.PCWIDTH).W) &&
+    io.pcIn.bits.pcType === Pcounters.backPressure, inPCBackPressure, pcMuxed)
+
+    //Output back pressure pc
+    portId = portId + 1
+    Pcounters.registerPC("out", Pcounters.backPressure, moduleId.asInstanceOf[Int], portId)
+    when (IsPcReset) {
+      engineUtilization := (0).U((Pcounters.PCWIDTH).W)
+      outPCBackPressure := (0).U((Pcounters.PCWIDTH).W)
+    }
+    .elsewhen (io.read.out.valid && !io.read.out.ready && io.write.out.valid && !io.write.out.ready && !pcPaused) {
+      outPCBackPressure := outPCBackPressure + (1).U((Pcounters.PCWIDTH).W)
+    }
+    when (IsPcReset) {
+      inTokens := (0).U((Pcounters.PCWIDTH).W)
+    }
+    .elsewhen (io.read.in.valid && io.read.in.ready && io.write.in.valid && io.write.in.ready && !pcPaused) {
+      inTokens := inTokens + (1).U((Pcounters.PCWIDTH).W)
+    }
+    when (IsPcReset) {
+      outTokens := (0).U((Pcounters.PCWIDTH).W)
+    }
+    .elsewhen (io.read.out.valid && io.read.out.ready && io.write.out.valid && io.write.out.ready && !pcPaused) {
+      outTokens := outTokens + (1).U((Pcounters.PCWIDTH).W)
+    }
+    pcMuxed = Mux(io.pcIn.bits.portId === (portId).U((Pcounters.PCWIDTH).W) &&
+    io.pcIn.bits.pcType === Pcounters.backPressure, outPCBackPressure, pcMuxed)
+    portId = portId + 1
+
+    //Offload backpressure/rate pcs
+    for ((n, i) <- ioOff.elements) {
+      Pcounters.registerPC(n, Pcounters.backPressure, moduleId.asInstanceOf[Int], portId)
+      when (IsPcReset) {
+        offloadRateArray(portId-3) := (0).U((Pcounters.PCWIDTH).W)
+        offPCBackPressure(portId-3) := (0).U((Pcounters.PCWIDTH).W)
+      }
+      .elsewhen (
+        i.asInstanceOf[gOffBundle[Data, Data]].req.valid &&
+        !i.asInstanceOf[gOffBundle[Data, Data]].req.ready && !pcPaused)
+      {
+        offPCBackPressure(portId-3) := offPCBackPressure(portId-3) + (1).U((Pcounters.PCWIDTH).W)
+      }
+      //Mux the pcounter based on the index
+      pcMuxed = Mux(
+        io.pcIn.bits.portId === (portId).U((Pcounters.PCWIDTH).W) && io.pcIn.bits.pcType === Pcounters.backPressure,
+        offPCBackPressure(portId-3),
+        pcMuxed
+      )
+      portId = portId + 1
+    }
+    Pcounters.registerPC("offloadRate", Pcounters.offloadRate, moduleId.asInstanceOf[Int], 0)
+    val offloadRate = offloadRateArray.reduceLeft((x,y) => Mux(x>y, x, y))
+    pcMuxed = Mux(io.pcIn.bits.pcType === Pcounters.offloadRate, offloadRate, pcMuxed)
+    Pcounters.registerPC("engineUtilization", Pcounters.engineUtilization, moduleId.asInstanceOf[Int], 0)
+    pcMuxed = Mux(io.pcIn.bits.pcType === Pcounters.engineUtilization, engineUtilization, pcMuxed)
+    Pcounters.registerPC("inTokens", Pcounters.inTokens, moduleId.asInstanceOf[Int], 0)
+    pcMuxed = Mux(io.pcIn.bits.pcType === Pcounters.inTokens, inTokens, pcMuxed)
+    Pcounters.registerPC("outTokens", Pcounters.outTokens, moduleId.asInstanceOf[Int], 0)
+    pcMuxed = Mux(io.pcIn.bits.pcType === Pcounters.outTokens, outTokens, pcMuxed)
+  }
+  else {
+    for (i <- 0 until offloadData.size) {
+      offloadRateArray(i) := (0).U((Pcounters.PCWIDTH).W)
+    }
+    pcPaused := false.B
+    engineUtilization := (0).U((Pcounters.PCWIDTH).W)
+    inTokens := (0).U((Pcounters.PCWIDTH).W)
+    outTokens := (0).U((Pcounters.PCWIDTH).W)
+  }
+}
+
+abstract class gComponentGenBase(
   _offloadData: ArrayBuffer[(String, Data, Data)], _extCompName: String = ""
 )
 {
-  val inData = _inData
-  val outData = _outData
   val offloadData = _offloadData
   val extCompName = _extCompName
+}
+
+class gComponentGen[inT <: Data, outT <: Data](
+  comp: => gComponent[inT, outT],
+  _inData: => inT, _outData: => outT,
+  _offloadData: ArrayBuffer[(String, Data, Data)], _extCompName: String = ""
+)
+  extends gComponentGenBase(_offloadData, _extCompName)
+{
+  val inData = _inData
+  val outData = _outData
 
   def apply(): gComponent[inT, outT] = comp
+}
+
+class gRWComponentGen[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWriteT <: Data](
+  comp: => gRWComponent[inReadT, inWriteT, outReadT, outWriteT],
+  _inReadData: => inReadT, _inWriteData: => inWriteT, _outReadData: => outReadT, _outWriteData: => outWriteT,
+  _offloadData: ArrayBuffer[(String, Data, Data)], _extCompName: String = ""
+)
+  extends gComponentGenBase(_offloadData, _extCompName)
+{
+  val inReadData = _inReadData
+  val inWriteData = _inWriteData
+  val outReadData = _outReadData
+  val outWriteData = _outWriteData
+
+  def apply(): gRWComponent[inReadT, inWriteT, outReadT, outWriteT] = comp
 }
 
 //class gComponentMD[inT <: Data, outT <: Data](inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)]) {
@@ -434,7 +659,7 @@ class gChainedComponent[inT <: Data, connT <: Data, outT <: Data](
   offloadData: ArrayBuffer[(String, Data, Data)],
   srcCompGen: gComponentGen[inT, connT], sinkCompGen: gComponentGen[connT, outT],
   extCompName: String
-) extends gComponent(inDataSrc, outDataSink, offloadData, extCompName) with GorillaUtil
+) extends gComponent(inDataSrc, outDataSink, offloadData, extCompName) with include
 {
   val srcComp = Module(srcCompGen())
   val sinkComp = Module(sinkCompGen())
@@ -520,12 +745,16 @@ class gChainedComponent[inT <: Data, connT <: Data, outT <: Data](
   srcComp.io.pcOut <> sinkComp.io.pcIn
 }
 
-class gOffloadedComponent[inT <: Data, outT <: Data, inOffT <: Data, outOffT <: Data](
-  inData: => inT, outData: => outT, inOff: => inOffT, outOff: => outOffT,
+class gOffloadedComponent[
+  inT <: Data, outT <: Data,
+  inOffT <: Data, outOffT <: Data
+](
+  inData: => inT, outData: => outT,
+  inOffData: => inOffT, outOffData: => outOffT,
   offloadData: ArrayBuffer[(String, Data, Data)],
   mainCompGen: gComponentGen[inT, outT], offCompGen: gComponentGen[inOffT, outOffT],
   offPort: String, extCompName: String
-) extends gComponent(inData, outData, offloadData, extCompName) with GorillaUtil
+) extends gComponent(inData, outData, offloadData, extCompName) with include
 {
   //println("This is gOffloadedComponent, offPort is " , offPort)
 
@@ -594,21 +823,19 @@ class gOffloadedComponent[inT <: Data, outT <: Data, inOffT <: Data, outOffT <: 
   mainComp.io.pcOut <> offComp.io.pcIn
 }
 
-class gOffloadedComponentRWPorts[
+class gOffloadedRWComponent[
   inT <: Data, outT <: Data,
-  readInOffT <: Data, readOutOffT <: Data,
-  writeInOffT <: Data, writeOutOffT <: Data
+  inReadOffT <: Data, inWriteOffT <: Data, outReadOffT <: Data, outWriteOffT <: Data
 ](
   inData: => inT, outData: => outT,
-  readInOff: => readInOffT, readOutOff: => readOutOffT,
-  writeInOff: => writeInOffT, writeOutOff: => writeOutOffT,
+  inReadOffData: => inReadOffT, inWriteOffData: => inWriteOffT, outReadOffData: => outReadOffT, outWriteOffData: => outWriteOffT,
   offloadData: ArrayBuffer[(String, Data, Data)],
-  mainCompGen: gComponentGen[inT, outT], offCompGen: => rwSpMemComponent,
+  mainCompGen: gComponentGen[inT, outT], offCompGen: gRWComponentGen[inReadOffT, inWriteOffT, outReadOffT, outWriteOffT],
   offPort: String, extCompName: String
-) extends gComponent(inData, outData, offloadData, extCompName) with GorillaUtil
+) extends gComponent(inData, outData, offloadData, extCompName) with include
 {
   val mainComp = Module(mainCompGen())
-  val offComp = Module(offCompGen)
+  val offComp = Module(offCompGen())
 
   //if (mainComp.parent != this) {
   //  mainComp.parent.children -= mainComp
@@ -634,13 +861,13 @@ class gOffloadedComponentRWPorts[
   //Connect the rest of main component offload interfaces to the enclosing component's offload interfaces
   for ((n, i) <- mainOff.elements) {
     //println("offload name is " + n)
-    if (n == (offPort + "Read") && i.isInstanceOf[gOffBundle[readInOffT, readOutOffT]]) {
-      i.asInstanceOf[gOffBundle[readInOffT, readOutOffT]].req <> offComp.io.read.in
-      i.asInstanceOf[gOffBundle[readInOffT, readOutOffT]].rep <> offComp.io.read.out
+    if (n == (offPort + "Read") && i.isInstanceOf[gOffBundle[inReadOffT, outReadOffT]]) {
+      i.asInstanceOf[gOffBundle[inReadOffT, outReadOffT]].req <> offComp.io.read.in
+      i.asInstanceOf[gOffBundle[inReadOffT, outReadOffT]].rep <> offComp.io.read.out
     }
-    else if (n == (offPort + "Write") && i.isInstanceOf[gOffBundle[writeInOffT, writeOutOffT]]) {
-      i.asInstanceOf[gOffBundle[writeInOffT, writeOutOffT]].req <> offComp.io.write.in
-      i.asInstanceOf[gOffBundle[writeInOffT, writeOutOffT]].rep <> offComp.io.write.out
+    else if (n == (offPort + "Write") && i.isInstanceOf[gOffBundle[inWriteOffT, outWriteOffT]]) {
+      i.asInstanceOf[gOffBundle[inWriteOffT, outWriteOffT]].req <> offComp.io.write.in
+      i.asInstanceOf[gOffBundle[inWriteOffT, outWriteOffT]].rep <> offComp.io.write.out
     }
     else {
       for ((n1, i1) <- ioOff.elements) {
@@ -665,6 +892,7 @@ class gOffloadedComponentRWPorts[
   //attach the performance counter interfaces. We keep the spMems out of rings
   //Cause they are gComponnet and do not have PCs. TODO: change this
   io.pcIn <> mainComp.io.pcIn
+  mainComp.io.pcOut <> offComp.io.pcIn
   io.pcOut <> mainComp.io.pcOut
 }
 
@@ -707,7 +935,7 @@ class aggregatorEngine[T <: Data](n: Int, data: => T) extends Module {
 
 class pDistributor[T <: Data](n: Int, data: => T,
   distributorEngineGen: (Int, => T) => distributorEngine[T]
-) extends distributorComponent[T](n, data) with GorillaUtil
+) extends distributorComponent[T](n, data) with include
 {
   val distEngine = distributorEngineGen(n, data)
   val readies = Vec(n, Bool())
@@ -727,7 +955,7 @@ class pDistributor[T <: Data](n: Int, data: => T,
 
 //class pAggregrator[T <: Data](n: Int, data: => T,
 //  aggregatorEngineGen: (Int, => T) => aggregatorEngine[T]
-//) extends aggregatorComponent(n, data) with GorillaUtil
+//) extends aggregatorComponent(n, data) with include
 //{
 //  val aggEngine = aggregatorEngineGen(n, data)
 //  val rrArb = new gRRArbiter(n, data) //TODO: if aggregator wants an specific input RR should be off
@@ -741,13 +969,13 @@ class pDistributor[T <: Data](n: Int, data: => T,
 //  compGen: gComponentGen[inT, outT], n: Int,
 //  distributorGen: (Int, => inT) => distributorComponent[inT],
 //  aggregatorGen: (Int, => outT) => aggregatorComponent[outT]
-//) extends gComponent(inData, outData, offloadData) with GorillaUtil
+//) extends gComponent(inData, outData, offloadData) with include
 //{}
 
 class gReplicatedComponent[inT <: Data, outT <: Data](
   inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)],
   compGen: gComponentGen[inT, outT], n: Int, extCompName: String
-) extends gComponent(inData, outData, offloadData, extCompName) with GorillaUtil
+) extends gComponent(inData, outData, offloadData, extCompName) with include
 {
   val components = Range(0, n).map(i => Module(compGen()))
   //components.foreach(i => {
@@ -919,7 +1147,7 @@ trait GorillaUtil extends TagTrait {
     offPort: String
   ): gComponentGen[inT, outT] =
   {
-    val (left, right) = mainGen.offloadData.span(_._1 != offPort)
+    val (left, right) = mainGen.offloadData.partition(_._1 != offPort)
 
     //println("Offload called for port " + offPort)
     //println("main offlaod ports are")
@@ -944,50 +1172,87 @@ trait GorillaUtil extends TagTrait {
 
     new gComponentGen(
       new gOffloadedComponent(
-        mainGen.inData, mainGen.outData, offGen.inData, offGen.outData, offOff,
-        mainGen, offGen, offPort, newExtCompName
+        mainGen.inData, mainGen.outData,
+        offGen.inData, offGen.outData,
+        offOff,
+        mainGen, offGen,
+        offPort, newExtCompName
+      ),
+      mainGen.inData, mainGen.outData, offOff, newExtCompName
+    )
+  }
+  def Offload[
+    inT <: Data, outT <: Data,
+    inReadOffT <: Data, inWriteOffT <: Data, outReadOffT <: Data, outWriteOffT <: Data
+  ](
+    extCompName: String,
+    mainGen: gComponentGen[inT, outT],
+    offGen: gRWComponentGen[inReadOffT, inWriteOffT, outReadOffT, outWriteOffT],
+    offPort: String
+  ): gComponentGen[inT, outT] =
+  {
+    val (leftRead, rightRead) = mainGen.offloadData.partition(_._1 == offPort + "Read")
+    val (leftWrite, rightWrite) = rightRead.partition(_._1 == offPort + "Write")
+    val offOff = rightWrite
+
+    val newExtCompName = extCompName + "__type__offloaded__" + offPort
+
+    new gComponentGen(
+      new gOffloadedRWComponent(
+        mainGen.inData, mainGen.outData,
+        offGen.inReadData, offGen.inWriteData, offGen.outReadData, offGen.outWriteData,
+        offOff,
+        mainGen, offGen,
+        offPort, newExtCompName
       ),
       mainGen.inData, mainGen.outData, offOff, newExtCompName
     )
   }
   //def Offload[
   //  inT <: Data, outT <: Data,
-  //  readInOffT<: Data, readOutOffT<: Data,
-  //  writeInOffT<: Data, writeOutOffT<: Data
+  //  inOffT <: Data, outOffT <: Data
   //](
   //  extCompName: String,
-  //  a: (gComponentMD[inT, outT], gComponent[inT, outT]),
-  //  b: (gComponentMD[readInOffT, readOutOffT], gComponentMD[writeInOffT, writeOutOffT], rwSpMemComponent),
-  //  offPort: String
-  //) =
+  //  mainGen: gComponentGen[inT, outT],
+  //  offGens: (gComponentGen[inOffT, outOffT], String)*
+  //): gComponentGen[inT, outT] =
   //{
-  //  val (leftR, rightR) = a._1.offloadDataGen.span( _._1 != offPort + "Read")
-  //  val restOfOffloadedDataMain = {if (rightR.isEmpty) leftR else leftR ++ rightR.tail}
-  //  val (leftW, rightW) = a._1.offloadDataGen.span( _._1 != offPort + "Write")
-  //  val offoff = {if (rightW.isEmpty) leftW else leftW ++ rightW.tail}
-
-  //  val res = () =>
-  //    new gOffloadedComponentRWPorts(a._1.inDataGen) (a._1.outDataGen) (b._1.inDataGen) (b._1.outDataGen) (b._2.inDataGen) (b._2.outDataGen) (offoff) (a._2) (b._3) (offPort) (extCompName + "__type__offloaded__" + offPort)
-
-  //  (new gComponentMD(a._1.inDataGen, a._1.outDataGen, offoff).asInstanceOf[gComponentMD[Data, Data]], res.asInstanceOf[gComponent[Data, Data]])
+  //  offGens.foldLeft(mainGen) { (x, y) => Offload(extCompName + "__type__offloaded__" + y._2, x, y._1, y._2) }
   //}
-  def Offload[inT <: Data, outT <: Data](
+  //def Offload[inT <: Data, outT <: Data, offCompGenT <: gComponentGenBase](
+  //  extCompName: String,
+  //  mainGen: gComponentGen[inT, outT],
+  //  offGens: ArrayBuffer[(offCompGenT, String)]
+  //): off[inT, outT] =
+  //{
+  //  offGens.foldLeft(mainGen) { (x, y) => Offload(extCompName + "__type__offloaded__" + y._2, x, y._1, y._2) }
+  //}
+  def Offload[
+    inT <: Data, outT <: Data,
+    inOffT <: Data, outOffT <: Data
+  ](
     extCompName: String,
     mainGen: gComponentGen[inT, outT],
-    offGens: (gComponentGen[Data, Data], String)*
+    offGens: ArrayBuffer[(gComponentGen[inOffT, outOffT], String)]
   ): gComponentGen[inT, outT] =
   {
     offGens.foldLeft(mainGen) { (x, y) => Offload(extCompName + "__type__offloaded__" + y._2, x, y._1, y._2) }
   }
-  //def Offload(
-  //  extCompName: String,
-  //  a: (gComponentMD[Data, Data], gComponent[Data, Data]),
-  //  b: ArrayBuffer[((gComponentMD[Data, Data], gComponentMD[Data, Data], rwSpMemComponent), String)]
-  //):
-  //  (gComponentMD[Data, Data], gComponent[Data, Data]) =
-  //{
-  //  b.foldLeft (a) {(x,y) => Offload(x, y._1, y._2, extCompName + "__type__offloaded__" + y._2)}
-  //}
+  def Offload[
+    inT <: Data, outT <: Data,
+    inReadOffT <: Data, inWriteOffT <: Data, outReadOffT <: Data, outWriteOffT <: Data
+  ](
+    extCompName: String,
+    mainGen: gComponentGen[inT, outT],
+    offGens: ArrayBuffer[(gRWComponentGen[inReadOffT, inWriteOffT, outReadOffT, outWriteOffT], String)],
+    dummy: String = "rw"  // FIXME: hack so function signature is different from the other Offload array buffer after type erasure
+  ): gComponentGen[inT, outT] =
+  {
+    //offGens.foldLeft(mainGen) { (x, y) => Offload(extCompName + "__type__offloaded__" + y._2, x, y._1, y._2) }
+    val test = offGens.foldLeft(mainGen) { (x, y) => Offload(extCompName + "__type__offloaded__" + y._2, x, y._1, y._2) }
+    println(test)
+    return test
+  }
 
   def Replicate[inT <: Data, outT <: Data, OffT <: Data](
     extCompName: String,

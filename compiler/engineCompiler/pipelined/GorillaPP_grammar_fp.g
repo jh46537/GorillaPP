@@ -90,10 +90,15 @@ scope Symbols {
 
     int end = s.indexOf("(");
     if (end != -1) {
-      return s.substring(0, end);
-    } else {
-      return s;
+      s = s.substring(0, end);
     }
+
+    int start = s.indexOf("new");
+    if (start != -1) {
+      s = s.substring(start + 4, s.length());
+    }
+
+    return s;
   }
 
   String C2ChiselType(String s) {
@@ -539,7 +544,7 @@ off_pragma
         $Symbols::offload_ports.add($offPort.text);
         $Symbols::offload_ports_req_type.put($offPort.text, C2ChiselType($req_type.text));
         $Symbols::offload_ports_rep_type.put($offPort.text, C2ChiselType($rep_type.text));
-        $Symbols::IO_string += "(\"" + $offPort.text  + "\", " + C2ChiselType($req_type.text) + " , " + C2ChiselType($rep_type.text) + ")";
+        $Symbols::IO_string += "(\"" + $offPort.text  + "\", " + C2ChiselType($req_type.text) + ", " + C2ChiselType($rep_type.text) + ")";
       }
     };
 
@@ -846,7 +851,7 @@ and_expression
     : equality_expression ('&' {out_string("&");}equality_expression)*
     ;
 equality_expression
-    : relational_expression (('=='{out_string("===");}|'!='{out_string("!=");}) relational_expression)*
+    : relational_expression (('=='{out_string("===");}|'!='{out_string("=/=");}) relational_expression)*
     ;
 
 relational_expression
