@@ -10,7 +10,7 @@
 #pragma CONCURRENT_SAFE
 
 int result;
-uint1_t carry1, carry2;
+bool carry1, carry2;
 
 //GS_TEST_LEVEL() {
 //  Output = Input;
