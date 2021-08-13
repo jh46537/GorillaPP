@@ -1,11 +1,5 @@
-package Tutorial
-
-import Chisel._
-import Node._
-import Literal._
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.ArrayBuffer
-
+import chisel3._
+import chisel3.util._
 
 object compilerControl {
   val pcEnable = true
