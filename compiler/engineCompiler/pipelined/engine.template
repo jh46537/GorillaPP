@@ -8,14 +8,14 @@ import scala.collection.mutable.HashMap
 class #MODULE_NAME(extCompName: String) extends gComponentLeaf(#IO, extCompName + "__type_engine__pipelined__") {
   val TAGWIDTH = 5*2
   val numOfThreads = #NUM_OF_THREADS 
-  val NONE_SELECTED = UFix(numOfThreads)
+  val NONE_SELECTED = (numOfThreads).U
   val outputReg_ready = io.out.ready 
 
 #FOREACH_INSTR_WITH_OFFLOAD
   val ##AllOffloadsReady = Bool ()
   val ##PipeReadyMove = Bool ()
   val ##NumOfThreads = numOfThreads
-  val ##AllOffloadsValid = Vec(##NumOfThreads) {Bool ()}
+  val ##AllOffloadsValid = Vec(##NumOfThreads, Bool ())
   val ##PipeValidMove = Bool ()
 #END_FOREACH_INSTR_WITH_OFFLOAD
 
@@ -23,7 +23,7 @@ class #MODULE_NAME(extCompName: String) extends gComponentLeaf(#IO, extCompName 
   def myOff = io.elements("off")
   /*****************Definitions******************************************************/
 #DUMP_FILE definition.magillac
-val #FIRST_STATE_valid = Bool(true)
+val #FIRST_STATE_valid = true.B
 
 #FOREACH_INSTR_WITH_OFFLOAD
   val ##RThreadEncoder = new RREncode (##NumOfThreads) 
@@ -33,14 +33,14 @@ val #FIRST_STATE_valid = Bool(true)
 #END_FOREACH_INSTR_WITH_OFFLOAD
 
 #FOREACH_FU
-  val ##PortHadReadyRequest = Reg(resetVal=Bool(false))
-  val ##ReadyReceived = Reg(resetVal=Bool(false))
+  val ##PortHadReadyRequest = RegInit(false.B)
+  val ##ReadyReceived = RegInit(false.B)
 #END_FOREACH_FU
 
 #FOREACH_INSTR_WITH_OFFLOAD
 #FOREACH_FU_OF_THIS_INSTR
-  val %%PortHadValidRequest = Vec(##NumOfThreads) {Reg(resetVal=Bool(false))}
-  val %%ValidReceived = Vec(##NumOfThreads) {Reg(resetVal=Bool(false))}
+  val %%PortHadValidRequest = RegInit(VecInit(Seq.fill(##NumOfThreads)(false.B)))
+  val %%ValidReceived = RegInit(VecInit(Seq.fill(##NumOfThreads)(false.B)))
 #END_FOREACH_FU_OF_THIS_INSTR
 #END_FOREACH_INSTR_WITH_OFFLOAD
 
@@ -74,7 +74,7 @@ val #FIRST_STATE_valid = Bool(true)
 
   /***************Offload ports helper logic*******************************/
 #FOREACH_FU
-  ##Port.rep.ready := Bool(true)
+  ##Port.rep.ready := true.B
 #END_FOREACH_FU
 
   /******************Ready stage handler************************/
@@ -83,7 +83,7 @@ val #FIRST_STATE_valid = Bool(true)
 #FOREACH_FU_OF_THIS_INSTR
   (%%Port.req.ready || %%ReadyReceived || (!%%PortHadReadyRequest && !%%Port.req.valid)) &&  
 #END_FOREACH_FU_OF_THIS_INSTR
-  Bool(true)
+  true.B
 #END_FOREACH_INSTR_WITH_OFFLOAD
 
 #FOREACH_INSTR_WITH_OFFLOAD
@@ -97,7 +97,7 @@ val #FIRST_STATE_valid = Bool(true)
   /******************Valid stage handler************************/
 #FOREACH_INSTR_WITH_OFFLOAD
   when (##PipeValidMove) {
-    ##PRegPostOff_valid(##VThread) := Bool(false)
+    ##PRegPostOff_valid(##VThread) := false.B
   }
 #END_FOREACH_INSTR_WITH_OFFLOAD
 
@@ -105,15 +105,15 @@ val #FIRST_STATE_valid = Bool(true)
   for (i <- 0 to ##NumOfThreads-1) {
     ##AllOffloadsValid(i) :=  
 #FOREACH_FU_OF_THIS_INSTR
-     ((%%Port.rep.valid && (%%Port.rep.tag === UFix(i, TAGWIDTH)))|| %%ValidReceived(i) || !%%PortHadValidRequest(i)) &&  
+     ((%%Port.rep.valid && (%%Port.rep.tag === (i).U((TAGWIDTH).W)))|| %%ValidReceived(i) || !%%PortHadValidRequest(i)) &&  
 #END_FOREACH_FU_OF_THIS_INSTR
-     Bool(true)
+     true.B
 #END_FOREACH_INSTR_WITH_OFFLOAD
 
 #FOREACH_INSTR_WITH_OFFLOAD
 #FOREACH_FU_OF_THIS_INSTR
-  %%ValidReceived(i) := !(##PipeValidMove && ##VThread === UFix(i, TAGWIDTH)) && ((%%ValidReceived(i)) || (%%Port.rep.valid && %%Port.rep.tag === UFix(i, TAGWIDTH)))
-  %%PortHadValidRequest(i) := !(##PipeValidMove && ##VThread === UFix(i,TAGWIDTH)) && (%%PortHadValidRequest(i) || (UFix(i,TAGWIDTH)===##RThread && %%Port.req.valid))
+  %%ValidReceived(i) := !(##PipeValidMove && ##VThread === (i).U((TAGWIDTH).W)) && ((%%ValidReceived(i)) || (%%Port.rep.valid && %%Port.rep.tag === (i).U((TAGWIDTH).W)))
+  %%PortHadValidRequest(i) := !(##PipeValidMove && ##VThread === (i).U((TAGWIDTH).W)) && (%%PortHadValidRequest(i) || ((i).U((TAGWIDTH).W)===##RThread && %%Port.req.valid))
 #END_FOREACH_FU_OF_THIS_INSTR
 }
 #END_FOREACH_INSTR_WITH_OFFLOAD
