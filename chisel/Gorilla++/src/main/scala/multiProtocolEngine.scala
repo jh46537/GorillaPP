@@ -56,12 +56,12 @@ class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int
   val io = IO(new Bundle {
     val instr     = Input(UInt(instrWidth.W))
 
-    val srcAId    = Output(UInt(num_fus.W))
-    val srcBId    = Output(UInt(num_fus.W))
+    val srcAId    = Output(UInt(num_regs_lg.W))
+    val srcBId    = Output(UInt(num_regs_lg.W))
     val destAEn   = Output(Bool())
     val destBEn   = Output(Bool())
-    val destAId   = Output(UInt(num_fus.W))
-    val destBId   = Output(UInt(num_fus.W))
+    val destAId   = Output(UInt(num_regs_lg.W))
+    val destBId   = Output(UInt(num_regs_lg.W))
     val destALane = Output(UInt(log2Up(num_fus).W))
     val destBLane = Output(UInt(log2Up(num_fus).W))
     val preOp     = Output(UInt(num_preops_lg.W))
@@ -70,18 +70,18 @@ class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int
     val brTarget  = Output(UInt(ip_width.W))
   })
 
-  io.srcAId    := io.instr(36, 39)
-  io.srcBId    := io.instr(32, 35)
+  io.srcAId    := io.instr(39, 36)
+  io.srcBId    := io.instr(35, 32)
   io.destAEn   := io.instr(31, 31)
   io.destBEn   := io.instr(30, 30)
-  io.destAId   := io.instr(26, 29)
-  io.destBId   := io.instr(22, 25)
-  io.destALane := io.instr(20, 21)
-  io.destBLane := io.instr(18, 19)
-  io.preOp     := io.instr(15, 17)
-  io.fuValids  := io.instr(12, 14)
-  io.brMask    := io.instr( 8, 11)
-  io.brTarget  := io.instr( 0,  7)
+  io.destAId   := io.instr(29, 26)
+  io.destBId   := io.instr(25, 22)
+  io.destALane := io.instr(21, 20)
+  io.destBLane := io.instr(19, 18)
+  io.preOp     := io.instr(17, 15)
+  io.fuValids  := io.instr(14, 12).asBools
+  io.brMask    := io.instr(11,  8).asBools
+  io.brTarget  := io.instr( 7,  0)
 }
 
 
@@ -99,8 +99,9 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   // FIXME
   //val BR_INSTR_WIDTH = 8
   //val INSTR_WIDTH = NUM_PREOPS_LG + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG) + BR_INSTR_WIDTH
-  val INSTR_WIDTH = 6  // 40-bits
   val IP_WIDTH = 8
+  val INSTR_WIDTH = NUM_PREOPS_LG + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG + 1) + NUM_FUS * 2 + IP_WIDTH + 1
+  // val INSTR_WIDTH = 6  // 40-bits
 
   val NONE_SELECTED = (NUM_THREADS).U((log2Up(NUM_THREADS+1)).W)
 
@@ -173,11 +174,11 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     val brTarget    = UInt(IP_WIDTH.W)
 
     val srcA        = UInt(REG_WIDTH.W)
-    val srcB        = UInt(NUM_REGS_LG.W)
+    val srcB        = UInt(REG_WIDTH.W)
 
     val preOpBranch = Bool()
     val preOpA      = UInt(REG_WIDTH.W)
-    val preOpB      = UInt(NUM_REGS_LG.W)
+    val preOpB      = UInt(REG_WIDTH.W)
 
     val dests       = Vec(NUM_FUS, UInt(REG_WIDTH.W))
     val execValids  = Vec(NUM_FUS, Bool())
@@ -216,8 +217,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   for (i <- 0 to NUM_THREADS - 1) {
     fetchUnit.io.ips(i) := threadStates(i).ip
     fetchUnit.io.ipValids(i) := threadStages(i) === ThreadStageEnum.fetch
-    fetchUnit.io.instrs(i) := threadStates(i).instr
-    fetchUnit.io.instrReadys(i) := threadStates(i).instrReady
+    threadStates(i).instr := fetchUnit.io.instrs(i)
+    threadStates(i).instrReady := fetchUnit.io.instrReadys(i)
 
     when (threadStages(i) === ThreadStageEnum.fetch) {
       threadStages(i) := ThreadStageEnum.decode
@@ -238,36 +239,36 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
   val decodeUnit = Module(new Decode(INSTR_WIDTH, NUM_REGS_LG, NUM_FUS, NUM_PREOPS_LG, IP_WIDTH))
   when (decodeThread =/= NONE_SELECTED) {
-    decodeUnit.io.instr     := threadStates(decodeThread).instr
-    decodeUnit.io.srcAId    := threadStates(decodeThread).srcAId
-    decodeUnit.io.srcBId    := threadStates(decodeThread).srcBId
-    decodeUnit.io.destAEn   := threadStates(decodeThread).destAEn
-    decodeUnit.io.destBEn   := threadStates(decodeThread).destBEn
-    decodeUnit.io.destAId   := threadStates(decodeThread).destAId
-    decodeUnit.io.destBId   := threadStates(decodeThread).destBId
-    decodeUnit.io.destALane := threadStates(decodeThread).destALane
-    decodeUnit.io.destBLane := threadStates(decodeThread).destBLane
-    decodeUnit.io.preOp     := threadStates(decodeThread).preOp
-    decodeUnit.io.fuValids  := threadStates(decodeThread).fuValids
-    decodeUnit.io.brMask    := threadStates(decodeThread).brMask
-    decodeUnit.io.brTarget  := threadStates(decodeThread).brTarget
+    decodeUnit.io.instr                  := threadStates(decodeThread).instr
+    threadStates(decodeThread).srcAId    := decodeUnit.io.srcAId
+    threadStates(decodeThread).srcBId    := decodeUnit.io.srcBId
+    threadStates(decodeThread).destAEn   := decodeUnit.io.destAEn
+    threadStates(decodeThread).destBEn   := decodeUnit.io.destBEn
+    threadStates(decodeThread).destAId   := decodeUnit.io.destAId
+    threadStates(decodeThread).destBId   := decodeUnit.io.destBId
+    threadStates(decodeThread).destALane := decodeUnit.io.destALane
+    threadStates(decodeThread).destBLane := decodeUnit.io.destBLane
+    threadStates(decodeThread).preOp     := decodeUnit.io.preOp
+    threadStates(decodeThread).fuValids  := decodeUnit.io.fuValids
+    threadStates(decodeThread).brMask    := decodeUnit.io.brMask
+    threadStates(decodeThread).brTarget  := decodeUnit.io.brTarget
 
     threadStages(decodeThread) := ThreadStageEnum.read
   }
   .otherwise {
-    decodeUnit.io.instr     := 0.U(INSTR_WIDTH.W)
-    decodeUnit.io.srcAId    := DontCare
-    decodeUnit.io.srcBId    := DontCare
-    decodeUnit.io.destAEn   := DontCare
-    decodeUnit.io.destBEn   := DontCare
-    decodeUnit.io.destAId   := DontCare
-    decodeUnit.io.destBId   := DontCare
-    decodeUnit.io.destALane := DontCare
-    decodeUnit.io.destBLane := DontCare
-    decodeUnit.io.preOp     := DontCare
-    decodeUnit.io.fuValids  := DontCare
-    decodeUnit.io.brMask    := DontCare
-    decodeUnit.io.brTarget  := DontCare
+    decodeUnit.io.instr                  := 0.U(INSTR_WIDTH.W)
+    threadStates(decodeThread).srcAId    := DontCare
+    threadStates(decodeThread).srcBId    := DontCare
+    threadStates(decodeThread).destAEn   := DontCare
+    threadStates(decodeThread).destBEn   := DontCare
+    threadStates(decodeThread).destAId   := DontCare
+    threadStates(decodeThread).destBId   := DontCare
+    threadStates(decodeThread).destALane := DontCare
+    threadStates(decodeThread).destBLane := DontCare
+    threadStates(decodeThread).preOp     := DontCare
+    threadStates(decodeThread).fuValids  := DontCare
+    threadStates(decodeThread).brMask    := DontCare
+    threadStates(decodeThread).brTarget  := DontCare
   }
 
   /****************** Register read *********************************/
@@ -277,16 +278,18 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   when (readThread =/= NONE_SELECTED) {
     regfile.io.rdAddr1 := threadStates(readThread).srcAId
     regfile.io.rdAddr2 := threadStates(readThread).srcBId
-    regfile.io.rdData1 := threadStates(readThread).srcA
-    regfile.io.rdData2 := threadStates(readThread).srcB
+    threadStates(readThread).srcA := regfile.io.rdData1
+    threadStates(readThread).srcB := regfile.io.rdData2
 
     threadStages(readThread) := ThreadStageEnum.pre
   }
   .otherwise {
     regfile.io.rdAddr1 := DontCare
     regfile.io.rdAddr2 := DontCare
-    regfile.io.rdData1 := DontCare
-    regfile.io.rdData2 := DontCare
+    // regfile.io.rdData1 := DontCare
+    // regfile.io.rdData2 := DontCare
+    threadStates(readThread).srcA := DontCare
+    threadStates(readThread).srcB := DontCare
   }
 
   /****************** Pre logic *********************************/
@@ -324,11 +327,18 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
   val execBundle = new Bundle {
     val tag = UInt(NUM_THREADS_LG.W)
-    val bits = UInt(32.W)
+    val bits = UInt(128.W)
   }
   val fuFifos_0 = Module(new Queue(execBundle, NUM_THREADS - 1))  // ipv4Lookup1
   val fuFifos_1 = Module(new Queue(execBundle, NUM_THREADS - 1))  // ipv4Lookup2
   val fuFifos_2 = Module(new Queue(execBundle, NUM_THREADS - 1))  // qosCount
+
+  fuFifos_0.io.enq.valid := false.B
+  fuFifos_1.io.enq.valid := false.B
+  fuFifos_2.io.enq.valid := false.B
+  fuFifos_0.io.enq.bits := DontCare
+  fuFifos_1.io.enq.bits := DontCare
+  fuFifos_2.io.enq.bits := DontCare
 
   when (preOpThread =/= NONE_SELECTED) {
     var preOpA = threadStates(preOpThread).srcA
@@ -349,7 +359,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_LOOKUP_POST) {
-      preOpA := threadStates(preOpThread).srcA + threadStates(preOpThread).srcB
+      // preOpA := threadStates(preOpThread).srcA + threadStates(preOpThread).srcB
       threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA === INVALID_ADDRESS) || (preOpA === INVALID_ADDRESS)  // branch to exception
     }
 
@@ -358,8 +368,11 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_UPDATE_POST) {
-      preOpA := (threadStates(preOpThread).srcA(63, 56) - 1.U)
-      preOpB := (threadStates(preOpThread).srcA(47, 32) + 0x80.U)
+      val ttl = (threadStates(preOpThread).srcA(63, 56) - 1.U)
+      val chksum = (threadStates(preOpThread).srcA(47, 32) + 0x80.U)
+      preOpA := Cat(threadStates(preOpThread).srcA(127, 64), ttl, threadStates(preOpThread).srcA(55, 48), chksum, threadStates(preOpThread).srcA(31, 0))
+      // preOpA := (threadStates(preOpThread).srcA(63, 56) - 1.U)
+      // preOpB := (threadStates(preOpThread).srcA(47, 32) + 0x80.U)
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_EXCEPTION) {
@@ -371,13 +384,22 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
     // FIXME: choose which preOp vals to send to functional units
     when (threadStates(preOpThread).fuValids(0) === true.B) {
-      fuFifos_0.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
+      // fuFifos_0.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
+      fuFifos_0.io.enq.bits.tag := preOpThread
+      fuFifos_0.io.enq.bits.bits := preOpA
+      fuFifos_0.io.enq.valid := true.B
     }
     when (threadStates(preOpThread).fuValids(1) === true.B) {
-      fuFifos_1.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
+      // fuFifos_1.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
+      fuFifos_1.io.enq.bits.tag := preOpThread
+      fuFifos_1.io.enq.bits.bits := preOpA
+      fuFifos_1.io.enq.valid := true.B
     }
     when (threadStates(preOpThread).fuValids(2) === true.B) {
-      fuFifos_2.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
+      // fuFifos_2.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
+      fuFifos_2.io.enq.bits.tag := preOpThread
+      fuFifos_2.io.enq.bits.bits := preOpA
+      fuFifos_2.io.enq.valid := true.B
     }
 
     threadStages(readThread) := ThreadStageEnum.exec
@@ -392,13 +414,43 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   when (fuFifos_0.io.count > 0.U && fuReqReadys(0) === true.B) {
     val deq = fuFifos_0.io.deq
     ipv4Lookup1Port.req.valid := true.B
-    ipv4Lookup1Port.req.tag := deq.tag
-    ipv4Lookup1Port.req.bits := deq.bits
+    ipv4Lookup1Port.req.tag := deq.bits.tag
+    ipv4Lookup1Port.req.bits := deq.bits.bits
+    fuFifos_0.io.deq.ready := true.B
   }
   .otherwise {
     ipv4Lookup1Port.req.valid := false.B
     ipv4Lookup1Port.req.tag := 0.U(NUM_THREADS_LG.W)
     ipv4Lookup1Port.req.bits := 0.U
+    fuFifos_0.io.deq.ready := false.B
+  }
+
+  when (fuFifos_1.io.count > 0.U && fuReqReadys(1) === true.B) {
+    val deq = fuFifos_1.io.deq
+    ipv4Lookup2Port.req.valid := true.B
+    ipv4Lookup2Port.req.tag := deq.bits.tag
+    ipv4Lookup2Port.req.bits := deq.bits.bits
+    fuFifos_1.io.deq.ready := true.B
+  }
+  .otherwise {
+    ipv4Lookup2Port.req.valid := false.B
+    ipv4Lookup2Port.req.tag := 0.U(NUM_THREADS_LG.W)
+    ipv4Lookup2Port.req.bits := 0.U
+    fuFifos_1.io.deq.ready := false.B
+  }
+
+  when (fuFifos_2.io.count > 0.U && fuReqReadys(0) === true.B) {
+    val deq = fuFifos_2.io.deq
+    ipv4Lookup1Port.req.valid := true.B
+    ipv4Lookup1Port.req.tag := deq.bits.tag
+    ipv4Lookup1Port.req.bits := deq.bits.bits
+    fuFifos_2.io.deq.ready := true.B
+  }
+  .otherwise {
+    ipv4Lookup1Port.req.valid := false.B
+    ipv4Lookup1Port.req.tag := 0.U(NUM_THREADS_LG.W)
+    ipv4Lookup1Port.req.bits := 0.U
+    fuFifos_2.io.deq.ready := false.B
   }
 
   ipv4Lookup1Port.rep.ready := true.B
