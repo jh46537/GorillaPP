@@ -52,10 +52,11 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   }
 }
 
-class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int, ip_width: Int) extends Module {
+class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int, ip_width: Int, imm_width: Int) extends Module {
   val io = IO(new Bundle {
     val instr     = Input(UInt(instrWidth.W))
 
+    val imm       = Output(UInt(imm_width.W))
     val srcAId    = Output(UInt(num_regs_lg.W))
     val srcBId    = Output(UInt(num_regs_lg.W))
     val destAEn   = Output(Bool())
@@ -70,6 +71,7 @@ class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int
     val brTarget  = Output(UInt(ip_width.W))
   })
 
+  io.imm       := io.instr(47, 40)
   io.srcAId    := io.instr(39, 36)
   io.srcBId    := io.instr(35, 32)
   io.destAEn   := io.instr(31, 31)
@@ -94,13 +96,14 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val NUM_FUS = 3
   val NUM_FUS_LG = log2Up(NUM_FUS)
   val VLIW_OPS = 2
-  val NUM_PREOPS = 6
+  val NUM_PREOPS = 9
   val NUM_PREOPS_LG = log2Up(NUM_PREOPS)
+  val IMM_WIDTH = 8
   // FIXME
   //val BR_INSTR_WIDTH = 8
   //val INSTR_WIDTH = NUM_PREOPS_LG + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG) + BR_INSTR_WIDTH
   val IP_WIDTH = 8
-  val INSTR_WIDTH = NUM_PREOPS_LG + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG + 1) + NUM_FUS * 2 + IP_WIDTH + 1
+  val INSTR_WIDTH = NUM_PREOPS_LG + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG + 1) + NUM_FUS * 2 + IP_WIDTH + IMM_WIDTH + 1
   // val INSTR_WIDTH = 6  // 40-bits
 
   val NONE_SELECTED = (NUM_THREADS).U((log2Up(NUM_THREADS+1)).W)
@@ -160,6 +163,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     val instr       = UInt(INSTR_WIDTH.W)
     val instrReady  = Bool()
 
+    val imm         = UInt(IMM_WIDTH.W)
     val srcAId      = UInt(NUM_REGS_LG.W)
     val srcBId      = UInt(NUM_REGS_LG.W)
     val destAEn     = Bool()
@@ -183,6 +187,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     val dests       = Vec(NUM_FUS, UInt(REG_WIDTH.W))
     val execValids  = Vec(NUM_FUS, Bool())
     val execDone    = Bool()
+    val finish      = Bool()
   }
   val threadStates  = Reg(Vec(NUM_THREADS, ThreadStateT))
 
@@ -193,6 +198,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val GS_UPDATE      = 4.U
   val GS_UPDATE_POST = 5.U
   val GS_EXCEPTION   = 6.U
+  val GS_INPUT       = 7.U
+  val GS_OUTPUT      = 8.U
 
   val regfile = Module(new Regfile(NUM_REGS, REG_WIDTH))
 
@@ -204,12 +211,14 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     sThreadEncoder.io.valid(i) := threadStages(i) === ThreadStageEnum.idle)
   sThreadEncoder.io.ready := sThread =/= NONE_SELECTED
 
+  io.in.ready := false.B
   when (sThread =/= NONE_SELECTED && io.in.valid) {
     threadStages(sThread) := ThreadStageEnum.fetch
 
     threadStates(sThread).tag := io.in.tag
     threadStates(sThread).input := io.in.bits
     threadStates(sThread).ip := 0.U(IP_WIDTH.W)
+    io.in.ready := true.B
   }
 
   /****************** Fetch logic *********************************/
@@ -237,9 +246,10 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val decodeThread = RegInit(NONE_SELECTED)
   decodeThread := vThread
 
-  val decodeUnit = Module(new Decode(INSTR_WIDTH, NUM_REGS_LG, NUM_FUS, NUM_PREOPS_LG, IP_WIDTH))
+  val decodeUnit = Module(new Decode(INSTR_WIDTH, NUM_REGS_LG, NUM_FUS, NUM_PREOPS_LG, IP_WIDTH, IMM_WIDTH))
   when (decodeThread =/= NONE_SELECTED) {
     decodeUnit.io.instr                  := threadStates(decodeThread).instr
+    threadStates(decodeThread).imm       := decodeUnit.io.imm
     threadStates(decodeThread).srcAId    := decodeUnit.io.srcAId
     threadStates(decodeThread).srcBId    := decodeUnit.io.srcBId
     threadStates(decodeThread).destAEn   := decodeUnit.io.destAEn
@@ -340,12 +350,25 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   fuFifos_1.io.enq.bits := DontCare
   fuFifos_2.io.enq.bits := DontCare
 
+  io.out.tag := DontCare
+  io.out.bits := DontCare
+  io.out.valid := false.B
+  threadStates(preOpThread).finish := false.B
+
   when (preOpThread =/= NONE_SELECTED) {
     var preOpA = threadStates(preOpThread).srcA
     var preOpB = threadStates(preOpThread).srcB
     threadStates(preOpThread).preOpBranch := false.B
 
-    when (threadStates(preOpThread).preOp === GS_ETHERNET) {
+    when (threadStates(preOpThread).preOp === GS_INPUT) {
+      val input_u = threadStates(preOpThread).input.asUInt
+      val shift_w = threadStates(preOpThread).imm(3, 0)
+      val tmp = input_u >> (8.U-shift_w)
+      preOpA := input_u(255, 128)
+      preOpB := input_u(127, 0)
+    }
+
+    .elsewhen (threadStates(preOpThread).preOp === GS_ETHERNET) {
       // SrcA = in[0]
       threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA(127, 120) =/= ETHERNET)  // branch to exception
     }
@@ -360,7 +383,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
     .elsewhen (threadStates(preOpThread).preOp === GS_LOOKUP_POST) {
       // preOpA := threadStates(preOpThread).srcA + threadStates(preOpThread).srcB
-      threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA === INVALID_ADDRESS) || (preOpA === INVALID_ADDRESS)  // branch to exception
+      threadStates(preOpThread).preOpBranch := (preOpA(119, 112) === INVALID_ADDRESS) || (preOpB(7, 0) === INVALID_ADDRESS)  // branch to exception
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_UPDATE) {
@@ -376,7 +399,17 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_EXCEPTION) {
-      preOpA := CONTROL_PLANE
+      val outPort = CONTROL_PLANE.asUInt
+      preOpA := Cat(threadStates(preOpThread).srcA(127, 120), outPort, threadStates(preOpThread).srcA(111, 0))
+    }
+
+    .elsewhen (threadStates(preOpThread).preOp === GS_OUTPUT) {
+      io.out.tag := threadStates(preOpThread).tag
+      io.out.bits := threadStates(preOpThread).input
+      io.out.bits.outPort := preOpA(119, 112)
+      io.out.bits.l3.h1 := preOpB
+      io.out.valid := true.B
+      threadStates(preOpThread).finish := true.B
     }
 
     threadStates(preOpThread).preOpA := preOpA
@@ -392,13 +425,13 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     when (threadStates(preOpThread).fuValids(1) === true.B) {
       // fuFifos_1.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
       fuFifos_1.io.enq.bits.tag := preOpThread
-      fuFifos_1.io.enq.bits.bits := preOpA
+      fuFifos_1.io.enq.bits.bits := preOpB
       fuFifos_1.io.enq.valid := true.B
     }
     when (threadStates(preOpThread).fuValids(2) === true.B) {
       // fuFifos_2.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
       fuFifos_2.io.enq.bits.tag := preOpThread
-      fuFifos_2.io.enq.bits.bits := preOpA
+      fuFifos_2.io.enq.bits.bits := preOpB
       fuFifos_2.io.enq.valid := true.B
     }
 
@@ -415,7 +448,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     val deq = fuFifos_0.io.deq
     ipv4Lookup1Port.req.valid := true.B
     ipv4Lookup1Port.req.tag := deq.bits.tag
-    ipv4Lookup1Port.req.bits := deq.bits.bits
+    ipv4Lookup1Port.req.bits := deq.bits.bits(127, 96)
     fuFifos_0.io.deq.ready := true.B
   }
   .otherwise {
@@ -429,7 +462,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     val deq = fuFifos_1.io.deq
     ipv4Lookup2Port.req.valid := true.B
     ipv4Lookup2Port.req.tag := deq.bits.tag
-    ipv4Lookup2Port.req.bits := deq.bits.bits
+    ipv4Lookup2Port.req.bits := deq.bits.bits(31, 0)
     fuFifos_1.io.deq.ready := true.B
   }
   .otherwise {
@@ -441,15 +474,15 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
   when (fuFifos_2.io.count > 0.U && fuReqReadys(0) === true.B) {
     val deq = fuFifos_2.io.deq
-    ipv4Lookup1Port.req.valid := true.B
-    ipv4Lookup1Port.req.tag := deq.bits.tag
-    ipv4Lookup1Port.req.bits := deq.bits.bits
+    qosCountPort.req.valid := true.B
+    qosCountPort.req.tag := deq.bits.tag
+    qosCountPort.req.bits := deq.bits.bits(119, 112)
     fuFifos_2.io.deq.ready := true.B
   }
   .otherwise {
-    ipv4Lookup1Port.req.valid := false.B
-    ipv4Lookup1Port.req.tag := 0.U(NUM_THREADS_LG.W)
-    ipv4Lookup1Port.req.bits := 0.U
+    qosCountPort.req.valid := false.B
+    qosCountPort.req.tag := 0.U(NUM_THREADS_LG.W)
+    qosCountPort.req.bits := 0.U
     fuFifos_2.io.deq.ready := false.B
   }
 
@@ -474,7 +507,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   // finish execution
   // FIXME: this does not need to take a cycle
   Range(0, NUM_THREADS, 1).foreach(i =>
-    threadStates(i).execDone := threadStates(i).execValids.forall(_ === true.B)
+    // threadStates(i).execDone := (threadStates(i).execValids zip threadStates(i).fuValids).map(x => x._1 || x._2).forall(_ === true.B)
+    threadStates(i).execDone := (threadStates(i).execValids.asUInt | (~threadStates(i).fuValids.asUInt)).andR
   )
 
   val fThreadEncoder = Module(new RREncode(NUM_THREADS))
@@ -509,7 +543,12 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
       threadStates(branchThread).ip := threadStates(branchThread).ip + INSTR_WIDTH.U
     }
 
-    threadStages(branchThread) := ThreadStageEnum.idle
+    when (threadStates(branchThread).finish) {
+      threadStages(branchThread) := ThreadStageEnum.idle
+    }
+    .otherwise {
+      threadStages(branchThread) := ThreadStageEnum.fetch
+    }
   }
   .otherwise {
     regfile.io.wrEn1 := false.B
