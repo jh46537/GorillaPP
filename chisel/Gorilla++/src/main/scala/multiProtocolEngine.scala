@@ -49,7 +49,7 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   mem_array(0) = "h0000000182c6f801".U
   mem_array(1) = "h0000020190c6f801".U
   mem_array(2) = "h0000000000000006".U
-  mem_array(3) = "h0000000000002005".U
+  mem_array(3) = "h0000002000002005".U
   mem_array(4) = "h00000025a1904301".U
   mem_array(5) = "h0000008600006003".U
   mem_array(6) = "h0000006200008402".U
@@ -106,7 +106,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val NUM_THREADS = 16
   val NUM_THREADS_LG = log2Up(NUM_THREADS)
   val REG_WIDTH = 128
-  val NUM_REGS = 9 + 9 + 2
+  val NUM_REGS = 16
   val NUM_REGS_LG = log2Up(NUM_REGS)
   val NUM_FUS = 5
   val NUM_FUS_LG = log2Up(NUM_FUS)
@@ -216,7 +216,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val GS_INPUT       = 7.U
   val GS_OUTPUT      = 8.U
 
-  val regfile = Module(new Regfile(NUM_REGS, REG_WIDTH))
+  val regfile = Module(new Regfile(NUM_REGS*NUM_THREADS, REG_WIDTH))
 
   /****************** Start Thread *********************************/
   // select idle thread
@@ -301,8 +301,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   readThread := decodeThread
 
   when (readThread =/= NONE_SELECTED) {
-    regfile.io.rdAddr1 := threadStates(readThread).srcAId
-    regfile.io.rdAddr2 := threadStates(readThread).srcBId
+    regfile.io.rdAddr1 := Cat(readThread, threadStates(readThread).srcAId)
+    regfile.io.rdAddr2 := Cat(readThread, threadStates(readThread).srcBId)
     threadStates(readThread).srcA := regfile.io.rdData1
     threadStates(readThread).srcB := regfile.io.rdData2
 
@@ -392,7 +392,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
     .elsewhen (threadStates(preOpThread).preOp === GS_ETHERNET) {
       // SrcA = in[0]
-      threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA(127, 120) === ETHERNET)  // branch to exception
+      threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA(127, 120) =/= ETHERNET)  // branch to exception
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_IPV4) {
@@ -566,8 +566,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     // writeback
     regfile.io.wrEn1 := threadStates(branchThread).destAEn
     regfile.io.wrEn2 := threadStates(branchThread).destBEn
-    regfile.io.wrAddr1 := threadStates(branchThread).destAId
-    regfile.io.wrAddr2 := threadStates(branchThread).destBId
+    regfile.io.wrAddr1 := Cat(branchThread, threadStates(branchThread).destAId)
+    regfile.io.wrAddr2 := Cat(branchThread, threadStates(branchThread).destBId)
     regfile.io.wrData1 := threadStates(branchThread).dests(threadStates(branchThread).destALane)
     regfile.io.wrData2 := threadStates(branchThread).dests(threadStates(branchThread).destBLane)
 
@@ -590,8 +590,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   .otherwise {
     regfile.io.wrEn1 := false.B
     regfile.io.wrEn2 := false.B
-    regfile.io.wrAddr1 := 0.U(NUM_REGS_LG.W)
-    regfile.io.wrAddr2 := 0.U(NUM_REGS_LG.W)
+    regfile.io.wrAddr1 := 0.U((NUM_REGS_LG+NUM_THREADS_LG).W)
+    regfile.io.wrAddr2 := 0.U((NUM_REGS_LG+NUM_THREADS_LG).W)
     regfile.io.wrData1 := 0.U(REG_WIDTH.W)
     regfile.io.wrData2 := 0.U(REG_WIDTH.W)
   }

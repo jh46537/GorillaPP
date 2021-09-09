@@ -1,7 +1,7 @@
-INPUT, , , ,WEN,WEN, , ,R5,R1,0,0
+INPUT, , , ,WEN,WEN, , ,R5,R0,0,0
 INPUT, , , ,WEN,WEN, , ,R1,R2,0,1
 ETHERNET, , , , , ,R0, , , ,6,0
-IPV4, , , , , ,R0, , , ,5,0
+IPV4, , , , , ,R0,R1, , ,5,0
 LOOKUP,WEN,WEN, , , ,R2,R1,R3,R4,0,0
 LOOKUP_POST, , , , , ,R3,R4, , ,3,0
 UPDATE, , ,EN, , ,R1,R3, , ,2,0
