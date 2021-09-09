@@ -45,9 +45,21 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
 
   // FIXME: implement i$
 
-  // val mem = Reg(Vec(1 << ipWidth, UInt(instrWidth.W)))
-  val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
-  loadMemoryFromFileInline(mem, "../../../../../assembler/npu.bin")
+  var mem_array = Array.fill[UInt](1 << ipWidth)(0.U(instrWidth.W))
+  mem_array(0) = "h0000000182c6f801".U
+  mem_array(1) = "h0000020190c6f801".U
+  mem_array(2) = "h0000000000000006".U
+  mem_array(3) = "h0000000000002005".U
+  mem_array(4) = "h00000025a1904301".U
+  mem_array(5) = "h0000008600006003".U
+  mem_array(6) = "h0000006200008402".U
+  mem_array(7) = "h000000028086a802".U
+  mem_array(8) = "h000000008186c800".U
+  mem_array(9) = "h0000002600010000".U
+
+  val mem = RegInit(VecInit(mem_array.toSeq))
+  //val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
+  //loadMemoryFromFileInline(mem, "../assembler/npu.bin")
 
   for (i <- 0 to num - 1) {
     io.instrs(i) := mem(io.ips(i))
@@ -74,15 +86,15 @@ class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int
     val brTarget  = Output(UInt(ip_width.W))
   })
 
-  io.imm       := io.instr(46, 39)
-  io.srcAId    := io.instr(38, 35)
-  io.srcBId    := io.instr(34, 31)
-  io.destAEn   := io.instr(30, 30)
-  io.destBEn   := io.instr(29, 29)
-  io.destAId   := io.instr(28, 25)
-  io.destBId   := io.instr(24, 21)
-  io.destALane := io.instr(20, 19)
-  io.destBLane := io.instr(18, 17)
+  io.imm       := io.instr(48, 41)
+  io.srcBId    := io.instr(40, 37)
+  io.srcAId    := io.instr(36, 33)
+  io.destBEn   := io.instr(32, 32)
+  io.destAEn   := io.instr(31, 31)
+  io.destBId   := io.instr(30, 27)
+  io.destAId   := io.instr(26, 23)
+  io.destBLane := io.instr(22, 20)
+  io.destALane := io.instr(19, 17)
   io.preOp     := io.instr(16, 13)
   io.fuValids  := io.instr(12,  8).asBools
   // io.brMask    := io.instr(13,  8).asBools
@@ -231,10 +243,6 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     fetchUnit.io.ipValids(i) := threadStages(i) === ThreadStageEnum.fetch
     threadStates(i).instr := fetchUnit.io.instrs(i)
     threadStates(i).instrReady := fetchUnit.io.instrReadys(i)
-
-    when (threadStages(i) === ThreadStageEnum.fetch) {
-      threadStages(i) := ThreadStageEnum.decode
-    }
   }
 
   /****************** Scheduler logic *********************************/
@@ -242,8 +250,12 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val vThreadEncoder = Module(new RREncode(NUM_THREADS))
   val vThread = vThreadEncoder.io.chosen
   Range(0, NUM_THREADS, 1).map(i =>
-    vThreadEncoder.io.valid(i) := (threadStages(i) === ThreadStageEnum.decode) && threadStates(i).instrReady)
+    vThreadEncoder.io.valid(i) := (threadStages(i) === ThreadStageEnum.fetch) && threadStates(i).instrReady)
   vThreadEncoder.io.ready := vThread =/= NONE_SELECTED
+
+  when (vThread =/= NONE_SELECTED) {
+      threadStages(vThread) := ThreadStageEnum.decode
+  }
 
   /****************** Decode logic *********************************/
   val decodeThread = RegInit(NONE_SELECTED)
@@ -359,21 +371,28 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   threadStates(preOpThread).finish := false.B
 
   when (preOpThread =/= NONE_SELECTED) {
-    var preOpA = threadStates(preOpThread).srcA
-    var preOpB = threadStates(preOpThread).srcB
+    val preOpA = Wire(UInt(REG_WIDTH.W))
+    val preOpB = Wire(UInt(REG_WIDTH.W))
+    preOpA := threadStates(preOpThread).srcA
+    preOpB := threadStates(preOpThread).srcB
     threadStates(preOpThread).preOpBranch := false.B
 
     when (threadStates(preOpThread).preOp === GS_INPUT) {
-      val input_u = threadStates(preOpThread).input.asUInt
-      val shift_w = threadStates(preOpThread).imm(3, 0)
-      val tmp = input_u >> (8.U-shift_w)
-      preOpA := input_u(255, 128)
-      preOpB := input_u(127, 0)
+      val input_u = Wire(UInt(1152.W))
+      val shift_w = Wire(UInt(4.W))
+      input_u := threadStates(preOpThread).input.asUInt
+      shift_w := threadStates(preOpThread).imm(3, 0)
+
+      val tmp = Wire(UInt(1152.W))
+      tmp := input_u >> ((4.U-shift_w)*256.U)
+
+      preOpA := tmp(255, 128)
+      preOpB := tmp(127, 0)
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_ETHERNET) {
       // SrcA = in[0]
-      threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA(127, 120) =/= ETHERNET)  // branch to exception
+      threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA(127, 120) === ETHERNET)  // branch to exception
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_IPV4) {
@@ -394,8 +413,11 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_UPDATE_POST) {
-      val ttl = (threadStates(preOpThread).srcA(63, 56) - 1.U)
-      val chksum = (threadStates(preOpThread).srcA(47, 32) + 0x80.U)
+      val ttl = Wire(UInt(8.W))
+      val chksum = Wire(UInt(16.W))
+      ttl := threadStates(preOpThread).srcA(63, 56) - 1.U
+      chksum := threadStates(preOpThread).srcA(47, 32) + 0x80.U
+
       preOpA := Cat(threadStates(preOpThread).srcA(127, 64), ttl, threadStates(preOpThread).srcA(55, 48), chksum, threadStates(preOpThread).srcA(31, 0))
       threadStates(preOpThread).preOpBranch := true.B
       // preOpA := (threadStates(preOpThread).srcA(63, 56) - 1.U)
@@ -450,7 +472,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
       threadStates(preOpThread).execValids(4) := true.B
     }
 
-    threadStages(readThread) := ThreadStageEnum.exec
+    threadStages(preOpThread) := ThreadStageEnum.exec
   }
 
   /****************** Function unit execution *********************************/
