@@ -9,13 +9,14 @@
 #include <cmath>
 
 #define OP_W 3
-#define NUM_FUS_LG 2
-#define NUM_FUS (1 << NUM_FUS_LG)
+#define NUM_FUS 5
+#define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
 #define NUM_SRC 2
 #define NUM_DEST 2
 #define NUM_REGS_LG 3
 #define IP_W 8
-#define INST_W NUM_FUS+(NUM_SRC+NUM_DEST)*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W+OP_W
+#define IMM_W 8
+#define INST_W NUM_FUS+(NUM_SRC+NUM_DEST)*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W+OP_W+IMM_W
 #define NUM_INT (INST_W+31)/32
 
 using namespace std;
@@ -30,7 +31,8 @@ class instruction
 		{"UPDATE"      , 4},
 		{"UPDATE_POST" , 5},
 		{"EXCEPTION"   , 6},
-		{"RETURN"      , 7}
+		{"INPUT"       , 7},
+		{"OUTPUT"      , 8}
 	};
 
 	int preOp;
@@ -40,6 +42,7 @@ class instruction
 	int destId[NUM_DEST];
 	int destLane[NUM_DEST];
 	int brTarget;
+	int imm;
 
 public:
 	instruction(string asm_line);
@@ -58,6 +61,7 @@ instruction::instruction(string asm_line) {
 		destLane[i] = 0;
 	}
 	brTarget = 0;
+	imm = 0;
 	
 	//parse asm
 	stringstream s_stream(asm_line);
@@ -107,6 +111,11 @@ instruction::instruction(string asm_line) {
 			//brTarget
 			if (operand != " ") {
 				brTarget = stoi(operand);
+			}
+		} else if (i == NUM_FUS+NUM_SRC+NUM_DEST+2) {
+			//immediate
+			if (operand != " ") {
+				imm = stoi(operand);
 			}
 		}
 		i++;
@@ -190,7 +199,7 @@ void instruction::assemble(ofstream &bin_file) {
 	for (i = 0; i < NUM_SRC; i++) {
 		unsigned srcId_u = unsigned(srcId[i]) & ((1 << NUM_REGS_LG) - 1);
 		inst[j] += (srcId_u << shift_w);
-		cout << "shift_w is" << shift_w << ", srcId is " << srcId_u << endl;
+		// cout << "shift_w is" << shift_w << ", srcId is " << srcId_u << endl;
 		if (shift_w+NUM_REGS_LG > 32) {
 			inst[j+1] += (srcId_u >> (32-shift_w));
 			shift_w = shift_w+NUM_REGS_LG-32;
@@ -201,6 +210,20 @@ void instruction::assemble(ofstream &bin_file) {
 		} else {
 			shift_w += NUM_REGS_LG;
 		}
+	}
+	// immediate
+	unsigned imm_u = unsigned(imm) & ((1 << IMM_W) - 1);
+	inst[j] += (imm_u << shift_w);
+	// cout << "shift_w is" << shift_w << ", imm is " << imm_u << endl;
+	if (shift_w+IMM_W > 32) {
+		inst[j+1] += (imm_u >> (32-shift_w));
+		shift_w = shift_w+IMM_W-32;
+		j++;
+	} else if (shift_w+IMM_W == 32) {
+		shift_w = 0;
+		j++;
+	} else {
+		shift_w += IMM_W;
 	}
 
 	// Output
@@ -221,6 +244,8 @@ int main(int argc, char const *argv[])
 		cout << "./assemble <asm file> <bin file>" << endl;
 		return 0;
 	}
+
+	// cout << "NUM_FUS_LG is " << NUM_FUS_LG << endl;
 
 	string asm_line;
 	while (getline(asm_file, asm_line)) {
