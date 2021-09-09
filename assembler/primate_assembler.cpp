@@ -8,12 +8,12 @@
 #include <stdio.h>
 #include <cmath>
 
-#define OP_W 3
+#define OP_W 4
 #define NUM_FUS 5
 #define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
 #define NUM_SRC 2
 #define NUM_DEST 2
-#define NUM_REGS_LG 3
+#define NUM_REGS_LG 4
 #define IP_W 8
 #define IMM_W 8
 #define INST_W NUM_FUS+(NUM_SRC+NUM_DEST)*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W+OP_W+IMM_W
@@ -135,7 +135,8 @@ void instruction::assemble(ofstream &bin_file) {
 		unsigned tmp = unsigned(fuValids[i]) & 1;
 		inst[j] += (tmp << shift_w);
 		if (shift_w == 32) {
-			shift_w = 0;
+            inst[j+1] += tmp;
+			shift_w = 1;
 			j++;
 		} else {
 			shift_w++;
@@ -189,7 +190,8 @@ void instruction::assemble(ofstream &bin_file) {
 		unsigned tmp = unsigned(destEn[i]) & 1;
 		inst[j] += (tmp << shift_w);
 		if (shift_w == 32) {
-			shift_w = 0;
+            inst[j+1] += tmp;
+			shift_w = 1;
 			j++;
 		} else {
 			shift_w++;
