@@ -1,6 +1,7 @@
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.ChiselEnum
+import chisel3.util.experimental.loadMemoryFromFileInline
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
@@ -44,7 +45,9 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
 
   // FIXME: implement i$
 
-  val mem = Reg(Vec(1 << ipWidth, UInt(instrWidth.W)))
+  // val mem = Reg(Vec(1 << ipWidth, UInt(instrWidth.W)))
+  val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
+  loadMemoryFromFileInline(mem, "../../../../../assembler/npu.bin")
 
   for (i <- 0 to num - 1) {
     io.instrs(i) := mem(io.ips(i))
@@ -67,22 +70,22 @@ class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int
     val destBLane = Output(UInt(log2Up(num_fus).W))
     val preOp     = Output(UInt(num_preops_lg.W))
     val fuValids  = Output(Vec(num_fus, Bool()))
-    val brMask    = Output(Vec(num_fus + 1, Bool()))
+    // val brMask    = Output(Vec(num_fus + 1, Bool()))
     val brTarget  = Output(UInt(ip_width.W))
   })
 
-  io.imm       := io.instr(47, 40)
-  io.srcAId    := io.instr(39, 36)
-  io.srcBId    := io.instr(35, 32)
-  io.destAEn   := io.instr(31, 31)
-  io.destBEn   := io.instr(30, 30)
-  io.destAId   := io.instr(29, 26)
-  io.destBId   := io.instr(25, 22)
-  io.destALane := io.instr(21, 20)
-  io.destBLane := io.instr(19, 18)
-  io.preOp     := io.instr(17, 15)
-  io.fuValids  := io.instr(14, 12).asBools
-  io.brMask    := io.instr(11,  8).asBools
+  io.imm       := io.instr(46, 39)
+  io.srcAId    := io.instr(38, 35)
+  io.srcBId    := io.instr(34, 31)
+  io.destAEn   := io.instr(30, 30)
+  io.destBEn   := io.instr(29, 29)
+  io.destAId   := io.instr(28, 25)
+  io.destBId   := io.instr(24, 21)
+  io.destALane := io.instr(20, 19)
+  io.destBLane := io.instr(18, 17)
+  io.preOp     := io.instr(16, 13)
+  io.fuValids  := io.instr(12,  8).asBools
+  // io.brMask    := io.instr(13,  8).asBools
   io.brTarget  := io.instr( 7,  0)
 }
 
@@ -93,7 +96,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val REG_WIDTH = 128
   val NUM_REGS = 9 + 9 + 2
   val NUM_REGS_LG = log2Up(NUM_REGS)
-  val NUM_FUS = 3
+  val NUM_FUS = 5
   val NUM_FUS_LG = log2Up(NUM_FUS)
   val VLIW_OPS = 2
   val NUM_PREOPS = 9
@@ -174,7 +177,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     val destBLane   = UInt(NUM_FUS_LG.W)
     val preOp       = UInt(NUM_PREOPS_LG.W)
     val fuValids    = Vec(NUM_FUS, Bool())
-    val brMask      = Vec(NUM_FUS + 1, Bool())
+    // val brMask      = Vec(NUM_FUS + 1, Bool())
     val brTarget    = UInt(IP_WIDTH.W)
 
     val srcA        = UInt(REG_WIDTH.W)
@@ -260,7 +263,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     threadStates(decodeThread).destBLane := decodeUnit.io.destBLane
     threadStates(decodeThread).preOp     := decodeUnit.io.preOp
     threadStates(decodeThread).fuValids  := decodeUnit.io.fuValids
-    threadStates(decodeThread).brMask    := decodeUnit.io.brMask
+    // threadStates(decodeThread).brMask    := decodeUnit.io.brMask
     threadStates(decodeThread).brTarget  := decodeUnit.io.brTarget
 
     threadStages(decodeThread) := ThreadStageEnum.read
@@ -277,7 +280,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     threadStates(decodeThread).destBLane := DontCare
     threadStates(decodeThread).preOp     := DontCare
     threadStates(decodeThread).fuValids  := DontCare
-    threadStates(decodeThread).brMask    := DontCare
+    // threadStates(decodeThread).brMask    := DontCare
     threadStates(decodeThread).brTarget  := DontCare
   }
 
@@ -383,7 +386,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
     .elsewhen (threadStates(preOpThread).preOp === GS_LOOKUP_POST) {
       // preOpA := threadStates(preOpThread).srcA + threadStates(preOpThread).srcB
-      threadStates(preOpThread).preOpBranch := (preOpA(119, 112) === INVALID_ADDRESS) || (preOpB(7, 0) === INVALID_ADDRESS)  // branch to exception
+      threadStates(preOpThread).preOpBranch := (preOpA(7, 0) === INVALID_ADDRESS) || (preOpB(7, 0) === INVALID_ADDRESS)  // branch to exception
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_UPDATE) {
@@ -394,19 +397,19 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
       val ttl = (threadStates(preOpThread).srcA(63, 56) - 1.U)
       val chksum = (threadStates(preOpThread).srcA(47, 32) + 0x80.U)
       preOpA := Cat(threadStates(preOpThread).srcA(127, 64), ttl, threadStates(preOpThread).srcA(55, 48), chksum, threadStates(preOpThread).srcA(31, 0))
+      threadStates(preOpThread).preOpBranch := true.B
       // preOpA := (threadStates(preOpThread).srcA(63, 56) - 1.U)
       // preOpB := (threadStates(preOpThread).srcA(47, 32) + 0x80.U)
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_EXCEPTION) {
-      val outPort = CONTROL_PLANE.asUInt
-      preOpA := Cat(threadStates(preOpThread).srcA(127, 120), outPort, threadStates(preOpThread).srcA(111, 0))
+      preOpA := CONTROL_PLANE
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_OUTPUT) {
       io.out.tag := threadStates(preOpThread).tag
       io.out.bits := threadStates(preOpThread).input
-      io.out.bits.outPort := preOpA(119, 112)
+      io.out.bits.outPort := preOpA(7, 0)
       io.out.bits.l3.h1 := preOpB
       io.out.valid := true.B
       threadStates(preOpThread).finish := true.B
@@ -416,6 +419,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     threadStates(preOpThread).preOpB := preOpB
 
     // FIXME: choose which preOp vals to send to functional units
+    threadStates(preOpThread).execValids := VecInit(Seq.fill(NUM_FUS)(false.B))
     when (threadStates(preOpThread).fuValids(0) === true.B) {
       // fuFifos_0.io.enq := (new Bundle { val tag = preOpThread; val bits = preOpA; }).asUInt
       fuFifos_0.io.enq.bits.tag := preOpThread
@@ -433,6 +437,17 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
       fuFifos_2.io.enq.bits.tag := preOpThread
       fuFifos_2.io.enq.bits.bits := preOpB
       fuFifos_2.io.enq.valid := true.B
+    }
+
+    // Bypass
+    when (threadStates(preOpThread).fuValids(3) === true.B) {
+      threadStates(preOpThread).dests(3) := preOpA
+      threadStates(preOpThread).execValids(3) := true.B
+    }
+
+    when (threadStates(preOpThread).fuValids(4) === true.B) {
+      threadStates(preOpThread).dests(4) := preOpB
+      threadStates(preOpThread).execValids(4) := true.B
     }
 
     threadStages(readThread) := ThreadStageEnum.exec
@@ -476,7 +491,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     val deq = fuFifos_2.io.deq
     qosCountPort.req.valid := true.B
     qosCountPort.req.tag := deq.bits.tag
-    qosCountPort.req.bits := deq.bits.bits(119, 112)
+    qosCountPort.req.bits := deq.bits.bits(7, 0)
     fuFifos_2.io.deq.ready := true.B
   }
   .otherwise {
@@ -514,7 +529,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val fThreadEncoder = Module(new RREncode(NUM_THREADS))
   val fThread = fThreadEncoder.io.chosen
   Range(0, NUM_THREADS, 1).map(i =>
-    fThreadEncoder.io.valid(i) := threadStates(i).execDone === true.B)
+    fThreadEncoder.io.valid(i) := (threadStates(i).execDone === true.B && threadStages(i) === ThreadStageEnum.exec))
   fThreadEncoder.io.ready := fThread =/= NONE_SELECTED
 
   when (fThread =/= NONE_SELECTED) {
@@ -540,7 +555,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
       threadStates(branchThread).ip := threadStates(branchThread).ip + threadStates(branchThread).brTarget
     }
     .otherwise {
-      threadStates(branchThread).ip := threadStates(branchThread).ip + INSTR_WIDTH.U
+      threadStates(branchThread).ip := threadStates(branchThread).ip + 1.U
     }
 
     when (threadStates(branchThread).finish) {
