@@ -14,6 +14,8 @@ rm:
 	cp ../src/main/scala/run.scala.orig ../src/main/scala/run.scala
 	cp ../Gorilla++/* ../src/main/scala/
  
+verilog:
+	cd $(basedir); $(SBT) clean && $(SBT) run
 
 $(prjs): %: $(basedir)/src/main/scala/%.scala
 	@#cd $(basedir); $(SBT) "project KmeansAndMesh" "run $@ $(SBTARGS)"
