@@ -22,6 +22,13 @@ class Regfile(num: Int, width: Int) extends Module {
     val wrData2 = Input(UInt(width.W))
   })
 
+  val wrAddr1_reg = Reg(UInt(log2Up(num).W))
+  val wrAddr2_reg = Reg(UInt(log2Up(num).W))
+  val wrData1_reg = Reg(UInt(width.W))
+  val wrData2_reg = Reg(UInt(width.W))
+  val wrEn1_reg = Reg(Bool())
+  val wrEn2_reg = Reg(Bool())
+
   val mem = Reg(Vec(num, UInt(width.W)))
 
   io.rdData1 := mem(io.rdAddr1)
@@ -30,9 +37,24 @@ class Regfile(num: Int, width: Int) extends Module {
   when (io.wrEn1) {
     mem(io.wrAddr1) := io.wrData1
   }
+
   when (io.wrEn2) {
     mem(io.wrAddr2) := io.wrData2
   }
+
+  // wrAddr1_reg := io.wrAddr1
+  // wrAddr2_reg := io.wrAddr2
+  // wrData1_reg := io.wrData1
+  // wrData2_reg := io.wrData2
+  // wrEn1_reg := io.wrEn1
+  // wrEn2_reg := io.wrEn2
+
+  // when (wrEn1_reg) {
+  //   mem(wrAddr1_reg) := wrData1_reg
+  // }
+  // when (wrEn2_reg) {
+  //   mem(wrAddr2_reg) := wrData2_reg
+  // }
 }
 
 class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
@@ -222,18 +244,35 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   // select idle thread
   val sThreadEncoder = Module(new RREncode(NUM_THREADS))
   val sThread = sThreadEncoder.io.chosen
+  val in_bits_d0 = Reg(new NP_EthMpl3Header_t)
+  val in_tag_d0 = Reg(UInt((TAGWIDTH*2).W))
+  val in_valid_d0 = Reg(Bool())
+  val sThread_reg = RegInit(NONE_SELECTED)
   Range(0, NUM_THREADS, 1).map(i =>
     sThreadEncoder.io.valid(i) := threadStages(i) === ThreadStageEnum.idle)
   sThreadEncoder.io.ready := sThread =/= NONE_SELECTED
 
   io.in.ready := false.B
+  sThread_reg := sThread
+  in_tag_d0 := io.in.tag
+  in_bits_d0 := io.in.bits
+
   when (sThread =/= NONE_SELECTED && io.in.valid) {
     threadStages(sThread) := ThreadStageEnum.fetch
 
-    threadStates(sThread).tag := io.in.tag
-    threadStates(sThread).input := io.in.bits
+    // threadStates(sThread).tag := io.in.tag
+    // threadStates(sThread).input := io.in.bits
+    in_valid_d0 := true.B
     threadStates(sThread).ip := 0.U(IP_WIDTH.W)
     io.in.ready := true.B
+  }
+  .otherwise {
+    in_valid_d0 := false.B
+  }
+
+  when (in_valid_d0) {
+    threadStates(sThread_reg).tag := in_tag_d0
+    threadStates(sThread_reg).input := in_bits_d0
   }
 
   /****************** Fetch logic *********************************/
@@ -296,15 +335,25 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     threadStates(decodeThread).brTarget  := DontCare
   }
 
+  val regfile_rdAddr1 = Reg(UInt(NUM_REGS_LG.W))
+  val regfile_rdAddr2 = Reg(UInt(NUM_REGS_LG.W))
+  regfile_rdAddr1 := decodeUnit.io.srcAId
+  regfile_rdAddr2 := decodeUnit.io.srcBId
+
   /****************** Register read *********************************/
   val readThread = RegInit(NONE_SELECTED)
   readThread := decodeThread
 
+  val srcA = Reg(UInt(REG_WIDTH.W))
+  val srcB = Reg(UInt(REG_WIDTH.W))
+  srcA := regfile.io.rdData1
+  srcB := regfile.io.rdData2
+
   when (readThread =/= NONE_SELECTED) {
-    regfile.io.rdAddr1 := Cat(readThread, threadStates(readThread).srcAId)
-    regfile.io.rdAddr2 := Cat(readThread, threadStates(readThread).srcBId)
-    threadStates(readThread).srcA := regfile.io.rdData1
-    threadStates(readThread).srcB := regfile.io.rdData2
+    regfile.io.rdAddr1 := Cat(readThread, regfile_rdAddr1)
+    regfile.io.rdAddr2 := Cat(readThread, regfile_rdAddr2)
+    // threadStates(readThread).srcA := regfile.io.rdData1
+    // threadStates(readThread).srcB := regfile.io.rdData2
 
     threadStages(readThread) := ThreadStageEnum.pre
   }
@@ -313,8 +362,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     regfile.io.rdAddr2 := DontCare
     // regfile.io.rdData1 := DontCare
     // regfile.io.rdData2 := DontCare
-    threadStates(readThread).srcA := DontCare
-    threadStates(readThread).srcB := DontCare
+    // threadStates(readThread).srcA := DontCare
+    // threadStates(readThread).srcB := DontCare
   }
 
   /****************** Pre logic *********************************/
@@ -373,8 +422,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   when (preOpThread =/= NONE_SELECTED) {
     val preOpA = Wire(UInt(REG_WIDTH.W))
     val preOpB = Wire(UInt(REG_WIDTH.W))
-    preOpA := threadStates(preOpThread).srcA
-    preOpB := threadStates(preOpThread).srcB
+    preOpA := srcA
+    preOpB := srcB
     threadStates(preOpThread).preOpBranch := false.B
 
     when (threadStates(preOpThread).preOp === GS_INPUT) {
@@ -392,12 +441,12 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
     .elsewhen (threadStates(preOpThread).preOp === GS_ETHERNET) {
       // SrcA = in[0]
-      threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA(127, 120) =/= ETHERNET)  // branch to exception
+      threadStates(preOpThread).preOpBranch := (srcA(127, 120) =/= ETHERNET)  // branch to exception
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_IPV4) {
       // SrcA = in[0]; SrcB = in[1]
-      threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA(15, 8) =/= IPV4) || (threadStates(preOpThread).srcB(111, 96) < 20.U) || (threadStates(preOpThread).srcB(127, 124) =/= 4.U) // branch to exception
+      threadStates(preOpThread).preOpBranch := (srcA(15, 8) =/= IPV4) || (srcB(111, 96) < 20.U) || (srcB(127, 124) =/= 4.U) // branch to exception
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_LOOKUP) {  // 2 calls
@@ -405,20 +454,21 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
 
     .elsewhen (threadStates(preOpThread).preOp === GS_LOOKUP_POST) {
       // preOpA := threadStates(preOpThread).srcA + threadStates(preOpThread).srcB
-      threadStates(preOpThread).preOpBranch := (preOpA(7, 0) === INVALID_ADDRESS) || (preOpB(7, 0) === INVALID_ADDRESS)  // branch to exception
+      threadStates(preOpThread).preOpBranch := (srcA(7, 0) === INVALID_ADDRESS) || (srcB(7, 0) === INVALID_ADDRESS)  // branch to exception
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_UPDATE) {
-      threadStates(preOpThread).preOpBranch := (threadStates(preOpThread).srcA(63, 56) === 1.U)  // branch to exception
+      threadStates(preOpThread).preOpBranch := (srcA(63, 56) === 1.U)  // branch to exception
     }
 
     .elsewhen (threadStates(preOpThread).preOp === GS_UPDATE_POST) {
       val ttl = Wire(UInt(8.W))
       val chksum = Wire(UInt(16.W))
-      ttl := threadStates(preOpThread).srcA(63, 56) - 1.U
-      chksum := threadStates(preOpThread).srcA(47, 32) + 0x80.U
 
-      preOpA := Cat(threadStates(preOpThread).srcA(127, 64), ttl, threadStates(preOpThread).srcA(55, 48), chksum, threadStates(preOpThread).srcA(31, 0))
+      ttl := srcA(63, 56) - 1.U
+      chksum := srcA(47, 32) + 0x80.U
+
+      preOpA := Cat(srcA(127, 64), ttl, srcA(55, 48), chksum, srcA(31, 0))
       threadStates(preOpThread).preOpBranch := true.B
       // preOpA := (threadStates(preOpThread).srcA(63, 56) - 1.U)
       // preOpB := (threadStates(preOpThread).srcA(47, 32) + 0x80.U)
@@ -431,8 +481,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     .elsewhen (threadStates(preOpThread).preOp === GS_OUTPUT) {
       io.out.tag := threadStates(preOpThread).tag
       io.out.bits := threadStates(preOpThread).input
-      io.out.bits.outPort := preOpA(7, 0)
-      io.out.bits.l3.h1 := preOpB
+      io.out.bits.outPort := srcA(7, 0)
+      io.out.bits.l3.h1 := srcB
       io.out.valid := true.B
       threadStates(preOpThread).finish := true.B
     }
@@ -562,14 +612,39 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val branchThread = RegInit(NONE_SELECTED)
   branchThread := fThread
 
+  val branchThread_d0 = RegInit(NONE_SELECTED)
+  val dests_wb = Reg(Vec(NUM_FUS, UInt(REG_WIDTH.W)))
+  val destALane_wb = Reg(UInt(NUM_FUS_LG.W))
+  val destBLane_wb = Reg(UInt(NUM_FUS_LG.W))
+  val destAId_wb = Reg(UInt(NUM_REGS_LG.W))
+  val destBId_wb = Reg(UInt(NUM_REGS_LG.W))
+  val destAEn_wb = Reg(Bool())
+  val destBEn_wb = Reg(Bool())
+
+  // delay 1 cycle
+  branchThread_d0 := branchThread
+  regfile.io.wrEn1 := destAEn_wb
+  regfile.io.wrEn2 := destBEn_wb
+  regfile.io.wrAddr1 := Cat(branchThread_d0, destAId_wb)
+  regfile.io.wrAddr2 := Cat(branchThread_d0, destBId_wb)
+  regfile.io.wrData1 := dests_wb(destALane_wb)
+  regfile.io.wrData2 := dests_wb(destBLane_wb)
+
   when (branchThread =/= NONE_SELECTED) {
     // writeback
-    regfile.io.wrEn1 := threadStates(branchThread).destAEn
-    regfile.io.wrEn2 := threadStates(branchThread).destBEn
-    regfile.io.wrAddr1 := Cat(branchThread, threadStates(branchThread).destAId)
-    regfile.io.wrAddr2 := Cat(branchThread, threadStates(branchThread).destBId)
-    regfile.io.wrData1 := threadStates(branchThread).dests(threadStates(branchThread).destALane)
-    regfile.io.wrData2 := threadStates(branchThread).dests(threadStates(branchThread).destBLane)
+    // regfile.io.wrEn1 := threadStates(branchThread).destAEn
+    // regfile.io.wrEn2 := threadStates(branchThread).destBEn
+    // regfile.io.wrAddr1 := Cat(branchThread, threadStates(branchThread).destAId)
+    // regfile.io.wrAddr2 := Cat(branchThread, threadStates(branchThread).destBId)
+    // regfile.io.wrData1 := threadStates(branchThread).dests(threadStates(branchThread).destALane)
+    // regfile.io.wrData2 := threadStates(branchThread).dests(threadStates(branchThread).destBLane)
+    dests_wb := threadStates(branchThread).dests
+    destALane_wb := threadStates(branchThread).destALane
+    destBLane_wb := threadStates(branchThread).destBLane
+    destAId_wb := threadStates(branchThread).destAId
+    destBId_wb := threadStates(branchThread).destBId
+    destAEn_wb := threadStates(branchThread).destAEn
+    destBEn_wb := threadStates(branchThread).destBEn
 
     // branch
     // FIXME: take all branch bits and properly mask
@@ -588,12 +663,14 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     }
   }
   .otherwise {
-    regfile.io.wrEn1 := false.B
-    regfile.io.wrEn2 := false.B
-    regfile.io.wrAddr1 := 0.U((NUM_REGS_LG+NUM_THREADS_LG).W)
-    regfile.io.wrAddr2 := 0.U((NUM_REGS_LG+NUM_THREADS_LG).W)
-    regfile.io.wrData1 := 0.U(REG_WIDTH.W)
-    regfile.io.wrData2 := 0.U(REG_WIDTH.W)
+    // regfile.io.wrEn1 := false.B
+    // regfile.io.wrEn2 := false.B
+    // regfile.io.wrAddr1 := 0.U((NUM_REGS_LG+NUM_THREADS_LG).W)
+    // regfile.io.wrAddr2 := 0.U((NUM_REGS_LG+NUM_THREADS_LG).W)
+    // regfile.io.wrData1 := 0.U(REG_WIDTH.W)
+    // regfile.io.wrData2 := 0.U(REG_WIDTH.W)
+    destAEn_wb := false.B
+    destBEn_wb := false.B
   }
 
   // FIXME: END threads
