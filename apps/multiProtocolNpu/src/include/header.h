@@ -10,6 +10,14 @@ typedef struct {
   uint16_t chksum;
   uint32_t srcAddr;
   uint32_t dstAddr;
+  uint32_t padding0;
+  uint64_t padding1;
+  uint128_t padding2;
+  uint128_t padding3;
+  uint128_t padding4;
+  uint128_t padding5;
+  uint128_t padding6;
+  uint128_t padding7;
 } IPv4Header_t;
 
 typedef struct {
