@@ -45,7 +45,9 @@ class TopTests(c: Top) extends gTester(c) {
   //val ipv4Header_2 = BigInt("0x_00000000_000000000000000000000000", 16)
   val ipv4Header_2 = BigInt("00000000000000000000000000000000", 16)
 
-  while(sourced < numOfPackets || sinked < numOfPackets-100) {
+  var i = 0
+  while(i < 5 && (sourced < numOfPackets || sinked < numOfPackets-100)) {
+    i += 1
     if ((sourced < numOfPackets) && (cycles % iDelay == 0)) {
       poke(c.io.in.bits.l3.h1, ipv4Header_1)
       poke(c.io.in.bits.l3.h2, ipv4Header_2)

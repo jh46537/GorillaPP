@@ -1,11 +1,289 @@
 import chisel3._
 import chisel3.util._
+import chisel3.util.Fill
 import chisel3.experimental.ChiselEnum
 import chisel3.util.experimental.loadMemoryFromFileInline
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
+
+class Gather extends Module {
+  val io = IO(new Bundle {
+    val din = Input(UInt(128.W))
+    val shift = Input(UInt(5.W))
+    val mode = Input(UInt(4.W))
+    val imm = Input(UInt(8.W))
+    val sign_out = Output(UInt(1.W))
+    val dout = Output(UInt(128.W))
+  })
+
+  val reg0 = Reg(UInt(64.W))
+  val din_d0 = Reg(UInt(128.W))
+  val shift_d0 = Reg(UInt(5.W))
+  val mode_d0 = Reg(UInt(4.W))
+  val imm_d0 = Reg(UInt(8.W))
+
+  din_d0 := io.din
+  shift_d0 := io.shift
+  mode_d0 := io.mode
+  imm_d0 := io.imm
+  switch(io.shift(4, 3)) {
+    is (0.U) {
+      reg0 := io.din(63, 0)
+    }
+    is (1.U) {
+      reg0 := io.din(95, 32)
+    }
+    is (2.U) {
+      reg0 := io.din(127, 64)
+    }
+    is (3.U) {
+      reg0 := Cat(0.U, io.din(127, 96))
+    }
+  }
+
+  val reg1 = Reg(UInt(32.W))
+  val din_d1 = Reg(UInt(128.W))
+  val mode_d1 = Reg(UInt(4.W))
+  val imm_d1 = Reg(UInt(8.W))
+
+  din_d1 := din_d0
+  mode_d1 := mode_d0
+  imm_d1 := imm_d0
+  switch(shift_d0(2, 0)) {
+    is (0.U) {
+      reg1 := reg0(31, 0)
+    }
+    is (1.U) {
+      reg1 := reg0(35, 4)
+    }
+    is (2.U) {
+      reg1 := reg0(39, 8)
+    }
+    is (3.U) {
+      reg1 := reg0(43, 12)
+    }
+    is (4.U) {
+      reg1 := reg0(47, 16)
+    }
+    is (5.U) {
+      reg1 := reg0(51, 20)
+    }
+    is (6.U) {
+      reg1 := reg0(55, 24)
+    }
+    is (7.U) {
+      reg1 := reg0(59, 28)
+    }
+  }
+
+  val reg2 = Reg(UInt(33.W))
+  val din_d2 = Reg(UInt(128.W))
+  din_d2 := din_d1
+  switch(mode_d1) {
+    is(0.U) {
+      // uint32
+      reg2 := Cat(0.U, reg1)
+    }
+    is(1.U) {
+      // uint16
+      reg2 := Cat(0.U, reg1(15, 0))
+    }
+    is(2.U) {
+      // uint8
+      reg2 := Cat(0.U, reg1(7, 0))
+    }
+    is(3.U) {
+      // uint4
+      reg2 := Cat(0.U, reg1(3, 0))
+    }
+    is(4.U) {
+      // int32
+      reg2 := Cat(reg1(31), reg1)
+    }
+    is(5.U) {
+      // int16
+      val tmp = Wire(UInt(17.W))
+      tmp := Fill(17, reg1(15))
+      reg2 := Cat(tmp, reg1(15, 0))
+    }
+    is(6.U) {
+      // int8
+      val tmp = Wire(UInt(25.W))
+      tmp := Fill(25, reg1(7))
+      reg2 := Cat(tmp, reg1(7, 0))
+    }
+    is(7.U) {
+      // int4
+      val tmp = Wire(UInt(29.W))
+      tmp := Fill(29, reg1(3))
+      reg2 := Cat(tmp, reg1(3, 0))
+    }
+    is(8.U) {
+      // uimm8
+      reg2 := Cat(0.U, imm_d1)
+    }
+    is(9.U) {
+      // imm8
+      val tmp = Wire(UInt(25.W))
+      tmp := Fill(25, imm_d1(7))
+      reg2 := Cat(tmp, imm_d1)
+    }
+  }
+  io.dout := Cat(din_d2(127, 32), reg2(31, 0))
+  io.sign_out := reg2(32)
+}
+
+class Scatter extends Module {
+  val io = IO(new Bundle {
+    val din = Input(UInt(128.W))
+    val shift = Input(UInt(5.W))
+    val mode = Input(UInt(4.W))
+    val wren = Output(UInt(16.W))
+    val dout = Output(UInt(128.W))
+  })
+  val dout_vec = Reg(Vec(16, UInt(8.W)))
+  val wren_vec = Reg(Vec(16, Bool()))
+  var i = 0
+  for (i <- 0 until 16) {
+    when (io.mode === 0.U) {
+      // store 128 bit
+      dout_vec(i) := io.din(i*8+7, i*8)
+      wren_vec(i) := true.B
+    } .elsewhen (io.mode === 1.U) {
+      // store 32 bit
+      when (io.shift === i.U) {
+        dout_vec(i) := io.din(7, 0)
+        wren_vec(i) := true.B
+      } .elsewhen (io.shift+1.U === i.U) {
+        dout_vec(i) := io.din(15, 8)
+        wren_vec(i) := true.B
+      } .elsewhen (io.shift+2.U === i.U) {
+        dout_vec(i) := io.din(23, 16)
+        wren_vec(i) := true.B
+      } .elsewhen (io.shift+3.U === i.U) {
+        dout_vec(i) := io.din(31, 24)
+        wren_vec(i) := true.B
+      } .otherwise {
+        dout_vec(i) := DontCare
+        wren_vec(i) := false.B
+      }
+    } .elsewhen (io.mode === 2.U) {
+      // store 16 bit
+      when (io.shift === i.U) {
+        dout_vec(i) := io.din(7, 0)
+        wren_vec(i) := true.B
+      } .elsewhen (io.shift+1.U === i.U) {
+        dout_vec(i) := io.din(15, 8)
+        wren_vec(i) := true.B
+      } .otherwise {
+        dout_vec(i) := DontCare
+        wren_vec(i) := false.B
+      }
+    } .elsewhen (io.mode === 3.U) {
+      // store 8 bit
+      when (io.shift === i.U) {
+        dout_vec(i) := io.din(7, 0)
+        wren_vec(i) := true.B
+      } .otherwise {
+        dout_vec(i) := DontCare
+        wren_vec(i) := false.B
+      }
+    } .otherwise {
+      dout_vec(i) := DontCare
+      wren_vec(i) := false.B
+    }
+  }
+  io.dout := dout_vec.asUInt
+  io.wren := wren_vec.asUInt
+}
+
+class ALU(num_aluops_lg: Int) extends Module {
+  val io = IO(new Bundle {
+    val signA = Input(UInt(1.W))
+    val srcA = Input(UInt(128.W))
+    val signB = Input(UInt(1.W))
+    val srcB = Input(UInt(128.W))
+    val aluOp = Input(UInt(num_aluops_lg.W))
+    val dout = Output(UInt(128.W))
+  })
+  val opA = Wire(SInt(33.W))
+  val opB = Wire(SInt(33.W))
+  val res = Wire(UInt(32.W))
+  opA := Cat(io.signA, io.srcA(31, 0)).asSInt
+  opB := Cat(io.signB, io.srcB(31, 0)).asSInt
+  io.dout := 0.U
+  res := 0.U
+  switch (io.aluOp) {
+    is (0.U) {
+      // fall through srcA
+      io.dout := io.srcA
+    }
+    is (1.U) {
+      // fall through srcB
+      io.dout := io.srcB
+    }
+    is (2.U) {
+      // add
+      res := (opA + opB).asUInt
+      io.dout := Cat(0.U, res)
+    }
+    is (3.U) {
+      // subtract
+      res := (opA - opB).asUInt
+      io.dout := Cat(0.U, res)
+    }
+    is (4.U) {
+      // equal
+      when (opA === opB) {
+        io.dout := 1.U
+      } .otherwise {
+        io.dout := 0.U
+      }
+    }
+    is (5.U) {
+      // not equal
+      when (opA =/= opB) {
+        io.dout := 1.U
+      } .otherwise {
+        io.dout := 0.U
+      }
+    }
+    is (6.U) {
+      // less than
+      when (opA < opB) {
+        io.dout := 1.U
+      } .otherwise {
+        io.dout := 0.U
+      }
+    }
+    is (7.U) {
+      // less than or equal
+      when (opA <= opB) {
+        io.dout := 1.U
+      } .otherwise {
+        io.dout := 0.U
+      }
+    }
+    is (8.U) {
+      // greater than
+      when (opA > opB) {
+        io.dout := 1.U
+      } .otherwise {
+        io.dout := 0.U
+      }
+    }
+    is (9.U) {
+      // greater than or equal
+      when (opA >= opB) {
+        io.dout := 1.U
+      } .otherwise {
+        io.dout := 0.U
+      }
+    }
+  }
+}
 
 class Regfile(num: Int, width: Int) extends Module {
   val io = IO(new Bundle {
@@ -16,45 +294,41 @@ class Regfile(num: Int, width: Int) extends Module {
 
     val wrEn1   = Input(Bool())
     val wrEn2   = Input(Bool())
+    val wrBen1  = Input(UInt((width/8).W))
+    val wrBen2  = Input(UInt((width/8).W))
     val wrAddr1 = Input(UInt(log2Up(num).W))
     val wrAddr2 = Input(UInt(log2Up(num).W))
     val wrData1 = Input(UInt(width.W))
     val wrData2 = Input(UInt(width.W))
   })
 
-  val wrAddr1_reg = Reg(UInt(log2Up(num).W))
-  val wrAddr2_reg = Reg(UInt(log2Up(num).W))
-  val wrData1_reg = Reg(UInt(width.W))
-  val wrData2_reg = Reg(UInt(width.W))
-  val wrEn1_reg = Reg(Bool())
-  val wrEn2_reg = Reg(Bool())
+  val rdAddr1_reg = Reg(UInt(log2Up(num).W))
+  val rdAddr2_reg = Reg(UInt(log2Up(num).W))
+  val mem = Reg(Vec(num, Vec(width/8, UInt(8.W))))
 
-  val mem = Reg(Vec(num, UInt(width.W)))
+  rdAddr1_reg := io.rdAddr1
+  rdAddr2_reg := io.rdAddr2
 
-  io.rdData1 := mem(io.rdAddr1)
-  io.rdData2 := mem(io.rdAddr2)
+  io.rdData1 := RegNext(mem(rdAddr1_reg).asUInt)
+  io.rdData2 := RegNext(mem(rdAddr2_reg).asUInt)
 
   when (io.wrEn1) {
-    mem(io.wrAddr1) := io.wrData1
+    var i = 0
+    for (i <- 0 until width/8) {
+      when (io.wrBen1(i) === 1.U) {
+        mem(io.wrAddr1)(i) := io.wrData1(i*8+7, i*8)
+      }
+    }
   }
 
   when (io.wrEn2) {
-    mem(io.wrAddr2) := io.wrData2
+    var i = 0
+    for (i <- 0 until width/8) {
+      when (io.wrBen2(i) === 1.U) {
+        mem(io.wrAddr2)(i) := io.wrData2(i*8+7, i*8)
+      }
+    }
   }
-
-  // wrAddr1_reg := io.wrAddr1
-  // wrAddr2_reg := io.wrAddr2
-  // wrData1_reg := io.wrData1
-  // wrData2_reg := io.wrData2
-  // wrEn1_reg := io.wrEn1
-  // wrEn2_reg := io.wrEn2
-
-  // when (wrEn1_reg) {
-  //   mem(wrAddr1_reg) := wrData1_reg
-  // }
-  // when (wrEn2_reg) {
-  //   mem(wrAddr2_reg) := wrData2_reg
-  // }
 }
 
 class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
@@ -68,16 +342,16 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   // FIXME: implement i$
 
   var mem_array = Array.fill[UInt](1 << ipWidth)(0.U(instrWidth.W))
-  mem_array(0) = "h0000000182c6f801".U
-  mem_array(1) = "h0000020190c6f801".U
-  mem_array(2) = "h0000000000000006".U
-  mem_array(3) = "h0000002000002005".U
-  mem_array(4) = "h00000025a1904301".U
-  mem_array(5) = "h0000008600006003".U
-  mem_array(6) = "h0000006200008402".U
-  mem_array(7) = "h000000028086a802".U
-  mem_array(8) = "h000000008186c800".U
-  mem_array(9) = "h0000002600010000".U
+  mem_array(0) = "h0000000011e0a0180000000400000006".U
+  mem_array(1) = "h0000002011e420180000000400000006".U
+  mem_array(2) = "h00081000c00000000041005401040f55".U
+  mem_array(3) = "h00008280a0000020004183f401020c65".U
+  mem_array(4) = "h00000000046862430000000400000000".U
+  mem_array(5) = "h001fffe0600008600041001001040045".U
+  mem_array(6) = "h00000020400006240000000401040742".U
+  mem_array(7) = "h0010002051e2203822408108cf040731".U
+  mem_array(8) = "h00001fe001a060080000000400100000".U
+  mem_array(9) = "h00000000000002600000000400000007".U
 
   val mem = RegInit(VecInit(mem_array.toSeq))
   //val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
@@ -89,7 +363,16 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   }
 }
 
-class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int, ip_width: Int, imm_width: Int) extends Module {
+class aluInstBundle(num_aluops_lg: Int, num_srcs: Int) extends Bundle {
+  val dstMode = UInt(4.W)
+  val dstShiftL = UInt(5.W)
+  val srcMode = Vec(num_srcs, UInt(4.W))
+  val srcShiftR = Vec(num_srcs, UInt(5.W))
+  val aluOp = UInt(num_aluops_lg.W)
+  override def cloneType = (new aluInstBundle(num_aluops_lg, num_srcs)).asInstanceOf[this.type]
+}
+
+class Decode(instrWidth: Int, num_regs_lg: Int, num_aluops_lg: Int, num_fus: Int, num_preops_lg: Int, ip_width: Int, imm_width: Int) extends Module {
   val io = IO(new Bundle {
     val instr     = Input(UInt(instrWidth.W))
 
@@ -106,21 +389,30 @@ class Decode(instrWidth: Int, num_regs_lg: Int, num_fus: Int, num_preops_lg: Int
     val fuValids  = Output(Vec(num_fus, Bool()))
     // val brMask    = Output(Vec(num_fus + 1, Bool()))
     val brTarget  = Output(UInt(ip_width.W))
+    val aluInstB  = Output(new aluInstBundle(num_aluops_lg, 2))
+    val aluInstA  = Output(new aluInstBundle(num_aluops_lg, 2)) // 3
   })
 
-  io.imm       := io.instr(48, 41)
-  io.srcBId    := io.instr(40, 37)
-  io.srcAId    := io.instr(36, 33)
-  io.destBEn   := io.instr(32, 32)
-  io.destAEn   := io.instr(31, 31)
-  io.destBId   := io.instr(30, 27)
-  io.destAId   := io.instr(26, 23)
-  io.destBLane := io.instr(22, 20)
-  io.destALane := io.instr(19, 17)
-  io.preOp     := io.instr(16, 13)
-  io.fuValids  := io.instr(12,  8).asBools
-  // io.brMask    := io.instr(13,  8).asBools
-  io.brTarget  := io.instr( 7,  0)
+  // val PREOP_LOW = 0
+  // val PREOP_HIGH = PREOP_LOW + num_preops_lg - 1
+  // val ALUINST_LOW = PREOP_HIGH + 1
+  // val ALUINST_HIGH = ALUINST_LOW + num_alus * (num_aluops_lg + num_srcs*9 + 9) - 1
+
+  io.imm       := io.instr(116, 101)
+  io.brTarget  := io.instr(100,  93)
+  io.destBLane := io.instr( 92,  90)
+  io.destALane := io.instr( 89,  87)
+  // io.brMask    := io.instr( 13,   8).asBools
+  io.destBEn   := io.instr( 86,  86)
+  io.destAEn   := io.instr( 85,  85)
+  io.destBId   := io.instr( 84,  81)
+  io.destAId   := io.instr( 80,  77)
+  io.srcBId    := io.instr( 76,  73)
+  io.srcAId    := io.instr( 72,  69)
+  io.fuValids  := io.instr( 68,  64).asBools
+  io.aluInstB  := io.instr( 63,  34).asTypeOf(chiselTypeOf(io.aluInstB))
+  io.aluInstA  := io.instr( 33,   4).asTypeOf(chiselTypeOf(io.aluInstA))
+  io.preOp     := io.instr(  3,   0)
 }
 
 
@@ -135,12 +427,14 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val VLIW_OPS = 2
   val NUM_PREOPS = 9
   val NUM_PREOPS_LG = log2Up(NUM_PREOPS)
-  val IMM_WIDTH = 8
+  val IMM_WIDTH = 16
+  val NUM_ALUOPS_LG = 3
+  val NUM_ALUS = 2
   // FIXME
   //val BR_INSTR_WIDTH = 8
   //val INSTR_WIDTH = NUM_PREOPS_LG + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG) + BR_INSTR_WIDTH
   val IP_WIDTH = 8
-  val INSTR_WIDTH = NUM_PREOPS_LG + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG + 1) + NUM_FUS * 2 + IP_WIDTH + IMM_WIDTH + 1
+  val INSTR_WIDTH = NUM_PREOPS_LG + NUM_ALUS * (NUM_ALUOPS_LG + VLIW_OPS * 9 + 9) + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG + 1) + NUM_FUS * 2 + IP_WIDTH + IMM_WIDTH + 1
   // val INSTR_WIDTH = 6  // 40-bits
 
   val NONE_SELECTED = (NUM_THREADS).U((log2Up(NUM_THREADS+1)).W)
@@ -209,6 +503,8 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     val destBId     = UInt(NUM_REGS_LG.W)
     val destALane   = UInt(NUM_FUS_LG.W)
     val destBLane   = UInt(NUM_FUS_LG.W)
+    val aluInstA    = new aluInstBundle(NUM_ALUOPS_LG, VLIW_OPS)
+    val aluInstB    = new aluInstBundle(NUM_ALUOPS_LG, VLIW_OPS)
     val preOp       = UInt(NUM_PREOPS_LG.W)
     val fuValids    = Vec(NUM_FUS, Bool())
     // val brMask      = Vec(NUM_FUS + 1, Bool())
@@ -228,15 +524,14 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   }
   val threadStates  = Reg(Vec(NUM_THREADS, ThreadStateT))
 
-  val GS_ETHERNET    = 0.U
-  val GS_IPV4        = 1.U
-  val GS_LOOKUP      = 2.U
-  val GS_LOOKUP_POST = 3.U
-  val GS_UPDATE      = 4.U
-  val GS_UPDATE_POST = 5.U
-  val GS_EXCEPTION   = 6.U
-  val GS_INPUT       = 7.U
-  val GS_OUTPUT      = 8.U
+  val GS_FT          = 0.U
+  val GS_BR          = 1.U
+  val GS_ALUA        = 2.U
+  val GS_ALUB        = 3.U
+  val GS_AND         = 4.U
+  val GS_OR          = 5.U
+  val GS_INPUT       = 6.U
+  val GS_OUTPUT      = 7.U
 
   val regfile = Module(new Regfile(NUM_REGS*NUM_THREADS, REG_WIDTH))
 
@@ -300,7 +595,7 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val decodeThread = RegInit(NONE_SELECTED)
   decodeThread := vThread
 
-  val decodeUnit = Module(new Decode(INSTR_WIDTH, NUM_REGS_LG, NUM_FUS, NUM_PREOPS_LG, IP_WIDTH, IMM_WIDTH))
+  val decodeUnit = Module(new Decode(INSTR_WIDTH, NUM_REGS_LG, NUM_ALUOPS_LG, NUM_FUS, NUM_PREOPS_LG, IP_WIDTH, IMM_WIDTH))
   when (decodeThread =/= NONE_SELECTED) {
     decodeUnit.io.instr                  := threadStates(decodeThread).instr
     threadStates(decodeThread).imm       := decodeUnit.io.imm
@@ -313,9 +608,14 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     threadStates(decodeThread).destALane := decodeUnit.io.destALane
     threadStates(decodeThread).destBLane := decodeUnit.io.destBLane
     threadStates(decodeThread).preOp     := decodeUnit.io.preOp
+    threadStates(decodeThread).aluInstA  := decodeUnit.io.aluInstA
+    threadStates(decodeThread).aluInstB  := decodeUnit.io.aluInstB
     threadStates(decodeThread).fuValids  := decodeUnit.io.fuValids
     // threadStates(decodeThread).brMask    := decodeUnit.io.brMask
     threadStates(decodeThread).brTarget  := decodeUnit.io.brTarget
+
+    regfile.io.rdAddr1 := Cat(decodeThread, decodeUnit.io.srcAId)
+    regfile.io.rdAddr2 := Cat(decodeThread, decodeUnit.io.srcBId)
 
     threadStages(decodeThread) := ThreadStageEnum.read
   }
@@ -330,45 +630,110 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     threadStates(decodeThread).destALane := DontCare
     threadStates(decodeThread).destBLane := DontCare
     threadStates(decodeThread).preOp     := DontCare
+    threadStates(decodeThread).aluInstA  := DontCare
+    threadStates(decodeThread).aluInstB  := DontCare
     threadStates(decodeThread).fuValids  := DontCare
     // threadStates(decodeThread).brMask    := DontCare
     threadStates(decodeThread).brTarget  := DontCare
+
+    regfile.io.rdAddr1 := DontCare
+    regfile.io.rdAddr2 := DontCare
   }
 
-  val regfile_rdAddr1 = Reg(UInt(NUM_REGS_LG.W))
-  val regfile_rdAddr2 = Reg(UInt(NUM_REGS_LG.W))
-  regfile_rdAddr1 := decodeUnit.io.srcAId
-  regfile_rdAddr2 := decodeUnit.io.srcBId
+  val alu0Op_d = Reg(UInt(NUM_ALUOPS_LG.W))
+  val alu0A_shift = Reg(UInt(5.W))
+  val alu0A_mode = Reg(UInt(4.W))
+  val alu0B_shift = Reg(UInt(5.W))
+  val alu0B_mode = Reg(UInt(4.W))
+  val alu0_imm = Reg(UInt(8.W))
+  val alu1Op_d = Reg(UInt(NUM_ALUOPS_LG.W))
+  val alu1A_shift = Reg(UInt(5.W))
+  val alu1A_mode = Reg(UInt(4.W))
+  val alu1B_shift = Reg(UInt(5.W))
+  val alu1B_mode = Reg(UInt(4.W))
+  val alu1_imm = Reg(UInt(8.W))
+  val preOp_d = Reg(UInt(NUM_PREOPS_LG.W))
+  alu0Op_d := decodeUnit.io.aluInstA.aluOp
+  alu0A_shift := decodeUnit.io.aluInstA.srcShiftR(0)
+  alu0A_mode := decodeUnit.io.aluInstA.srcMode(0)
+  alu0B_shift := decodeUnit.io.aluInstA.srcShiftR(1)
+  alu0B_mode := decodeUnit.io.aluInstA.srcMode(1)
+  alu0_imm := decodeUnit.io.imm(7, 0)
+  alu1Op_d := decodeUnit.io.aluInstB.aluOp
+  alu1A_shift := decodeUnit.io.aluInstB.srcShiftR(0)
+  alu1A_mode := decodeUnit.io.aluInstB.srcMode(0)
+  alu1B_shift := decodeUnit.io.aluInstB.srcShiftR(1)
+  alu1B_mode := decodeUnit.io.aluInstB.srcMode(1)
+  alu1_imm := decodeUnit.io.imm(15, 8)
+  preOp_d := decodeUnit.io.preOp
 
-  /****************** Register read *********************************/
-  val readThread = RegInit(NONE_SELECTED)
-  readThread := decodeThread
+  /************************* Register read  *******************************/
+  val REG_DELAY = 4
+  val readThread_vec = RegInit(VecInit(Seq.fill(REG_DELAY)(NONE_SELECTED)))
+  val alu0Op_vec = Reg(Vec(REG_DELAY, UInt(NUM_ALUOPS_LG.W)))
+  val alu1Op_vec = Reg(Vec(REG_DELAY, UInt(NUM_ALUOPS_LG.W)))
+  val preOp_vec = Reg(Vec(REG_DELAY, UInt(NUM_PREOPS_LG.W)))
+  readThread_vec(REG_DELAY-1) := decodeThread
+  alu0Op_vec(REG_DELAY-1) := alu0Op_d
+  alu1Op_vec(REG_DELAY-1) := alu1Op_d
+  preOp_vec(REG_DELAY-1) := preOp_d
+  var i = 0
+  for (i <- 0 until REG_DELAY-1) {
+    readThread_vec(i) := readThread_vec(i+1)
+    alu0Op_vec(i) := alu0Op_vec(i+1)
+    alu1Op_vec(i) := alu1Op_vec(i+1)
+    preOp_vec(i) := preOp_vec(i+1)
+  }
 
-  val srcA = Reg(UInt(REG_WIDTH.W))
-  val srcB = Reg(UInt(REG_WIDTH.W))
+  when (readThread_vec(0) =/= NONE_SELECTED) {
+    threadStages(readThread_vec(0)) := ThreadStageEnum.pre
+  }
+
+  val srcA = Wire(UInt(REG_WIDTH.W))
+  val srcB = Wire(UInt(REG_WIDTH.W))
   srcA := regfile.io.rdData1
   srcB := regfile.io.rdData2
 
-  when (readThread =/= NONE_SELECTED) {
-    regfile.io.rdAddr1 := Cat(readThread, regfile_rdAddr1)
-    regfile.io.rdAddr2 := Cat(readThread, regfile_rdAddr2)
-    // threadStates(readThread).srcA := regfile.io.rdData1
-    // threadStates(readThread).srcB := regfile.io.rdData2
-
-    threadStages(readThread) := ThreadStageEnum.pre
-  }
-  .otherwise {
-    regfile.io.rdAddr1 := DontCare
-    regfile.io.rdAddr2 := DontCare
-    // regfile.io.rdData1 := DontCare
-    // regfile.io.rdData2 := DontCare
-    // threadStates(readThread).srcA := DontCare
-    // threadStates(readThread).srcB := DontCare
-  }
+  val gather_alu0A = Module(new Gather)
+  val gather_alu0B = Module(new Gather)
+  val gather_alu1A = Module(new Gather)
+  val gather_alu1B = Module(new Gather)
+  gather_alu0A.io.din := srcA
+  gather_alu0A.io.shift := RegNext(alu0A_shift)
+  gather_alu0A.io.mode := RegNext(alu0A_mode)
+  gather_alu0A.io.imm := RegNext(alu0_imm)
+  gather_alu0B.io.din := srcB
+  gather_alu0B.io.shift := RegNext(alu0B_shift)
+  gather_alu0B.io.mode := RegNext(alu0B_mode)
+  gather_alu0B.io.imm := RegNext(alu0_imm)
+  gather_alu1A.io.din := srcA
+  gather_alu1A.io.shift := RegNext(alu1A_shift)
+  gather_alu1A.io.mode := RegNext(alu1A_mode)
+  gather_alu1A.io.imm := RegNext(alu1_imm)
+  gather_alu1B.io.din := srcB
+  gather_alu1B.io.shift := RegNext(alu1B_shift)
+  gather_alu1B.io.mode := RegNext(alu1B_mode)
+  gather_alu1B.io.imm := RegNext(alu1_imm)
 
   /****************** Pre logic *********************************/
   val preOpThread = RegInit(NONE_SELECTED)
-  preOpThread := readThread
+  val preOp = Wire(UInt(NUM_PREOPS_LG.W))
+  preOpThread := readThread_vec(0)
+  preOp := preOp_vec(0)
+
+  val alu0 = Module(new ALU(NUM_ALUOPS_LG))
+  val alu1 = Module(new ALU(NUM_ALUOPS_LG))
+
+  alu0.io.srcA := gather_alu0A.io.dout
+  alu0.io.signA := gather_alu0A.io.sign_out
+  alu0.io.srcB := gather_alu0B.io.dout
+  alu0.io.signB := gather_alu0B.io.sign_out
+  alu0.io.aluOp := alu0Op_vec(0)
+  alu1.io.srcA := gather_alu1A.io.dout
+  alu1.io.signA := gather_alu1A.io.sign_out
+  alu1.io.srcB := gather_alu1B.io.dout
+  alu1.io.signB := gather_alu1B.io.sign_out
+  alu1.io.aluOp := alu1Op_vec(0)
 
   // input / output format
   //  * val l2Protocol = UInt((8).W)         0 [127, 120]
@@ -422,11 +787,12 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   when (preOpThread =/= NONE_SELECTED) {
     val preOpA = Wire(UInt(REG_WIDTH.W))
     val preOpB = Wire(UInt(REG_WIDTH.W))
-    preOpA := srcA
-    preOpB := srcB
+
+    preOpA := alu0.io.dout
+    preOpB := alu1.io.dout
     threadStates(preOpThread).preOpBranch := false.B
 
-    when (threadStates(preOpThread).preOp === GS_INPUT) {
+    when (preOp === GS_INPUT) {
       val input_u = Wire(UInt(1152.W))
       val shift_w = Wire(UInt(4.W))
       input_u := threadStates(preOpThread).input.asUInt
@@ -439,50 +805,31 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
       preOpB := tmp(127, 0)
     }
 
-    .elsewhen (threadStates(preOpThread).preOp === GS_ETHERNET) {
-      // SrcA = in[0]
-      threadStates(preOpThread).preOpBranch := (srcA(127, 120) =/= ETHERNET)  // branch to exception
-    }
-
-    .elsewhen (threadStates(preOpThread).preOp === GS_IPV4) {
-      // SrcA = in[0]; SrcB = in[1]
-      threadStates(preOpThread).preOpBranch := (srcA(15, 8) =/= IPV4) || (srcB(111, 96) < 20.U) || (srcB(127, 124) =/= 4.U) // branch to exception
-    }
-
-    .elsewhen (threadStates(preOpThread).preOp === GS_LOOKUP) {  // 2 calls
-    }
-
-    .elsewhen (threadStates(preOpThread).preOp === GS_LOOKUP_POST) {
-      // preOpA := threadStates(preOpThread).srcA + threadStates(preOpThread).srcB
-      threadStates(preOpThread).preOpBranch := (srcA(7, 0) === INVALID_ADDRESS) || (srcB(7, 0) === INVALID_ADDRESS)  // branch to exception
-    }
-
-    .elsewhen (threadStates(preOpThread).preOp === GS_UPDATE) {
-      threadStates(preOpThread).preOpBranch := (srcA(63, 56) === 1.U)  // branch to exception
-    }
-
-    .elsewhen (threadStates(preOpThread).preOp === GS_UPDATE_POST) {
-      val ttl = Wire(UInt(8.W))
-      val chksum = Wire(UInt(16.W))
-
-      ttl := srcA(63, 56) - 1.U
-      chksum := srcA(47, 32) + 0x80.U
-
-      preOpA := Cat(srcA(127, 64), ttl, srcA(55, 48), chksum, srcA(31, 0))
+    .elsewhen (preOp === GS_BR) {
       threadStates(preOpThread).preOpBranch := true.B
-      // preOpA := (threadStates(preOpThread).srcA(63, 56) - 1.U)
-      // preOpB := (threadStates(preOpThread).srcA(47, 32) + 0x80.U)
     }
 
-    .elsewhen (threadStates(preOpThread).preOp === GS_EXCEPTION) {
-      preOpA := CONTROL_PLANE
+    .elsewhen (preOp === GS_ALUA) {
+      threadStates(preOpThread).preOpBranch := (preOpA(0) === 1.U)
     }
 
-    .elsewhen (threadStates(preOpThread).preOp === GS_OUTPUT) {
+    .elsewhen (preOp === GS_ALUB) {
+      threadStates(preOpThread).preOpBranch := (preOpB(0) === 1.U)
+    }
+
+    .elsewhen (preOp === GS_AND) {
+      threadStates(preOpThread).preOpBranch := (preOpA(0) === 1.U) && (preOpB(0) === 1.U)
+    }
+
+    .elsewhen (preOp === GS_OR) {
+      threadStates(preOpThread).preOpBranch := (preOpA(0) === 1.U) || (preOpB(0) === 1.U)
+    }
+
+    .elsewhen (preOp === GS_OUTPUT) {
       io.out.tag := threadStates(preOpThread).tag
       io.out.bits := threadStates(preOpThread).input
-      io.out.bits.outPort := srcA(7, 0)
-      io.out.bits.l3.h1 := srcB
+      io.out.bits.outPort := preOpA(7, 0)
+      io.out.bits.l3.h1 := preOpB
       io.out.valid := true.B
       threadStates(preOpThread).finish := true.B
     }
@@ -616,28 +963,38 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
   val dests_wb = Reg(Vec(NUM_FUS, UInt(REG_WIDTH.W)))
   val destALane_wb = Reg(UInt(NUM_FUS_LG.W))
   val destBLane_wb = Reg(UInt(NUM_FUS_LG.W))
+  val destAShift = Reg(UInt(5.W))
+  val destBShift = Reg(UInt(5.W))
+  val destAMode = Reg(UInt(4.W))
+  val destBMode = Reg(UInt(4.W))
   val destAId_wb = Reg(UInt(NUM_REGS_LG.W))
   val destBId_wb = Reg(UInt(NUM_REGS_LG.W))
   val destAEn_wb = Reg(Bool())
   val destBEn_wb = Reg(Bool())
 
+  val scatterA = Module(new Scatter)
+  val scatterB = Module(new Scatter)
+
+  scatterA.io.din := dests_wb(destALane_wb)
+  scatterA.io.mode := destAMode
+  scatterA.io.shift := destAShift
+  scatterB.io.din := dests_wb(destBLane_wb)
+  scatterB.io.mode := destBMode
+  scatterB.io.shift := destBShift
+
   // delay 1 cycle
   branchThread_d0 := branchThread
-  regfile.io.wrEn1 := destAEn_wb
-  regfile.io.wrEn2 := destBEn_wb
-  regfile.io.wrAddr1 := Cat(branchThread_d0, destAId_wb)
-  regfile.io.wrAddr2 := Cat(branchThread_d0, destBId_wb)
-  regfile.io.wrData1 := dests_wb(destALane_wb)
-  regfile.io.wrData2 := dests_wb(destBLane_wb)
+  regfile.io.wrEn1 := RegNext(destAEn_wb)
+  regfile.io.wrEn2 := RegNext(destBEn_wb)
+  regfile.io.wrBen1 := scatterA.io.wren
+  regfile.io.wrBen2 := scatterB.io.wren
+  regfile.io.wrAddr1 := RegNext(Cat(branchThread_d0, destAId_wb))
+  regfile.io.wrAddr2 := RegNext(Cat(branchThread_d0, destBId_wb))
+  regfile.io.wrData1 := scatterA.io.dout
+  regfile.io.wrData2 := scatterB.io.dout
 
   when (branchThread =/= NONE_SELECTED) {
     // writeback
-    // regfile.io.wrEn1 := threadStates(branchThread).destAEn
-    // regfile.io.wrEn2 := threadStates(branchThread).destBEn
-    // regfile.io.wrAddr1 := Cat(branchThread, threadStates(branchThread).destAId)
-    // regfile.io.wrAddr2 := Cat(branchThread, threadStates(branchThread).destBId)
-    // regfile.io.wrData1 := threadStates(branchThread).dests(threadStates(branchThread).destALane)
-    // regfile.io.wrData2 := threadStates(branchThread).dests(threadStates(branchThread).destBLane)
     dests_wb := threadStates(branchThread).dests
     destALane_wb := threadStates(branchThread).destALane
     destBLane_wb := threadStates(branchThread).destBLane
@@ -645,6 +1002,10 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     destBId_wb := threadStates(branchThread).destBId
     destAEn_wb := threadStates(branchThread).destAEn
     destBEn_wb := threadStates(branchThread).destBEn
+    destAShift := threadStates(branchThread).aluInstA.dstShiftL
+    destBShift := threadStates(branchThread).aluInstB.dstShiftL
+    destAMode := threadStates(branchThread).aluInstA.dstMode
+    destBMode := threadStates(branchThread).aluInstB.dstMode
 
     // branch
     // FIXME: take all branch bits and properly mask
@@ -663,14 +1024,10 @@ class multiProtocolEngine(extCompName: String) extends gComponentLeaf(new NP_Eth
     }
   }
   .otherwise {
-    // regfile.io.wrEn1 := false.B
-    // regfile.io.wrEn2 := false.B
-    // regfile.io.wrAddr1 := 0.U((NUM_REGS_LG+NUM_THREADS_LG).W)
-    // regfile.io.wrAddr2 := 0.U((NUM_REGS_LG+NUM_THREADS_LG).W)
-    // regfile.io.wrData1 := 0.U(REG_WIDTH.W)
-    // regfile.io.wrData2 := 0.U(REG_WIDTH.W)
     destAEn_wb := false.B
     destBEn_wb := false.B
+    destAMode := 15.U
+    destBMode := 15.U
   }
 
   // FIXME: END threads

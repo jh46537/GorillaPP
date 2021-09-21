@@ -17,6 +17,9 @@ rm:
 verilog:
 	cd $(basedir); $(SBT) clean && $(SBT) run
 
+verilator:
+	cd $(basedir); $(SBT) "test:runMain TopMain --backend-name verilator" | tee emulator/$@
+
 $(prjs): %: $(basedir)/src/main/scala/%.scala
 	@#cd $(basedir); $(SBT) "project KmeansAndMesh" "run $@ $(SBTARGS)"
 	@#cd $(basedir); $(SBT) "run $@ $(SBTARGS)"

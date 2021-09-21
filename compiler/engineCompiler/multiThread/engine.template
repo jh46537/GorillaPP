@@ -17,7 +17,7 @@ class #MODULE_NAME(extCompName: String) extends gComponentLeaf(#IO, extCompName 
   val EmitReturnState = RegInit(VecInit(Seq.fill(numOfThreads)(WaitForInputValid)))
   //val outstandingOffs = RegInit(VecInit(Seq.fill(numOfThreads)((0).U((5).W))))
   val AllOffloadsReady = Wire(Bool())
-  val AllOffloadsValid  = Wire(Vec(numOfThreads, Bool()))
+  val AllOffloadsValid  = Reg(Vec(numOfThreads, Bool()))
   /*******************Thread states*********************************/
   val subStateTh = Vec(numOfThreads) {Reg(resetVal=WaitForReady)}
 
