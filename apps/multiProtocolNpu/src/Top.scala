@@ -9,7 +9,7 @@ import scala.collection.mutable.ArrayBuffer
 
 class Top extends Module with GorillaUtil {
   val io = IO(new gInOutOffBundle(new NP_EthMpl3Header_t, new NP_EthMpl3Header_t))
-  val mpEngine = Engine("multiProtocolEngine.c")
+  val mpEngine = MTEngine("multiProtocolEngine.c", 16)
   val mem1 = spMem(1000, 16)
   val mem2 = spMem(1000, 16)
   val mem3 = spMem(1000, 16)
