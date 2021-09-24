@@ -9,19 +9,26 @@
 #include <cmath>
 
 #define OP_W 4
-#define NUM_ALUOPS_LG 3
+#define NUM_ALUOPS_LG 4
 #define NUM_ALUS 2
+#define NUM_FUOPS_LG 1
 #define NUM_FUS 5
 #define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
 #define NUM_SRC 2
+#define NUM_SRC_LG int(ceil(log2(NUM_SRC)))
 #define NUM_DEST 2
 #define NUM_REGS_LG 4
 #define IP_W 8
 #define IMM_W 16
-#define INST_W (NUM_ALUS*(NUM_ALUOPS_LG+NUM_SRC*9+9)+NUM_FUS+(NUM_SRC+NUM_DEST)*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W+OP_W+IMM_W)
+#define INST_W (NUM_ALUS*(NUM_ALUOPS_LG+NUM_SRC*10+9)+NUM_FUS*(1+NUM_FUOPS_LG)+(NUM_SRC+NUM_DEST)*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W+OP_W+IMM_W)
 #define NUM_INT ((INST_W+31)/32)
 
 using namespace std;
+
+struct fuOp_t {
+	int opcode;
+	int wren;
+};
 
 class instruction
 {
@@ -32,8 +39,9 @@ class instruction
 		{"ALUB"   , 3},
 		{"AND"    , 4},
 		{"OR"     , 5},
-		{"INPUT"  , 6},
-		{"OUTPUT" , 7}
+		{"GT"     , 6},
+		{"INPUT"  , 7},
+		{"OUTPUT" , 8}
 	};
 
 	const map<string, int> aluOp_dict {
@@ -46,7 +54,8 @@ class instruction
 		{"LT"     , 6},
 		{"LTE"    , 7},
 		{"GT"     , 8},
-		{"GTE"    , 9}
+		{"GTE"    , 9},
+		{"CAT"    ,10}
 	};
 
 	const map<string, int> srcType_dict {
@@ -59,7 +68,8 @@ class instruction
 		{"int8"   , 6},
 		{"int4"   , 7},
 		{"uimm8"  , 8},
-		{"imm8"   , 9}
+		{"imm8"   , 9},
+		{"uimm16" , 10}
 	};
 
 	const map<string, int> dstType_dict {
@@ -69,12 +79,23 @@ class instruction
 		{"uint8"   , 3}
 	};
 
+	const map<string, fuOp_t> fuOp_dict {
+		{"MALLOC"  , {0, 1}},
+		{"LOOKUP"  , {1, 1}},
+		{"UPDATE"  , {2, 0}},
+		{"EN"      , {0, 0}},
+		{"WEN"     , {1, 1}}
+	};
+
+	bool comment;
 	int preOp;
 	int aluOp[NUM_ALUS];
+	int srcSlct[NUM_ALUS][NUM_SRC];
 	int srcShiftR[NUM_ALUS][NUM_SRC];
 	int srcMode[NUM_ALUS][NUM_SRC];
 	int dstShiftL[NUM_ALUS];
 	int dstMode[NUM_ALUS];
+	int fuOp[NUM_FUS];
 	int fuValids[NUM_FUS];
 	int srcId[NUM_SRC];
 	int destEn[NUM_DEST];
@@ -91,8 +112,12 @@ public:
 };
 
 instruction::instruction(string asm_line) {
+	comment = false;
 	preOp = 0;
-	for (int i = 0; i < NUM_FUS; i++) fuValids[i] = 0;
+	for (int i = 0; i < NUM_FUS; i++) {
+		fuValids[i] = 0;
+		fuOp[i] = 0;
+	}
 	for (int i = 0; i < NUM_SRC; i++) srcId[i] = 0;
 	for (int i = 0; i < NUM_DEST; i++) {
 		destEn[i] = 0;
@@ -101,6 +126,7 @@ instruction::instruction(string asm_line) {
 	}
 	for (int i = 0; i < NUM_ALUS; i++) {
 		for (int j = 0; j < NUM_SRC; j++) {
+			srcSlct[i][j] = 0;
 			srcShiftR[i][j] = 0;
 			srcMode[i][j] = 0;
 		}
@@ -123,6 +149,10 @@ instruction::instruction(string asm_line) {
 	while(s_stream.good()) {
 		string operand;
 		getline(s_stream, operand, ';');
+		if (operand[0] == '#') {
+			if (i == 0) comment = true;
+			return;
+		}
 		if (i == 0) {
 			//pre-op
 			if (preOp_dict.find(operand) != preOp_dict.end()) {
@@ -141,6 +171,9 @@ instruction::instruction(string asm_line) {
 				cout << "Undefined aluOp\n";
 			}
 			for (int ij = 0; ij < NUM_SRC; ij++) {
+				// src select
+				getline(alu_stream, alu_operand, ',');
+				srcSlct[ii][ij] = stoi(alu_operand.substr(1));
 				// src type
 				getline(alu_stream, alu_operand, ',');
 				if (srcType_dict.find(alu_operand) != srcType_dict.end()) {
@@ -167,14 +200,19 @@ instruction::instruction(string asm_line) {
 			//FUs
 			if (operand != " ") {
 				fuValids[l] = 1;
-				if (operand == "WEN") {
-					if (j < NUM_DEST) {
-						destLane[j] = l;
-						j++;
-					} else {
-						cout << "Error: Out of RegFile write BW\n";
-						return;
+				if (fuOp_dict.find(operand) != fuOp_dict.end()) {
+					fuOp[l] = fuOp_dict.at(operand).opcode;
+					if (fuOp_dict.at(operand).wren) {
+						if (j < NUM_DEST) {
+							destLane[j] = l;
+							j++;
+						} else {
+							cout << "Error: Out of RegFile write BW\n";
+							return;
+						}
 					}
+				} else {
+					cout << "Undefined FUOp\n";
 				}
 			}
 			l++;
@@ -225,6 +263,7 @@ void instruction::assemble(ofstream &bin_file) {
 	int shift_w = 0;
 	int i = 0;
 	int j = 0;
+	if (comment) return;
 	// preOps
 	unsigned preOp_u = unsigned(preOp) & ((1 << OP_W) - 1);
 	insert(inst, j, shift_w, preOp_u, OP_W);
@@ -232,6 +271,10 @@ void instruction::assemble(ofstream &bin_file) {
 	for (i = 0; i < NUM_ALUS; i++) {
 		unsigned aluOp_u = unsigned(aluOp[i]) & ((1 << NUM_ALUOPS_LG) - 1);
 		insert(inst, j, shift_w, aluOp_u, NUM_ALUOPS_LG);
+		for (int k = 0; k < NUM_SRC; k++) {
+			unsigned srcSlct_u = unsigned(srcSlct[i][k]) & 1;
+			insert(inst, j, shift_w, srcSlct_u, 1);
+		}
 		for (int k = 0; k < NUM_SRC; k++) {
 			unsigned srcShiftR_u = unsigned(srcShiftR[i][k]) & ((1 << 5) - 1);
 			insert(inst, j, shift_w, srcShiftR_u, 5);
@@ -249,6 +292,11 @@ void instruction::assemble(ofstream &bin_file) {
 	for (i = 0; i < NUM_FUS; i++) {
 		unsigned tmp = unsigned(fuValids[i]) & 1;
 		insert(inst, j, shift_w, tmp, 1);
+	}
+	// fuOps
+	for (i = 0; i < NUM_FUS; i++) {
+		unsigned tmp = unsigned(fuOp[i]) & ((1 << NUM_FUOPS_LG) - 1);
+		insert(inst, j, shift_w, tmp, NUM_FUOPS_LG);
 	}
 	// srcId
 	for (i = 0; i < NUM_SRC; i++) {
@@ -296,7 +344,7 @@ int main(int argc, char const *argv[])
 		return 0;
 	}
 
-	// cout << "NUM_FUS_LG is " << NUM_FUS_LG << endl;
+	// cout << "INST_W is " << INST_W << endl;
 
 	string asm_line;
 	while (getline(asm_file, asm_line)) {
