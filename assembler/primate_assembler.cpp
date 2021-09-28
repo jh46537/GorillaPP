@@ -11,8 +11,8 @@
 #define OP_W 4
 #define NUM_ALUOPS_LG 4
 #define NUM_ALUS 2
-#define NUM_FUOPS_LG 1
-#define NUM_FUS 5
+#define NUM_FUOPS_LG 2
+#define NUM_FUS 3
 #define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
 #define NUM_SRC 2
 #define NUM_SRC_LG int(ceil(log2(NUM_SRC)))
