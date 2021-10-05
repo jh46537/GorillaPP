@@ -6,20 +6,20 @@ import scala.collection.mutable.HashMap
 
 
 class #MODULE_NAME(extCompName: String) extends gComponentLeaf(#IO, extCompName + "__type__engine__MT__#NUM_OF_THREADS__") {
-  val numOfThreads = #NUM_OF_THREADS 
+  val numOfThreads = #NUM_OF_THREADS
   val NONE_SELECTED = (numOfThreads).U((log2Up(numOfThreads+1)).W)
   val WaitForInputValid = (0).U((8).W)
   val WaitForOutputReady = (255).U((8).W)
   val WaitForReady = (0).U((1).W)
   val WaitForValid = (1).U((1).W)
   val inputTag = Reg(Vec(numOfThreads, UInt((TAGWIDTH*2).W)))
-  val State = RegInit(VecInit(Seq.fill(numOfThreads)(WaitForInputValid))) 
-  val EmitReturnState = RegInit(VecInit(Seq.fill(numOfThreads)(WaitForInputValid))) 
+  val State = RegInit(VecInit(Seq.fill(numOfThreads)(WaitForInputValid)))
+  val EmitReturnState = RegInit(VecInit(Seq.fill(numOfThreads)(WaitForInputValid)))
   //val outstandingOffs = RegInit(VecInit(Seq.fill(numOfThreads)((0).U((5).W))))
   val AllOffloadsReady = Wire(Bool())
   val AllOffloadsValid  = Wire(Vec(numOfThreads, Bool()))
   /*******************Thread states*********************************/
-  val subStateTh = RegInit(VecInit(Seq.fill(numOfThreads)(WaitForReady)))
+  val subStateTh = Vec(numOfThreads) {Reg(resetVal=WaitForReady)}
 
   //def myOff = io.elements.getOrElse("off", nullOff)
   def myOff = io.elements("off")
@@ -28,13 +28,13 @@ class #MODULE_NAME(extCompName: String) extends gComponentLeaf(#IO, extCompName 
    /******************Winner threads*********************************/
   val rThreadEncoder = Module(new RREncode(numOfThreads))
   val rThread =  rThreadEncoder.io.chosen
-  Range(0, numOfThreads, 1).map(i => 
+  Range(0, numOfThreads, 1).map(i =>
     rThreadEncoder.io.valid(i) := (subStateTh(i) === WaitForReady))
   rThreadEncoder.io.ready := (rThread =/= NONE_SELECTED)
 
   val vThreadEncoder = Module(new RREncode(numOfThreads))
   val vThread =  vThreadEncoder.io.chosen
-  Range(0, numOfThreads, 1).map(i => 
+  Range(0, numOfThreads, 1).map(i =>
     vThreadEncoder.io.valid(i) := (subStateTh(i) === WaitForValid) && AllOffloadsValid(i))
   vThreadEncoder.io.ready := vThread =/= NONE_SELECTED
 
@@ -44,23 +44,23 @@ class #MODULE_NAME(extCompName: String) extends gComponentLeaf(#IO, extCompName 
   sThreadEncoder.io.ready := sThread =/= NONE_SELECTED
 
 
-Range(0, numOfThreads, 1).foreach(i => subStateTh(i) := MuxCase(subStateTh(i), Seq((AllOffloadsReady && (i).U === rThread && State(i) =/= WaitForInputValid && State(i) =/= WaitForOutputReady , WaitForValid), ((i).U === vThread, WaitForReady)))) 
+Range(0, numOfThreads, 1).foreach(i => subStateTh(i) := MuxCase(subStateTh(i), Seq((AllOffloadsReady && UFix(i) === rThread && State(i) =/= WaitForInputValid && State(i) =/= WaitForOutputReady , WaitForValid), (UFix(i) === vThread, WaitForReady))))
 
 #FOREACH_FU
-  ##Port.rep.ready := true.B
+  ##Port.rep.ready := Bool(true)
 #END_FOREACH_FU
 
 /******************Ready stage handler************************/
 #FOREACH_FU
-val ##PortHadReadyRequest = RegInit(false.B)
-val ##_ready_received = RegInit(false.B)
+val ##PortHadReadyRequest = Reg(resetVal=Bool(false))
+val ##_ready_received = Reg(resetVal=Bool(false))
 #END_FOREACH_FU
 
-AllOffloadsReady :=  
+AllOffloadsReady :=
 #FOREACH_FU
-  (##Port.req.ready || ##_ready_received || (!##PortHadReadyRequest && !##Port.req.valid)) &&  
+  (##Port.req.ready || ##_ready_received || (!##PortHadReadyRequest && !##Port.req.valid)) &&
 #END_FOREACH_FU
-  true.B
+  Bool(true)
 
 #FOREACH_FU
 ##_ready_received := !(AllOffloadsReady) && (##_ready_received || ##Port.req.ready)
@@ -70,20 +70,20 @@ AllOffloadsReady :=
 
 /******************Valid stage handler************************/
 #FOREACH_FU
-val ##PortHadValidRequest = RegInit(VecInit(Seq.fill(numOfThreads)(false.B)))
-val ##_valid_received = RegInit(VecInit(Seq.fill(numOfThreads)(false.B)))
+val ##PortHadValidRequest = Vec(numOfThreads) {Reg(resetVal=Bool(false))}
+val ##_valid_received = Vec(numOfThreads) {Reg(resetVal=Bool(false))}
 #END_FOREACH_FU
 
 for (i <- 0 to numOfThreads-1) {
-AllOffloadsValid(i) :=  
+AllOffloadsValid(i) :=
 #FOREACH_FU
-  ((##Port.rep.valid && (##Port.rep.tag === (i).U((5).W)))|| ##_valid_received(i) || !##PortHadValidRequest(i)) &&  
+  ((##Port.rep.valid && (##Port.rep.tag === UFix(i, 5)))|| ##_valid_received(i) || !##PortHadValidRequest(i)) &&
 #END_FOREACH_FU
-  true.B
+  Bool(true)
 
 #FOREACH_FU
-##_valid_received(i) := !(vThread === (i).U((5).W)) && ((##_valid_received(i)) || (##Port.rep.valid && ##Port.rep.tag === (i).U((5).W)))
-##PortHadValidRequest(i) := !(vThread === (i).U((5).W)) && (##PortHadValidRequest(i) || ((i).U((5).W)===rThread && ##Port.req.valid)/*(##PortHadReadyRequest && AllOffloadsReady && ((i).U((5).W) === rThread))*/)
+##_valid_received(i) := !(vThread === UFix(i, 5)) && ((##_valid_received(i)) || (##Port.rep.valid && ##Port.rep.tag === UFix(i, 5)))
+##PortHadValidRequest(i) := !(vThread === UFix(i,5)) && (##PortHadValidRequest(i) || (UFix(i,5)===rThread && ##Port.req.valid)/*(##PortHadReadyRequest && AllOffloadsReady && (UFix(i,5) === rThread))*/)
 #END_FOREACH_FU
 }
 
@@ -92,8 +92,8 @@ AllOffloadsValid(i) :=
   when (sThread =/= NONE_SELECTED && io.in.valid) {
     inputReg(sThread) := io.in.bits
     inputTag(sThread) := io.in.tag
-    State(sThread) := #FIRST_STATE 
-  } 
+    State(sThread) := #FIRST_STATE
+  }
 
   for (i <- 0 to numOfThreads-1) {
     when (rThread === i.U && State(i.U) === WaitForOutputReady && io.out.ready) {
@@ -109,25 +109,25 @@ AllOffloadsValid(i) :=
   io.in.ready := sThread =/= NONE_SELECTED
 
 /******************Engine specific performance counters************************/
-  val IsPcReset = 
+  val IsPcReset =
    io.pcIn.valid && io.pcIn.bits.request && io.pcIn.bits.pcType === Pcounters.pcReset
   var portId = 3
   when (IsPcReset) {
-    engineUtilization := (0).U((Pcounters.PCWIDTH).W) 
+    engineUtilization := UFix(0, Pcounters.PCWIDTH)
   } .otherwise {
     when (State(0) =/= WaitForInputValid) {
-      engineUtilization := engineUtilization + 
-       (1).U((Pcounters.PCWIDTH).W) 
+      engineUtilization := engineUtilization +
+       UFix(1, Pcounters.PCWIDTH)
     }
   }
   for ((n, i) <- ioOff.elements) {
 #FOREACH_FU
     if (n == "##") {
       when (IsPcReset) {
-        offloadRateArray(portId-3) := (0).U((Pcounters.PCWIDTH).W)
-      } .elsewhen (i.asInstanceOf[gOffBundle[Bundle, Bundle]].req.ready && 
+        offloadRateArray(portId-3) := UFix(0, Pcounters.PCWIDTH)
+      } .elsewhen (i.asInstanceOf[gOffBundle[Bundle, Bundle]].req.ready &&
        (##PortHadValidRequest(0) || ##Port.req.valid) && !pcPaused) {
-        offloadRateArray(portId-3) := offloadRateArray(portId-3) + (1).U((Pcounters.PCWIDTH).W)
+        offloadRateArray(portId-3) := offloadRateArray(portId-3) + UFix(1, Pcounters.PCWIDTH)
       }
     }
 #END_FOREACH_FU
