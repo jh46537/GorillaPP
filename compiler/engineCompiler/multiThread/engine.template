@@ -95,9 +95,11 @@ AllOffloadsValid(i) :=
     State(sThread) := #FIRST_STATE 
   } 
 
-  when (rThread =/= NONE_SELECTED && State(rThread) === WaitForOutputReady && io.out.ready) {
-    State(rThread) := EmitReturnState(rThread) 
-  } 
+  for (i <- 0 to numOfThreads-1) {
+    when (rThread === i.U && State(i.U) === WaitForOutputReady && io.out.ready) {
+      State(i.U) := EmitReturnState(i.U)
+    }
+  }
 
 #DUMP_FILE contextEdit.magillac
 
