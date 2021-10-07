@@ -350,7 +350,7 @@ class Regfile(num: Int, width: Int) extends Module {
 
 class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   val io = IO(new Bundle {
-    val ips         = Input(Vec(num, UInt(log2Up(num).W)))
+    val ips         = Input(Vec(num, UInt(ipWidth.W)))
     val ipValids    = Input(Vec(num, UInt(log2Up(num).W)))
     val instrs      = Output(Vec(num, UInt(instrWidth.W)))
     val instrReadys = Output(Vec(num, UInt(instrWidth.W)))
@@ -361,19 +361,21 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   var mem_array = Array.fill[UInt](1 << ipWidth)(0.U(instrWidth.W))
   mem_array(0)  = "h00000004800021000000042000000207".U
   mem_array(1)  = "h00000000808000400000042000000200".U
-  mem_array(2)  = "h1fffe16000008000000004200a100242".U
-  mem_array(3)  = "h1fffe05199002340000004200a100252".U
-  mem_array(4)  = "h000001538000a98df000042400100201".U
-  mem_array(5)  = "h0000004000100004000c042201022026".U
-  mem_array(6)  = "h0000010280008cc00220054400100201".U
-  mem_array(7)  = "h1fffe0a082110240000004200a100242".U
-  mem_array(8)  = "h0000006000200000000c042001022026".U
-  mem_array(9)  = "h00000000001084400220054000000200".U
-  mem_array(10) = "h00000080000984400220054000000201".U
-  mem_array(11) = "h00001f9391a129800000042400100201".U
-  mem_array(12) = "h0000004280098cc002200546f0800201".U
-  mem_array(13) = "h000020028000088000000426f8000210".U
-  mem_array(14) = "h00000000000000000000042000000208".U
+  mem_array(2)  = "h1fffe1a082808240021604200a100242".U
+  mem_array(3)  = "h1fffe051b9002348820004200a100252".U
+  mem_array(4)  = "h000001938000a9856220014400100201".U
+  mem_array(5)  = "h0000004283a80884000c042201022026".U
+  mem_array(6)  = "h0000014280008cc002360544b0100201".U
+  mem_array(7)  = "h0000000083000240021a002000000200".U
+  mem_array(8)  = "h0000004000030004000c042201022026".U
+  mem_array(9)  = "h000000e280008ec0023a0544d0100201".U
+  mem_array(10) = "h000000648193a1080020440200060282".U
+  mem_array(11) = "h1ffffff1b9012348820000220a100252".U
+  mem_array(12) = "h00000080001884400220054000000201".U
+  mem_array(13) = "h1fffffb1b9012348820400220a101252".U
+  mem_array(14) = "h00000040001886400220054000000201".U
+  mem_array(15) = "h000020028000088000000426f8000210".U
+  mem_array(16) = "h00000000000000000000042000000208".U
 
   val mem = RegInit(VecInit(mem_array.toSeq))
   //val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
@@ -901,11 +903,11 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
     }
 
     .elsewhen (preOp === GS_ALUA) {
-      threadStates(preOpThread).preOpBranch := (preOpA(0) === 1.U)
+      threadStates(preOpThread).preOpBranch := (preOpA(31, 0) =/= 0.U)
     }
 
     .elsewhen (preOp === GS_ALUB) {
-      threadStates(preOpThread).preOpBranch := (preOpB(0) === 1.U)
+      threadStates(preOpThread).preOpBranch := (preOpB(31, 0) =/= 0.U)
     }
 
     .elsewhen (preOp === GS_AND) {
@@ -1087,7 +1089,10 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
 
     // branch
     // FIXME: take all branch bits and properly mask
-    when (threadStates(branchThread).preOpBranch) {
+    when (threadStates(branchThread).finish) {
+      threadStates(branchThread).ip := 0.U
+    }
+    .elsewhen (threadStates(branchThread).preOpBranch) {
       threadStates(branchThread).ip := threadStates(branchThread).ip + threadStates(branchThread).brTarget
     }
     .otherwise {
