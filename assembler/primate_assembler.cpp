@@ -82,7 +82,8 @@ class instruction
 	const map<string, fuOp_t> fuOp_dict {
 		{"MALLOC"  , {0, 1}},
 		{"LOOKUP"  , {1, 1}},
-		{"UPDATE"  , {2, 0}},
+		{"UPDATE0" , {2, 0}},
+		{"UPDATE1" , {3, 0}},
 		{"EN"      , {0, 0}},
 		{"WEN"     , {1, 1}}
 	};
@@ -356,3 +357,4 @@ int main(int argc, char const *argv[])
 	bin_file.close();
 	return 0;
 }
+
