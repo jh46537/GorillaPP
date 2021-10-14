@@ -10,22 +10,25 @@ import scala.collection.mutable.HashMap
 
 class Gather(imm_pos: Int) extends Module {
   val io = IO(new Bundle {
-    val dinA = Input(UInt(128.W))
-    val dinB = Input(UInt(128.W))
+    val dinA = Input(UInt(270.W))
+    val dinB = Input(UInt(270.W))
     val slct = Input(UInt(1.W))
     val shift = Input(UInt(5.W))
     val mode = Input(UInt(4.W))
     val imm = Input(UInt(16.W))
     val sign_out = Output(UInt(1.W))
-    val dout = Output(UInt(128.W))
+    val dout = Output(UInt(270.W))
   })
 
-  val reg0 = Reg(UInt(64.W))
-  val din_d0 = Reg(UInt(128.W))
+  val reg00 = Reg(UInt(64.W))
+  val reg01 = Reg(UInt(64.W))
+  val reg02 = Reg(UInt(64.W))
+  val reg03 = Reg(UInt(64.W))
+  val din_d0 = Reg(UInt(270.W))
   val shift_d0 = Reg(UInt(5.W))
   val mode_d0 = Reg(UInt(4.W))
   val imm_d0 = Reg(UInt(16.W))
-  val din = Wire(UInt(128.W))
+  val din = Wire(UInt(270.W))
 
   when (io.slct === 0.U) {
     din := io.dinA
@@ -37,189 +40,244 @@ class Gather(imm_pos: Int) extends Module {
   shift_d0 := io.shift
   mode_d0 := io.mode
   imm_d0 := io.imm
-  switch(io.shift(4, 3)) {
+  switch(io.shift(2, 0)) {
     is (0.U) {
-      reg0 := din(63, 0)
+      reg00 := din(63, 0)
     }
     is (1.U) {
-      reg0 := din(95, 32)
+      reg00 := din(71, 8)
     }
     is (2.U) {
-      reg0 := din(127, 64)
+      reg00 := din(159, 96)
     }
     is (3.U) {
-      reg0 := Cat(0.U, din(127, 96))
+      reg00 := din(167, 104)
+    }
+    is (4.U) {
+      reg00 := din(171, 108)
+    }
+    is (5.U) {
+      reg00 := din(183, 120)
+    }
+    is (6.U) {
+      reg00 := din(191, 128)
+    }
+    is (7.U) {
+      reg00 := din(195, 132)
+    }
+  }
+  switch(io.shift(2, 0)) {
+    is (0.U) {
+      reg01 := din(199, 136)
+    }
+    is (1.U) {
+      reg01 := din(200, 137)
+    }
+    is (2.U) {
+      reg01 := din(201, 138)
+    }
+    is (3.U) {
+      reg01 := din(211, 148)
+    }
+    is (4.U) {
+      reg01 := din(215, 152)
+    }
+    is (5.U) {
+      reg01 := din(225, 162)
+    }
+    is (6.U) {
+      reg01 := din(231, 168)
+    }
+    is (7.U) {
+      reg01 := din(236, 173)
+    }
+  }
+  switch(io.shift(2, 0)) {
+    is (0.U) {
+      reg02 := din(245, 182)
+    }
+    is (1.U) {
+      reg02 := din(254, 191)
+    }
+    is (2.U) {
+      reg02 := din(257, 194)
+    }
+    is (3.U) {
+      reg02 := din(259, 196)
+    }
+    is (4.U) {
+      reg02 := din(267, 204)
+    }
+    is (5.U) {
+      reg02 := din(269, 216)
+    }
+    is (6.U) {
+      reg02 := din(269, 228)
+    }
+    is (7.U) {
+      reg02 := din(269, 240)
+    }
+  }
+  switch(io.shift(2, 0)) {
+    is (0.U) {
+      reg03 := din(269, 252)
+    }
+    is (1.U) {
+      reg03 := din(269, 261)
     }
   }
 
-  val reg1 = Reg(UInt(32.W))
-  val din_d1 = Reg(UInt(128.W))
+  val reg1 = Reg(UInt(64.W))
+  val din_d1 = Reg(UInt(270.W))
   val mode_d1 = Reg(UInt(4.W))
   val imm_d1 = Reg(UInt(16.W))
 
   din_d1 := din_d0
   mode_d1 := mode_d0
   imm_d1 := imm_d0
-  switch(shift_d0(2, 0)) {
+  switch(shift_d0(4, 3)) {
     is (0.U) {
-      reg1 := reg0(31, 0)
+      reg1 := reg00
     }
     is (1.U) {
-      reg1 := reg0(35, 4)
+      reg1 := reg01
     }
     is (2.U) {
-      reg1 := reg0(39, 8)
+      reg1 := reg02
     }
     is (3.U) {
-      reg1 := reg0(43, 12)
-    }
-    is (4.U) {
-      reg1 := reg0(47, 16)
-    }
-    is (5.U) {
-      reg1 := reg0(51, 20)
-    }
-    is (6.U) {
-      reg1 := reg0(55, 24)
-    }
-    is (7.U) {
-      reg1 := reg0(59, 28)
+      reg1 := reg03
     }
   }
 
-  val reg2 = Reg(UInt(33.W))
-  val din_d2 = Reg(UInt(128.W))
+  val reg2 = Reg(UInt(64.W))
+  val din_d2 = Reg(UInt(270.W))
   din_d2 := din_d1
   switch(mode_d1) {
     is(0.U) {
-      // uint32
-      reg2 := Cat(0.U, reg1)
+      // uint1
+      reg2 := Cat(0.U, reg1(0, 0))
     }
     is(1.U) {
-      // uint16
-      reg2 := Cat(0.U, reg1(15, 0))
+      // uint2
+      reg2 := Cat(0.U, reg1(1, 0))
     }
     is(2.U) {
+      // uint3
+      reg2 := Cat(0.U, reg1(2, 0))
+    }
+    is(3.U) {
+      // uint5
+      reg2 := Cat(0.U, reg1(4, 0))
+    }
+    is(4.U) {
+      // uint6
+      reg2 := Cat(0.U, reg1(5, 0))
+    }
+    is(5.U) {
       // uint8
       reg2 := Cat(0.U, reg1(7, 0))
     }
-    is(3.U) {
-      // uint4
-      reg2 := Cat(0.U, reg1(3, 0))
-    }
-    is(4.U) {
-      // int32
-      reg2 := Cat(reg1(31), reg1)
-    }
-    is(5.U) {
-      // int16
-      val tmp = Wire(UInt(17.W))
-      tmp := Fill(17, reg1(15))
-      reg2 := Cat(tmp, reg1(15, 0))
-    }
     is(6.U) {
-      // int8
-      val tmp = Wire(UInt(25.W))
-      tmp := Fill(25, reg1(7))
-      reg2 := Cat(tmp, reg1(7, 0))
+      // uint9
+      reg2 := Cat(0.U, reg1(8, 0))
     }
     is(7.U) {
-      // int4
-      val tmp = Wire(UInt(29.W))
-      tmp := Fill(29, reg1(3))
-      reg2 := Cat(tmp, reg1(3, 0))
+      // uint10
+      reg2 := Cat(0.U, reg1(9, 0))
     }
     is(8.U) {
+      // uint12
+      reg2 := Cat(0.U, reg1(11, 0))
+    }
+    is(9.U) {
+      // uint16
+      reg2 := Cat(0.U, reg1(15, 0))
+    }
+    is(10.U) {
+      // uint32
+      reg2 := Cat(0.U, reg1(31, 0))
+    }
+    is(11.U) {
+      // uint56
+      reg2 := Cat(0.U, reg1(55, 0))
+    }
+    is(13.U) {
+      //uint
+      reg2 := reg1
+    }
+    is(14.U) {
       // uimm8
       reg2 := Cat(0.U, imm_d1(imm_pos*8+7, imm_pos*8))
     }
-    is(9.U) {
-      // imm8
-      val tmp = Wire(UInt(25.W))
-      tmp := Fill(25, imm_d1(imm_pos*8+7))
-      reg2 := Cat(tmp, imm_d1(imm_pos*8+7, imm_pos*8))
-    }
-    is(10.U) {
+    is(15.U) {
       // uimm16
       reg2 := Cat(0.U, imm_d1)
     }
   }
-  io.dout := Cat(din_d2(127, 32), reg2(31, 0))
-  io.sign_out := reg2(32)
+  io.dout := Cat(din_d2(269, 64), reg2(63, 0))
+  io.sign_out := 0.U
 }
 
 class Scatter extends Module {
   val io = IO(new Bundle {
-    val din = Input(UInt(128.W))
+    val din = Input(UInt(270.W))
     val shift = Input(UInt(5.W))
     val mode = Input(UInt(4.W))
     val wren = Output(UInt(16.W))
-    val dout = Output(UInt(128.W))
+    val dout = Output(UInt(270.W))
   })
   val dout_vec = Reg(Vec(16, UInt(8.W)))
   val wren_vec = Reg(Vec(16, Bool()))
-  var i = 0
-  for (i <- 0 until 16) {
-    when (io.mode === 0.U) {
-      // store 128 bit
-      dout_vec(i) := io.din(i*8+7, i*8)
-      wren_vec(i) := true.B
-    } .elsewhen (io.mode === 1.U) {
-      // store 32 bit
-      when (io.shift === i.U) {
-        dout_vec(i) := io.din(7, 0)
-        wren_vec(i) := true.B
-      } .elsewhen (io.shift+1.U === i.U) {
-        dout_vec(i) := io.din(15, 8)
-        wren_vec(i) := true.B
-      } .elsewhen (io.shift+2.U === i.U) {
-        dout_vec(i) := io.din(23, 16)
-        wren_vec(i) := true.B
-      } .elsewhen (io.shift+3.U === i.U) {
-        dout_vec(i) := io.din(31, 24)
-        wren_vec(i) := true.B
-      } .otherwise {
-        dout_vec(i) := DontCare
-        wren_vec(i) := false.B
-      }
-    } .elsewhen (io.mode === 2.U) {
-      // store 16 bit
-      when (io.shift === i.U) {
-        dout_vec(i) := io.din(7, 0)
-        wren_vec(i) := true.B
-      } .elsewhen (io.shift+1.U === i.U) {
-        dout_vec(i) := io.din(15, 8)
-        wren_vec(i) := true.B
-      } .otherwise {
-        dout_vec(i) := DontCare
-        wren_vec(i) := false.B
-      }
-    } .elsewhen (io.mode === 3.U) {
-      // store 8 bit
-      when (io.shift === i.U) {
-        dout_vec(i) := io.din(7, 0)
-        wren_vec(i) := true.B
-      } .otherwise {
-        dout_vec(i) := DontCare
-        wren_vec(i) := false.B
-      }
+  val din_w = Wire(UInt(64.W))
+  val dout_r = Reg(UInt(270.W))
+  val wren_r = Reg(UInt(16.W))
+  din_w := io.din(63, 0)
+  // 0, 96, 104, 128, 136, 137, 138, 148, 191, 194, 204, 236, 252, 261, 270
+  when (io.shift === 0.U) {
+    dout_r := io.din
+    when (io.mode === 10.U) {
+      wren_r := 0x1.U
     } .otherwise {
-      dout_vec(i) := DontCare
-      wren_vec(i) := false.B
+      wren_r := 0xffff.U
     }
+  } .elsewhen (io.shift === 2.U) {
+    dout_r := Cat(0.U(110.W), din_w, 0.U(96.W))
+    wren_r := 0x6.U
+  } .elsewhen (io.shift === 3.U) {
+    dout_r := Cat(0.U(102.W), din_w, 0.U(104.W))
+    wren_r := 0xc.U
+  } .elsewhen (io.shift === 6.U) {
+    dout_r := Cat(0.U(78.W), din_w, 0.U(128.W))
+    wren_r := 0x18.U
+  } .elsewhen (io.shift === 10.U) {
+    dout_r := Cat(0.U(68.W), din_w, 0.U(138.W))
+    wren_r := 0x40.U
+  } .elsewhen (io.shift === 17.U) {
+    dout_r := Cat(0.U(15.W), din_w, 0.U(191.W))
+    wren_r := 0x100.U
+  } .elsewhen (io.shift === 20.U) {
+    dout_r := Cat(0.U(2.W), din_w, 0.U(204.W))
+    wren_r := 0x400.U
+  } .elsewhen (io.shift === 24.U) {
+    dout_r := Cat(din_w(17, 0), 0.U(252.W))
+    wren_r := 0x1000.U
+  } .elsewhen (io.shift === 25.U) {
+    dout_r := Cat(din_w(8, 0), 0.U(261.W))
+    wren_r := 0x2000.U
   }
-  io.dout := dout_vec.asUInt
-  io.wren := wren_vec.asUInt
+  io.dout := dout_r
+  io.wren := wren_r
 }
 
-class ALU(num_aluops_lg: Int) extends Module {
+class ALU(num_aluops_lg: Int, reg_width: Int) extends Module {
   val io = IO(new Bundle {
     val signA = Input(UInt(1.W))
-    val srcA = Input(UInt(128.W))
+    val srcA = Input(UInt(reg_width.W))
     val signB = Input(UInt(1.W))
-    val srcB = Input(UInt(128.W))
+    val srcB = Input(UInt(reg_width.W))
     val aluOp = Input(UInt(num_aluops_lg.W))
-    val dout = Output(UInt(128.W))
+    val dout = Output(UInt(reg_width.W))
   })
   val opA = Wire(SInt(33.W))
   val opB = Wire(SInt(33.W))
@@ -296,8 +354,16 @@ class ALU(num_aluops_lg: Int) extends Module {
       }
     }
     is (10.U) {
+      // and
+      io.dout := (opA & opB).asUInt
+    }
+    is (11.U) {
+      // or
+      io.dout := (opA | opB).asUInt
+    }
+    is (12.U) {
       // concatenate
-      io.dout := Cat(io.srcB(111, 0), io.srcA(15, 0))
+      io.dout := Cat(0.U(252.W), io.srcB(8, 0), io.srcA(8, 0))
     }
   }
 }
@@ -311,8 +377,8 @@ class Regfile(num: Int, width: Int) extends Module {
 
     val wrEn1   = Input(Bool())
     val wrEn2   = Input(Bool())
-    val wrBen1  = Input(UInt((width/8).W))
-    val wrBen2  = Input(UInt((width/8).W))
+    val wrBen1  = Input(UInt(16.W))
+    val wrBen2  = Input(UInt(16.W))
     val wrAddr1 = Input(UInt(log2Up(num).W))
     val wrAddr2 = Input(UInt(log2Up(num).W))
     val wrData1 = Input(UInt(width.W))
@@ -321,7 +387,11 @@ class Regfile(num: Int, width: Int) extends Module {
 
   val rdAddr1_reg = Reg(UInt(log2Up(num).W))
   val rdAddr2_reg = Reg(UInt(log2Up(num).W))
-  val mem = Reg(Vec(num, Vec(width/8, UInt(8.W))))
+  val mem = Reg(Vec(num, MixedVec(
+    UInt(96.W), UInt(8.W), UInt(24.W), UInt(8.W), 
+    UInt(1.W), UInt(1.W), UInt(10.W), UInt(43.W),
+    UInt(3.W), UInt(10.W), UInt(32.W), UInt(16.W),
+    UInt(9.W), UInt(9.W))))
 
   rdAddr1_reg := io.rdAddr1
   rdAddr2_reg := io.rdAddr2
@@ -330,20 +400,92 @@ class Regfile(num: Int, width: Int) extends Module {
   io.rdData2 := RegNext(mem(rdAddr2_reg).asUInt)
 
   when (io.wrEn1) {
-    var i = 0
-    for (i <- 0 until width/8) {
-      when (io.wrBen1(i) === 1.U) {
-        mem(io.wrAddr1)(i) := io.wrData1(i*8+7, i*8)
-      }
+    when (io.wrBen1(0) === 1.U) {
+      mem(io.wrAddr1)(0) := io.wrData1(95, 0)
+    }
+    when (io.wrBen1(1) === 1.U) {
+      mem(io.wrAddr1)(1) := io.wrData1(103, 96)
+    }
+    when (io.wrBen1(2) === 1.U) {
+      mem(io.wrAddr1)(2) := io.wrData1(127, 104)
+    }
+    when (io.wrBen1(3) === 1.U) {
+      mem(io.wrAddr1)(3) := io.wrData1(135, 128)
+    }
+    when (io.wrBen1(4) === 1.U) {
+      mem(io.wrAddr1)(4) := io.wrData1(136, 136)
+    }
+    when (io.wrBen1(5) === 1.U) {
+      mem(io.wrAddr1)(5) := io.wrData1(137, 137)
+    }
+    when (io.wrBen1(6) === 1.U) {
+      mem(io.wrAddr1)(6) := io.wrData1(147, 138)
+    }
+    when (io.wrBen1(7) === 1.U) {
+      mem(io.wrAddr1)(7) := io.wrData1(190, 148)
+    }
+    when (io.wrBen1(8) === 1.U) {
+      mem(io.wrAddr1)(8) := io.wrData1(193, 191)
+    }
+    when (io.wrBen1(9) === 1.U) {
+      mem(io.wrAddr1)(9) := io.wrData1(203, 194)
+    }
+    when (io.wrBen1(10) === 1.U) {
+      mem(io.wrAddr1)(10) := io.wrData1(235, 204)
+    }
+    when (io.wrBen1(11) === 1.U) {
+      mem(io.wrAddr1)(11) := io.wrData1(251, 236)
+    }
+    when (io.wrBen1(12) === 1.U) {
+      mem(io.wrAddr1)(12) := io.wrData1(260, 252)
+    }
+    when (io.wrBen1(13) === 1.U) {
+      mem(io.wrAddr1)(13) := io.wrData1(269, 261)
     }
   }
 
   when (io.wrEn2) {
-    var i = 0
-    for (i <- 0 until width/8) {
-      when (io.wrBen2(i) === 1.U) {
-        mem(io.wrAddr2)(i) := io.wrData2(i*8+7, i*8)
-      }
+    when (io.wrBen2(0) === 1.U) {
+      mem(io.wrAddr2)(0) := io.wrData2(95, 0)
+    }
+    when (io.wrBen2(1) === 1.U) {
+      mem(io.wrAddr2)(1) := io.wrData2(103, 96)
+    }
+    when (io.wrBen2(2) === 1.U) {
+      mem(io.wrAddr2)(2) := io.wrData2(127, 104)
+    }
+    when (io.wrBen2(3) === 1.U) {
+      mem(io.wrAddr2)(3) := io.wrData2(135, 128)
+    }
+    when (io.wrBen2(4) === 1.U) {
+      mem(io.wrAddr2)(4) := io.wrData2(136, 136)
+    }
+    when (io.wrBen2(5) === 1.U) {
+      mem(io.wrAddr2)(5) := io.wrData2(137, 137)
+    }
+    when (io.wrBen2(6) === 1.U) {
+      mem(io.wrAddr2)(6) := io.wrData2(147, 138)
+    }
+    when (io.wrBen2(7) === 1.U) {
+      mem(io.wrAddr2)(7) := io.wrData2(190, 148)
+    }
+    when (io.wrBen2(8) === 1.U) {
+      mem(io.wrAddr2)(8) := io.wrData2(193, 191)
+    }
+    when (io.wrBen2(9) === 1.U) {
+      mem(io.wrAddr2)(9) := io.wrData2(203, 194)
+    }
+    when (io.wrBen2(10) === 1.U) {
+      mem(io.wrAddr2)(10) := io.wrData2(235, 204)
+    }
+    when (io.wrBen2(11) === 1.U) {
+      mem(io.wrAddr2)(11) := io.wrData2(251, 236)
+    }
+    when (io.wrBen2(12) === 1.U) {
+      mem(io.wrAddr2)(12) := io.wrData2(260, 252)
+    }
+    when (io.wrBen2(13) === 1.U) {
+      mem(io.wrAddr2)(13) := io.wrData2(269, 261)
     }
   }
 }
@@ -359,23 +501,44 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   // FIXME: implement i$
 
   var mem_array = Array.fill[UInt](1 << ipWidth)(0.U(instrWidth.W))
-  mem_array(0)  = "h00000004800021000000042000000207".U
-  mem_array(1)  = "h00000000808000400000042000000200".U
-  mem_array(2)  = "h1fffe1a082808240021604200a100242".U
-  mem_array(3)  = "h1fffe051b9002348820004200a100252".U
-  mem_array(4)  = "h000001938000a9856220014400100201".U
-  mem_array(5)  = "h0000004283a80884000c042201022026".U
-  mem_array(6)  = "h0000014280008cc002360544b0100201".U
-  mem_array(7)  = "h0000000083000240021a002000000200".U
-  mem_array(8)  = "h0000004000030004000c042201022026".U
-  mem_array(9)  = "h000000e280008ec0023a0544d0100201".U
-  mem_array(10) = "h000000648193a1080020440200060282".U
-  mem_array(11) = "h1ffffff1b9012348820000220a100252".U
-  mem_array(12) = "h00000080001884400220054000000201".U
-  mem_array(13) = "h1fffffb1b9012348820400220a101252".U
-  mem_array(14) = "h00000040001886400220054000000201".U
-  mem_array(15) = "h000020028000088000000426f8000210".U
-  mem_array(16) = "h00000000000000000000042000000208".U
+  mem_array(0)  = "h000000000000a301004008741ba0043a0dd00207".U
+  mem_array(1)  = "h0000000011020502100000b41b4004340e500252".U
+  mem_array(2)  = "h00000000021f0100000000341ba004251de00201".U
+  mem_array(3)  = "h0000001000020000000000281d2044b40e604255".U
+  mem_array(4)  = "h00000000001d0100000000341ba004251de00201".U
+  mem_array(5)  = "h00000000001d0000020000341ba004340e306242".U
+  mem_array(6)  = "h00000000000b000020000028154004340aa10e52".U
+  mem_array(7)  = "h00000000000515000240081b14c034140e702a52".U
+  mem_array(8)  = "h0000000401030000000000281cc085540e6042a5".U
+  mem_array(9)  = "h0000000000001102001004341ba0043429a40c20".U
+  mem_array(10) = "h0000000000000000200201341ba0043a0dd00209".U
+  mem_array(11) = "h0000000000000000200301341ba0043a0dd00209".U
+  mem_array(12) = "h0000000000008f430014062814c0c41409a40c20".U
+  mem_array(13) = "h0000000000fc0000340000341ba004340aa18252".U
+  mem_array(14) = "h0000000000011500304008341ba0061a0dd00208".U
+  mem_array(15) = "h0000000001fdb32232500c18cdb8042eae702a32".U
+  mem_array(16) = "h0000000000f80000000000341ba0043a0dd00201".U
+  mem_array(17) = "h000000000002000020000028154004340aa10e82".U
+  mem_array(18) = "h00000000010f1100001004341ba004251de00201".U
+  mem_array(19) = "h0000000000008f64201006341ba0040e07d50210".U
+  mem_array(20) = "h000000000002af5302440a181ac0341a0e702a52".U
+  mem_array(21) = "h00000000000a1102041004341ba0042c6d600201".U
+  mem_array(22) = "h00000000000200003000002815a3043409a40c26".U
+  mem_array(23) = "h0000000000081102541806340cc0058c6d600201".U
+  mem_array(24) = "h0000000000fa00000300002815a3043409a40c26".U
+  mem_array(25) = "h0000000001028f67361406340db8042e0e700232".U
+  mem_array(26) = "h0000000000050000450802340cc0059a0dd00201".U
+  mem_array(27) = "h00000000000300007000002815a3043409a40c26".U
+  mem_array(28) = "h0000000000000000340802340cd8059a0dd00200".U
+  mem_array(29) = "h0000000000020000450802340cc0059a0dd00201".U
+  mem_array(30) = "h0000000000fab33573500c341ba0042d8d606201".U
+  mem_array(31) = "h0000000001001102021004341ba0040eae702a20".U
+  mem_array(32) = "h0000000000000000020201341ba0041a0dd0020a".U
+  mem_array(33) = "h0000000000010000000000341ba0043a0dd00209".U
+  mem_array(34) = "h0000000401ff0000000000281cc085540e6042a5".U
+  mem_array(35) = "h00000001020215010040082a9d401c540e6042a2".U
+  mem_array(36) = "h000000000000b31100500c2a93481856bdb04e00".U
+  mem_array(37) = "h0000000000000000100101341ba0043a0dd00209".U
 
   val mem = RegInit(VecInit(mem_array.toSeq))
   //val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
@@ -466,18 +629,201 @@ class Decode(instrWidth: Int, num_regs_lg: Int, num_aluops_lg: Int, num_fus: Int
   io.preOp     := io.instr(PREOP_HIGH, PREOP_LOW)
 }
 
+class flowTableV extends 
+  BlackBox with HasBlackBoxResource {
+  val io = IO(new Bundle {
+    // ch0 read channel
+    val ch0_meta_tuple_sIP    = Input(UInt(32.W))
+    val ch0_meta_tuple_dIP    = Input(UInt(32.W))
+    val ch0_meta_tuple_sPort  = Input(UInt(16.W))
+    val ch0_meta_tuple_dPort  = Input(UInt(16.W))
+    val ch0_meta_addr0        = Input(UInt(12.W))
+    val ch0_meta_addr1        = Input(UInt(12.W))
+    val ch0_meta_addr2        = Input(UInt(12.W))
+    val ch0_meta_addr3        = Input(UInt(12.W))
+    val ch0_meta_opcode       = Input(UInt(3.W))
+    val ch0_rden              = Input(Bool())
+    val ch0_q_valid           = Output(Bool())
+    val ch0_q_tuple_sIP       = Output(UInt(32.W))
+    val ch0_q_tuple_dIP       = Output(UInt(32.W))
+    val ch0_q_tuple_sPort     = Output(UInt(16.W))
+    val ch0_q_tuple_dPort     = Output(UInt(16.W))
+    val ch0_q_seq             = Output(UInt(32.W))
+    val ch0_q_pointer         = Output(UInt(9.W))
+    val ch0_q_ll_valid        = Output(Bool())
+    val ch0_q_slow_cnt        = Output(UInt(10.W))
+    val ch0_q_last_7_bytes    = Output(UInt(56.W))
+    val ch0_q_addr0           = Output(UInt(12.W))
+    val ch0_q_addr1           = Output(UInt(12.W))
+    val ch0_q_addr2           = Output(UInt(12.W))
+    val ch0_q_addr3           = Output(UInt(12.W))
+    val ch0_rd_valid          = Output(Bool())
+    val ch0_bit_map           = Output(UInt(5.W))
+    val ch0_rd_stall          = Output(Bool())
 
-class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t, new insertIfc_t, ArrayBuffer(("dynamicMem", UInt((128).W), UInt((128).W))), extCompName + "__type__engine__MT__1__") {
+    // ch1 write channel
+    val ch1_opcode            = Input(UInt(3.W))
+    val ch1_bit_map           = Input(UInt(5.W))
+    val ch1_wren              = Input(Bool())
+    val ch1_data_valid        = Input(Bool())
+    val ch1_data_tuple_sIP    = Input(UInt(32.W))
+    val ch1_data_tuple_dIP    = Input(UInt(32.W))
+    val ch1_data_tuple_sPort  = Input(UInt(16.W))
+    val ch1_data_tuple_dPort  = Input(UInt(16.W))
+    val ch1_data_seq          = Input(UInt(32.W))
+    val ch1_data_pointer      = Input(UInt(9.W))
+    val ch1_data_ll_valid     = Input(Bool())
+    val ch1_data_slow_cnt     = Input(UInt(10.W))
+    val ch1_data_last_7_bytes = Input(UInt(56.W))
+    val ch1_data_addr0        = Input(UInt(12.W))
+    val ch1_data_addr1        = Input(UInt(12.W))
+    val ch1_data_addr2        = Input(UInt(12.W))
+    val ch1_data_addr3        = Input(UInt(12.W))
+    val ch1_insert_stall      = Output(Bool())
+
+    val rst                   = Input(Reset())
+    val clk                   = Input(Clock())
+  })
+
+  addResource("/flow_table_wrap.sv")
+
+}
+
+class flowTable(tag_width: Int) extends Module {
+  val io = IO(new Bundle {
+    val ch0_req_valid  = Input(Bool())
+    val ch0_req_tag    = Input(UInt(tag_width.W))
+    val ch0_req_data   = Input(new ftCh0Input_t)
+    val ch0_req_ready  = Output(Bool())
+
+    val ch0_rep_valid  = Output(Bool())
+    val ch0_rep_tag    = Output(UInt(tag_width.W))
+    val ch0_rep_data   = Output(new ftCh0Output_t)
+    val ch0_rep_ready  = Input(Bool())
+
+    val ch1_req_valid  = Input(Bool())
+    val ch1_req_tag    = Input(UInt(tag_width.W))
+    val ch1_req_data   = Input(new ftCh1Input_t)
+    val ch1_req_ready  = Output(Bool())
+
+    val ch1_rep_valid  = Output(Bool())
+    val ch1_rep_tag    = Output(UInt(tag_width.W))
+    val ch1_rep_data   = Output(UInt(8.W))
+    val ch1_rep_ready  = Input(Bool())
+  })
+
+  val ch0_tag_reg = Reg(UInt(tag_width.W))
+  val ch1_tag_reg = Reg(UInt(tag_width.W))
+
+  val ft_inst = Module(new flowTableV)
+
+  ft_inst.io.clk := clock
+  ft_inst.io.rst := reset
+
+  when (io.ch0_req_valid) {
+    ft_inst.io.ch0_rden := true.B
+  } .otherwise {
+    ft_inst.io.ch0_rden := false.B
+  }
+
+  when (io.ch1_req_valid) {
+    ft_inst.io.ch1_wren := true.B
+  } .otherwise {
+    ft_inst.io.ch1_wren := false.B
+  }
+
+  when (io.ch0_req_valid && !(ft_inst.io.ch0_rd_stall)) {
+    ch0_tag_reg := io.ch0_req_tag
+  }
+
+  when (io.ch1_req_valid && !(ft_inst.io.ch1_insert_stall)) {
+    ch1_tag_reg := io.ch1_req_tag
+  }
+
+  ft_inst.io.ch0_meta_tuple_sIP := io.ch0_req_data.ch0_meta.tuple.sIP
+  ft_inst.io.ch0_meta_tuple_dIP := io.ch0_req_data.ch0_meta.tuple.dIP
+  ft_inst.io.ch0_meta_tuple_sPort := io.ch0_req_data.ch0_meta.tuple.sPort
+  ft_inst.io.ch0_meta_tuple_dPort := io.ch0_req_data.ch0_meta.tuple.dPort
+  ft_inst.io.ch0_meta_addr0 := io.ch0_req_data.ch0_meta.addr0
+  ft_inst.io.ch0_meta_addr1 := io.ch0_req_data.ch0_meta.addr1
+  ft_inst.io.ch0_meta_addr2 := io.ch0_req_data.ch0_meta.addr2
+  ft_inst.io.ch0_meta_addr3 := io.ch0_req_data.ch0_meta.addr3
+  ft_inst.io.ch0_meta_opcode := io.ch0_req_data.ch0_opcode
+  io.ch0_rep_tag := ch0_tag_reg
+  io.ch0_rep_valid := ft_inst.io.ch0_rd_valid
+  io.ch0_req_ready := !(ft_inst.io.ch0_rd_stall)
+  io.ch0_rep_data.ch0_bit_map := ft_inst.io.ch0_bit_map
+  io.ch0_rep_data.ch0_q.tuple.sIP := ft_inst.io.ch0_q_tuple_sIP
+  io.ch0_rep_data.ch0_q.tuple.dIP := ft_inst.io.ch0_q_tuple_dIP
+  io.ch0_rep_data.ch0_q.tuple.sPort := ft_inst.io.ch0_q_tuple_sPort
+  io.ch0_rep_data.ch0_q.tuple.dPort := ft_inst.io.ch0_q_tuple_dPort
+  io.ch0_rep_data.ch0_q.seq := ft_inst.io.ch0_q_seq
+  io.ch0_rep_data.ch0_q.pointer := ft_inst.io.ch0_q_pointer
+  io.ch0_rep_data.ch0_q.ll_valid := ft_inst.io.ch0_q_ll_valid
+  io.ch0_rep_data.ch0_q.slow_cnt := ft_inst.io.ch0_q_slow_cnt
+  io.ch0_rep_data.ch0_q.last_7_bytes := ft_inst.io.ch0_q_last_7_bytes
+  io.ch0_rep_data.ch0_q.addr0 := ft_inst.io.ch0_q_addr0
+  io.ch0_rep_data.ch0_q.addr1 := ft_inst.io.ch0_q_addr1
+  io.ch0_rep_data.ch0_q.addr2 := ft_inst.io.ch0_q_addr2
+  io.ch0_rep_data.ch0_q.addr3 := ft_inst.io.ch0_q_addr3
+
+  when (io.ch1_req_data.ch1_opcode === 3.U) {
+    ft_inst.io.ch1_data_valid := false.B
+  } .otherwise {
+    ft_inst.io.ch1_data_valid := true.B
+  }
+  ft_inst.io.ch1_opcode := io.ch1_req_data.ch1_opcode
+  when (io.ch1_req_data.ch1_opcode === 1.U) {
+    val fce_meta = Wire(new ftInsert_t)
+    fce_meta := io.ch1_req_data.asUInt.asTypeOf(new ftInsert_t)
+    ft_inst.io.ch1_bit_map := 16.U
+    ft_inst.io.ch1_data_tuple_sIP := fce_meta.tuple.sIP
+    ft_inst.io.ch1_data_tuple_dIP := fce_meta.tuple.dIP
+    ft_inst.io.ch1_data_tuple_sPort := fce_meta.tuple.sPort
+    ft_inst.io.ch1_data_tuple_dPort := fce_meta.tuple.dPort
+    ft_inst.io.ch1_data_seq := fce_meta.seq
+    ft_inst.io.ch1_data_pointer := 0.U
+    ft_inst.io.ch1_data_ll_valid := 0.U
+    ft_inst.io.ch1_data_slow_cnt := 0.U
+    ft_inst.io.ch1_data_last_7_bytes := fce_meta.last_7_bytes
+    ft_inst.io.ch1_data_addr0 := fce_meta.addr0
+    ft_inst.io.ch1_data_addr1 := fce_meta.addr1
+    ft_inst.io.ch1_data_addr2 := fce_meta.addr2
+    ft_inst.io.ch1_data_addr3 := fce_meta.addr3
+  } .otherwise {
+    ft_inst.io.ch1_bit_map := io.ch1_req_data.ch1_bit_map
+    ft_inst.io.ch1_data_tuple_sIP := io.ch1_req_data.ch1_data.tuple.sIP
+    ft_inst.io.ch1_data_tuple_dIP := io.ch1_req_data.ch1_data.tuple.dIP
+    ft_inst.io.ch1_data_tuple_sPort := io.ch1_req_data.ch1_data.tuple.sPort
+    ft_inst.io.ch1_data_tuple_dPort := io.ch1_req_data.ch1_data.tuple.dPort
+    ft_inst.io.ch1_data_seq := io.ch1_req_data.ch1_data.seq
+    ft_inst.io.ch1_data_pointer := io.ch1_req_data.ch1_data.pointer
+    ft_inst.io.ch1_data_ll_valid := io.ch1_req_data.ch1_data.ll_valid
+    ft_inst.io.ch1_data_slow_cnt := io.ch1_req_data.ch1_data.slow_cnt
+    ft_inst.io.ch1_data_last_7_bytes := io.ch1_req_data.ch1_data.last_7_bytes
+    ft_inst.io.ch1_data_addr0 := io.ch1_req_data.ch1_data.addr0
+    ft_inst.io.ch1_data_addr1 := io.ch1_req_data.ch1_data.addr1
+    ft_inst.io.ch1_data_addr2 := io.ch1_req_data.ch1_data.addr2
+    ft_inst.io.ch1_data_addr3 := io.ch1_req_data.ch1_data.addr3
+  }
+  io.ch1_req_ready := !(ft_inst.io.ch1_insert_stall)
+  io.ch1_rep_tag := ch1_tag_reg
+  io.ch1_rep_valid := RegNext(io.ch1_req_valid && !(ft_inst.io.ch1_insert_stall))
+  io.ch1_rep_data := 0.U
+
+}
+
+class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, new metadata_t, ArrayBuffer(("dynamicMem", new dyMemInput_t, new llNode_t), ("hash", new tuple_t, new fce_meta_t)), extCompName + "__type__engine__MT__16__") {
   val NUM_THREADS = 16
   val NUM_THREADS_LG = log2Up(NUM_THREADS)
-  val REG_WIDTH = 128
+  val REG_WIDTH = 270
   val NUM_REGS = 16
   val NUM_REGS_LG = log2Up(NUM_REGS)
   val NUM_FUOPS_LG = 2
-  val NUM_FUS = 3
+  val NUM_FUS = 6
   val NUM_FUS_LG = log2Up(NUM_FUS)
   val VLIW_OPS = 2
-  val NUM_PREOPS = 9
+  val NUM_PREOPS = 11
   val NUM_PREOPS_LG = log2Up(NUM_PREOPS)
   val IMM_WIDTH = 16
   val NUM_ALUOPS_LG = 4
@@ -520,7 +866,9 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
 
   // set up function units
   def functionalUnits = io.elements("off")
-  def dynamicMemPort = functionalUnits.asInstanceOf[Bundle].elements("dynamicMem").asInstanceOf[gOffBundle[UInt, UInt]]
+  def dynamicMemPort = functionalUnits.asInstanceOf[Bundle].elements("dynamicMem").asInstanceOf[gOffBundle[dyMemInput_t, llNode_t]]
+  def hashPort = functionalUnits.asInstanceOf[Bundle].elements("hash").asInstanceOf[gOffBundle[tuple_t, fce_meta_t]]
+  val flowTablePort = Module(new flowTable(TAGWIDTH))
   // def ipv4Lookup1Port = functionalUnits.asInstanceOf[Bundle].elements("ipv4Lookup1").asInstanceOf[gOffBundle[UInt, UInt]]
   // def ipv4Lookup2Port = functionalUnits.asInstanceOf[Bundle].elements("ipv4Lookup2").asInstanceOf[gOffBundle[UInt, UInt]]
   // def qosCountPort = functionalUnits.asInstanceOf[Bundle].elements("qosCount").asInstanceOf[gOffBundle[UInt, UInt]]
@@ -540,8 +888,8 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
   val ThreadStateT = new Bundle {
     val tag         = UInt((TAGWIDTH*2).W)
     // FIXME: input -> rf & rf -> output
-    val input       = new insertIfc_t
-    val output      = new insertIfc_t
+    val input       = new metadata_t
+    val output      = new metadata_t
 
     val ip          = UInt(IP_WIDTH.W)
     val instr       = UInt(INSTR_WIDTH.W)
@@ -571,7 +919,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
     val preOpA      = UInt(REG_WIDTH.W)
     val preOpB      = UInt(REG_WIDTH.W)
 
-    val wbens       = Vec(NUM_FUS, UInt((REG_WIDTH/8).W))
+    val wbens       = Vec(NUM_FUS, UInt(16.W))
     val dests       = Vec(NUM_FUS, UInt(REG_WIDTH.W))
     val execValids  = Vec(NUM_FUS, Bool())
     val execDone    = Bool()
@@ -588,6 +936,8 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
   val GS_GT          = 6.U
   val GS_INPUT       = 7.U
   val GS_OUTPUT      = 8.U
+  val GS_OUTPUTRET   = 9.U
+  val GS_RET         = 10.U
 
   val regfile = Module(new Regfile(NUM_REGS*NUM_THREADS, REG_WIDTH))
 
@@ -595,7 +945,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
   // select idle thread
   val sThreadEncoder = Module(new RREncode(NUM_THREADS))
   val sThread = sThreadEncoder.io.chosen
-  val in_bits_d0 = Reg(new insertIfc_t)
+  val in_bits_d0 = Reg(new metadata_t)
   val in_tag_d0 = Reg(UInt((TAGWIDTH*2).W))
   val in_valid_d0 = Reg(Bool())
   val sThread_reg = RegInit(NONE_SELECTED)
@@ -624,6 +974,11 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
   when (in_valid_d0) {
     threadStates(sThread_reg).tag := in_tag_d0
     threadStates(sThread_reg).input := in_bits_d0
+    when (in_bits_d0.len =/= 0.U) {
+      threadStates(sThread_reg).input.pkt_flags := 2.U
+    } .otherwise {
+      threadStates(sThread_reg).input.pkt_flags := 0.U
+    }
   }
 
   /****************** Fetch logic *********************************/
@@ -816,8 +1171,8 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
   preOpThread := readThread_vec(0)
   preOp := preOp_vec(0)
 
-  val alu0 = Module(new ALU(NUM_ALUOPS_LG))
-  val alu1 = Module(new ALU(NUM_ALUOPS_LG))
+  val alu0 = Module(new ALU(NUM_ALUOPS_LG, REG_WIDTH))
+  val alu1 = Module(new ALU(NUM_ALUOPS_LG, REG_WIDTH))
 
   alu0.io.srcA := gather_alu0A.io.dout
   alu0.io.signA := gather_alu0A.io.sign_out
@@ -830,44 +1185,35 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
   alu1.io.signB := gather_alu1B.io.sign_out
   alu1.io.aluOp := alu1Op_vec(0)
 
-  // input / output format
-  //  * val l2Protocol = UInt((8).W)         0 [127, 120]
-  //  * val outPort = UInt((8).W)            0 [119, 112]
-  //  * val eth = new EthernetHeader_t
-  //    * val dstAddr = UInt((48).W)         0 [111,  64]
-  //    * val srcAddr = UInt((48).W)         0 [ 63,  16]
-  //    * val l3Type = UInt((8).W)           0 [ 15,   8]
-  //    * val length = UInt((8).W)           0 [  7,   0]
-  //  * val l3 = new mpl3Header_t
-  //    * val version = UInt((4).W)          1 [127, 124]
-  //    * val hLength = UInt((4).W)          1 [123, 120]
-  //    * val tos = UInt((8).W)              1 [119, 112]
-  //    * val length = UInt((16).W)          1 [111,  96]
-  //    * val identification = UInt((16).W)  1 [ 95,  80]
-  //    * val flagsOffset = UInt((16).W)     1 [ 79,  64]
-  //    * val ttl = UInt((8).W)              1 [ 63,  56]
-  //    * val protocol = UInt((8).W)         1 [ 55,  48]
-  //    * val chksum = UInt((16).W)          1 [ 47,  32]
-  //    * val srcAddr = UInt((32).W)         1 [ 31,   0]
-  //    * val dstAddr = UInt((32).W)         2 [127,  96]
-  //    * val h1 = UInt((128).W)             1 [127,   0]
-  //    * val h2 = UInt((128).W)             2 [127,   0]
-  //    * val h3 = UInt((128).W)             3 [127,   0]
-  //    * val h4 = UInt((128).W)             4 [127,   0]
-  //    * val h5 = UInt((128).W)             5 [127,   0]
-  //    * val h6 = UInt((128).W)             6 [127,   0]
-  //    * val h7 = UInt((128).W)             7 [127,   0]
-  //    * val h8 = UInt((128).W)             8 [127,   0]
-
-  val execBundle = new Bundle {
+  val execBundle0 = new Bundle {
     val tag = UInt(NUM_THREADS_LG.W)
-    val op = UInt(NUM_FUOPS_LG.W)
-    val bits = UInt(128.W)
+    val bits = (new tuple_t)
   }
-  val fuFifos_0 = Module(new Queue(execBundle, NUM_THREADS - 1))  // ipv4Lookup1
+  val execBundle1 = new Bundle {
+    val tag = UInt(NUM_THREADS_LG.W)
+    val bits = (new ftCh0Input_t)
+  }
+  val execBundle2 = new Bundle {
+    val tag = UInt(NUM_THREADS_LG.W)
+    val bits = (new ftCh1Input_t)
+  }
+  val execBundle3 = new Bundle {
+    val tag = UInt(NUM_THREADS_LG.W)
+    val bits = (new dyMemInput_t)
+  }
+  val fuFifos_0 = Module(new Queue(execBundle0, NUM_THREADS - 1))
+  val fuFifos_1 = Module(new Queue(execBundle1, NUM_THREADS - 1))
+  val fuFifos_2 = Module(new Queue(execBundle2, NUM_THREADS - 1))
+  val fuFifos_3 = Module(new Queue(execBundle3, NUM_THREADS - 1))
 
   fuFifos_0.io.enq.valid := false.B
   fuFifos_0.io.enq.bits := DontCare
+  fuFifos_1.io.enq.valid := false.B
+  fuFifos_1.io.enq.bits := DontCare
+  fuFifos_2.io.enq.valid := false.B
+  fuFifos_2.io.enq.bits := DontCare
+  fuFifos_3.io.enq.valid := false.B
+  fuFifos_3.io.enq.bits := DontCare
 
   io.out.tag := DontCare
   io.out.bits := DontCare
@@ -886,7 +1232,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
     threadStates(preOpThread).preOpBranch := false.B
 
     when (preOp === GS_INPUT) {
-      val input_u = Wire(UInt(124.W))
+      val input_u = Wire(UInt(252.W))
       // val shift_w = Wire(UInt(4.W))
       input_u := threadStates(preOpThread).input.asUInt
       // shift_w := threadStates(preOpThread).imm(3, 0)
@@ -923,11 +1269,23 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
     }
 
     .elsewhen (preOp === GS_OUTPUT) {
+      threadStates(preOpThread).preOpBranch := true.B
       io.out.tag := threadStates(preOpThread).tag
       // io.out.bits := threadStates(preOpThread).input
       io.out.bits := preOpA.asTypeOf(chiselTypeOf(io.out.bits))
       // io.out.bits.l3.h1 := preOpB
       io.out.valid := true.B
+      // threadStates(preOpThread).finish := true.B
+    }
+
+    .elsewhen (preOp === GS_OUTPUTRET) {
+      io.out.tag := threadStates(preOpThread).tag
+      io.out.bits := preOpA.asTypeOf(chiselTypeOf(io.out.bits))
+      io.out.valid := true.B
+      threadStates(preOpThread).finish := true.B
+    }
+
+    .elsewhen (preOp === GS_RET) {
       threadStates(preOpThread).finish := true.B
     }
 
@@ -937,9 +1295,30 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
     // FIXME: choose which preOp vals to send to functional units
     when (threadStates(preOpThread).fuValids(0) === true.B) {
       fuFifos_0.io.enq.bits.tag := preOpThread
-      fuFifos_0.io.enq.bits.op := threadStates(preOpThread).fuOps(0)
-      fuFifos_0.io.enq.bits.bits := preOpB
+      fuFifos_0.io.enq.bits.bits := (preOpB.asTypeOf(new metadata_t)).tuple
       fuFifos_0.io.enq.valid := true.B
+    }
+
+    when (threadStates(preOpThread).fuValids(1) === true.B) {
+      fuFifos_1.io.enq.bits.tag := preOpThread
+      fuFifos_1.io.enq.bits.bits.ch0_opcode := threadStates(preOpThread).fuOps(1)
+      fuFifos_1.io.enq.bits.bits.ch0_meta := preOpB.asTypeOf(new fce_meta_t)
+      fuFifos_1.io.enq.valid := true.B
+    }
+
+    when (threadStates(preOpThread).fuValids(2) === true.B) {
+      fuFifos_2.io.enq.bits.tag := preOpThread
+      fuFifos_2.io.enq.bits.bits.ch1_opcode := threadStates(preOpThread).fuOps(2)
+      fuFifos_2.io.enq.bits.bits.ch1_bit_map := (preOpB.asTypeOf(new ftCh0Output_t)).ch0_bit_map
+      fuFifos_2.io.enq.bits.bits.ch1_data := (preOpB.asTypeOf(new ftCh0Output_t)).ch0_q
+      fuFifos_2.io.enq.valid := true.B
+    }
+
+    when (threadStates(preOpThread).fuValids(3) === true.B) {
+      fuFifos_3.io.enq.bits.tag := preOpThread
+      fuFifos_3.io.enq.bits.bits.opcode := threadStates(preOpThread).fuOps(3)
+      fuFifos_3.io.enq.bits.bits.node := preOpB.asTypeOf(new llNode_t)
+      fuFifos_3.io.enq.valid := true.B
     }
 
     threadStages(preOpThread) := ThreadStageEnum.exec
@@ -951,7 +1330,10 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
   execThread := preOpThread
   execThread_d0 := execThread
   val fuReqReadys = new Array[Bool](NUM_FUS)
-  fuReqReadys(0) = dynamicMemPort.req.ready
+  fuReqReadys(0) = hashPort.req.ready
+  fuReqReadys(1) = flowTablePort.io.ch0_req_ready
+  fuReqReadys(2) = flowTablePort.io.ch1_req_ready
+  fuReqReadys(3) = dynamicMemPort.req.ready
   // fuReqReadys(1) = ipv4Lookup2Port.req.ready
   // fuReqReadys(2) = qosCountPort.req.ready
 
@@ -967,82 +1349,104 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new insertIfc_t,
   scatterB.io.shift := RegNext(alu1DstShift_vec(0))
 
   when (execThread_d0 =/= NONE_SELECTED) {
-    when (threadStates(execThread_d0).fuValids(1) === true.B) {
-      threadStates(execThread_d0).dests(1) := scatterA.io.dout
-      threadStates(execThread_d0).wbens(1) := scatterA.io.wren
-      threadStates(execThread_d0).execValids(1) := true.B
+    when (threadStates(execThread_d0).fuValids(4) === true.B) {
+      threadStates(execThread_d0).dests(4) := scatterA.io.dout
+      threadStates(execThread_d0).wbens(4) := scatterA.io.wren
+      threadStates(execThread_d0).execValids(4) := true.B
     }
 
-    when (threadStates(execThread_d0).fuValids(2) === true.B) {
-      threadStates(execThread_d0).dests(2) := scatterB.io.dout
-      threadStates(execThread_d0).wbens(2) := scatterB.io.wren
-      threadStates(execThread_d0).execValids(2) := true.B
+    when (threadStates(execThread_d0).fuValids(5) === true.B) {
+      threadStates(execThread_d0).dests(5) := scatterB.io.dout
+      threadStates(execThread_d0).wbens(5) := scatterB.io.wren
+      threadStates(execThread_d0).execValids(5) := true.B
     }
   }
 
-  // FUs
+  // FUs input
   when (fuFifos_0.io.count > 0.U && fuReqReadys(0) === true.B) {
     val deq = fuFifos_0.io.deq
+    hashPort.req.valid := true.B
+    hashPort.req.tag := deq.bits.tag
+    hashPort.req.bits := deq.bits.bits
+    fuFifos_0.io.deq.ready := true.B
+  }
+  .otherwise {
+    hashPort.req.valid := false.B
+    hashPort.req.tag := 0.U(NUM_THREADS_LG.W)
+    hashPort.req.bits := DontCare
+    fuFifos_0.io.deq.ready := false.B
+  }
+
+  when (fuFifos_1.io.count > 0.U && fuReqReadys(1) === true.B) {
+    val deq = fuFifos_1.io.deq
+    flowTablePort.io.ch0_req_valid := true.B
+    flowTablePort.io.ch0_req_tag := deq.bits.tag
+    flowTablePort.io.ch0_req_data := deq.bits.bits
+    fuFifos_1.io.deq.ready := true.B
+  }
+  .otherwise {
+    flowTablePort.io.ch0_req_valid := false.B
+    flowTablePort.io.ch0_req_tag := 0.U(NUM_THREADS_LG.W)
+    flowTablePort.io.ch0_req_data := DontCare
+    fuFifos_1.io.deq.ready := false.B
+  }
+
+  when (fuFifos_2.io.count > 0.U && fuReqReadys(2) === true.B) {
+    val deq = fuFifos_2.io.deq
+    flowTablePort.io.ch1_req_valid := true.B
+    flowTablePort.io.ch1_req_tag := deq.bits.tag
+    flowTablePort.io.ch1_req_data := deq.bits.bits
+    fuFifos_2.io.deq.ready := true.B
+  }
+  .otherwise {
+    flowTablePort.io.ch1_req_valid := false.B
+    flowTablePort.io.ch1_req_tag := 0.U(NUM_THREADS_LG.W)
+    flowTablePort.io.ch1_req_data := DontCare
+    fuFifos_2.io.deq.ready := false.B
+  }
+
+  when (fuFifos_3.io.count > 0.U && fuReqReadys(0) === true.B) {
+    val deq = fuFifos_3.io.deq
     dynamicMemPort.req.valid := true.B
     dynamicMemPort.req.tag := deq.bits.tag
-    dynamicMemPort.req.bits := Cat(deq.bits.op, deq.bits.bits(125, 0))
-    fuFifos_0.io.deq.ready := true.B
+    dynamicMemPort.req.bits := deq.bits.bits
+    fuFifos_3.io.deq.ready := true.B
   }
   .otherwise {
     dynamicMemPort.req.valid := false.B
     dynamicMemPort.req.tag := 0.U(NUM_THREADS_LG.W)
-    dynamicMemPort.req.bits := 0.U
-    fuFifos_0.io.deq.ready := false.B
+    dynamicMemPort.req.bits := DontCare
+    fuFifos_3.io.deq.ready := false.B
   }
 
-  // when (fuFifos_1.io.count > 0.U && fuReqReadys(1) === true.B) {
-  //   val deq = fuFifos_1.io.deq
-  //   ipv4Lookup2Port.req.valid := true.B
-  //   ipv4Lookup2Port.req.tag := deq.bits.tag
-  //   ipv4Lookup2Port.req.bits := deq.bits.bits(31, 0)
-  //   fuFifos_1.io.deq.ready := true.B
-  // }
-  // .otherwise {
-  //   ipv4Lookup2Port.req.valid := false.B
-  //   ipv4Lookup2Port.req.tag := 0.U(NUM_THREADS_LG.W)
-  //   ipv4Lookup2Port.req.bits := 0.U
-  //   fuFifos_1.io.deq.ready := false.B
-  // }
+  // FUs output
+  hashPort.rep.ready := true.B
+  when (hashPort.rep.valid) {
+    threadStates(hashPort.rep.tag).dests(0) := hashPort.rep.bits.asUInt
+    threadStates(hashPort.rep.tag).wbens(0) := Fill(16, 1.U)
+    threadStates(hashPort.rep.tag).execValids(0) := true.B
+  }
 
-  // when (fuFifos_2.io.count > 0.U && fuReqReadys(0) === true.B) {
-  //   val deq = fuFifos_2.io.deq
-  //   qosCountPort.req.valid := true.B
-  //   qosCountPort.req.tag := deq.bits.tag
-  //   qosCountPort.req.bits := deq.bits.bits(7, 0)
-  //   fuFifos_2.io.deq.ready := true.B
-  // }
-  // .otherwise {
-  //   qosCountPort.req.valid := false.B
-  //   qosCountPort.req.tag := 0.U(NUM_THREADS_LG.W)
-  //   qosCountPort.req.bits := 0.U
-  //   fuFifos_2.io.deq.ready := false.B
-  // }
+  flowTablePort.io.ch0_rep_ready := true.B
+  when (flowTablePort.io.ch0_rep_valid) {
+    threadStates(flowTablePort.io.ch0_rep_tag).dests(1) := flowTablePort.io.ch0_rep_data.asUInt
+    threadStates(flowTablePort.io.ch0_rep_tag).wbens(1) := Fill(16, 1.U)
+    threadStates(flowTablePort.io.ch0_rep_tag).execValids(1) := true.B
+  }
+
+  flowTablePort.io.ch1_rep_ready := true.B
+  when (flowTablePort.io.ch1_rep_valid) {
+    // threadStates(flowTablePort.io.ch1_rep_tag).dests(1) := flowTablePort.io.ch1_rep_data.asUInt
+    // threadStates(flowTablePort.io.ch1_rep_tag).wbens(2) := Fill(16, 0.U)
+    threadStates(flowTablePort.io.ch1_rep_tag).execValids(2) := true.B
+  }
 
   dynamicMemPort.rep.ready := true.B
   when (dynamicMemPort.rep.valid) {
-    threadStates(dynamicMemPort.rep.tag).dests(0) := dynamicMemPort.rep.bits
-    threadStates(dynamicMemPort.rep.tag).wbens(0) := Fill(REG_WIDTH/8, 1.U)
-    threadStates(dynamicMemPort.rep.tag).execValids(0) := true.B
+    threadStates(dynamicMemPort.rep.tag).dests(3) := dynamicMemPort.rep.bits.asUInt
+    threadStates(dynamicMemPort.rep.tag).wbens(3) := Fill(16, 1.U)
+    threadStates(dynamicMemPort.rep.tag).execValids(3) := true.B
   }
-
-  // ipv4Lookup2Port.rep.ready := true.B
-  // when (ipv4Lookup2Port.rep.valid) {
-  //   threadStates(ipv4Lookup2Port.rep.tag).dests(1) := ipv4Lookup2Port.rep.bits
-  //   threadStates(ipv4Lookup2Port.rep.tag).wbens(1) := Fill(REG_WIDTH/8, 1.U)
-  //   threadStates(ipv4Lookup2Port.rep.tag).execValids(1) := true.B
-  // }
-
-  // qosCountPort.rep.ready := true.B
-  // when (qosCountPort.rep.valid) {
-  //   threadStates(qosCountPort.rep.tag).dests(2) := qosCountPort.rep.bits
-  //   threadStates(qosCountPort.rep.tag).wbens(2) := Fill(REG_WIDTH/8, 1.U)
-  //   threadStates(qosCountPort.rep.tag).execValids(2) := true.B
-  // }
 
   // finish execution
   // FIXME: this does not need to take a cycle

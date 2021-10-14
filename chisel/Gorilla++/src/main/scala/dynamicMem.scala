@@ -5,43 +5,44 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 
-class dynamicMem(extCompName: String) extends gComponentLeaf(UInt((128).W), UInt((128).W), ArrayBuffer(), extCompName + "__type__engine__MT__1__") {
+class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, new llNode_t, ArrayBuffer(), extCompName + "__type__engine__MT__1__") {
   /*******************Decode, allocate new ptr*****************/
   val inputTag = Reg(UInt((TAGWIDTH*2).W))
   val opcode = Reg(UInt(2.W))
-  val inputReg = Reg(UInt(126.W))
+  val inputReg = Reg(new llNode_t)
   val valid_d = Reg(Bool())
 
-  val ptr = RegInit(0.U(16.W))
-  val new_ptr = RegInit(0.U(16.W))
+  val ptr = RegInit(0.U(10.W))
+  val new_ptr = RegInit(0.U(10.W))
 
   io.in.ready := io.out.ready
   valid_d := io.in.valid && io.out.ready
 
   when (io.in.valid && io.out.ready) {
-    opcode := io.in.bits(127, 126)
-    inputReg := io.in.bits(125, 0)
+    opcode := io.in.bits.opcode
+    inputReg := io.in.bits.node
     inputTag := io.in.tag
-    when (io.in.bits(127, 126) === 0.U) {
+    when (io.in.bits.opcode === 0.U) {
       when (ptr < 512.U) {
         new_ptr := ptr
         ptr := ptr + 1.U
       } .otherwise {
-        new_ptr := 0xffff.U
+        new_ptr := 512.U
       }
     }
   }
 
   /*******************Access RAM 0*****************************/
   val tag_a0 = Reg(UInt((TAGWIDTH*2).W))
-  val mem = Reg(Vec(512, Vec(8, UInt(16.W))))
+  val mem0 = Reg(Vec(512, UInt(252.W)))
+  val mem1 = Reg(Vec(512, Vec(2, UInt(9.W))))
   val wren = Reg(Bool())
-  val wben = Reg(UInt(8.W))
+  val wben = Reg(UInt(3.W))
   val wrAddr = Reg(UInt(9.W))
-  val wrData = Reg(UInt(128.W))
+  val wrData = Reg(UInt(270.W))
   val rdAddr = Reg(UInt(9.W))
 
-  val ptr_a = Reg(UInt(16.W))
+  val ptr_a = Reg(UInt(10.W))
   val valid_a0 = Reg(Bool())
   val opcode_a0 = Reg(UInt(2.W))
 
@@ -58,38 +59,40 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(UInt((128).W), UInt
   when (valid_d && io.out.ready) {
     opcode_a0 := opcode
     tag_a0 := inputTag
-    when (opcode === 0.U && new_ptr =/= 0xffff.U) {
+    val input_u = Wire(UInt(270.W))
+    input_u := inputReg.asUInt
+    when (opcode === 0.U && new_ptr =/= 512.U) {
       wren := true.B
-      val ptr0 = Wire(UInt(16.W))
-      val ptr1 = Wire(UInt(16.W))
-      ptr0 := 0xffff.U
-      ptr1 := 0xffff.U
-      wrData := Cat(inputReg(83, 16), ptr1, ptr0)
+      val ptr0 = Wire(UInt(9.W))
+      val ptr1 = Wire(UInt(9.W))
+      ptr0 := 0.U
+      ptr1 := 0.U
+      wrData := Cat(ptr1, ptr0, input_u(251, 0))
       wrAddr := new_ptr
-      wben := 0xff.U
+      wben := 0x7.U
       ptr_a := new_ptr
     } .elsewhen (opcode === 1.U) {
       wren := false.B
-      rdAddr := inputReg(15, 0)
+      rdAddr := input_u(8, 0)
     } .elsewhen (opcode === 2.U) {
-      wrData := inputReg(31, 16)
-      wrAddr := inputReg(15, 0)
-      wren := true.B
-      wben := 0x1.U
-    } .elsewhen (opcode === 3.U) {
-      wrData := Cat(inputReg(31, 16), 0.U(16.W))
-      wrAddr := inputReg(15, 0)
+      wrData := Cat(0.U(9.W), input_u(17, 9), 0.U(252.W))
+      wrAddr := input_u(8, 0)
       wren := true.B
       wben := 0x2.U
+    } .elsewhen (opcode === 3.U) {
+      wrData := Cat(input_u(17, 9), 0.U(9.W), 0.U(252.W))
+      wrAddr := input_u(8, 0)
+      wren := true.B
+      wben := 0x4.U
     }
   }
 
   /*******************Access RAM 1*****************************/
   val tag_a1 = Reg(UInt((TAGWIDTH*2).W))
   val valid_a1 = Reg(Bool())
-  val rdData = Reg(UInt(128.W))
+  val rdData = Reg(UInt(270.W))
   val opcode_a1 = Reg(UInt(2.W))
-  val ptr_o = Reg(UInt(16.W))
+  val ptr_o = Reg(UInt(9.W))
 
   when (io.out.ready) {
     tag_a1 := tag_a0
@@ -98,14 +101,17 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(UInt((128).W), UInt
     ptr_o := ptr_a
   }
   when (wren) {
-    var i = 0
-    for (i <- 0 until 8) {
-      when (wben(i) === 1.U) {
-        mem(wrAddr)(i) := wrData(i*16+15, i*16)
-      }
+    when (wben(0) === 1.U) {
+      mem0(wrAddr) := wrData(251, 0)
+    }
+    when (wben(1) === 1.U) {
+      mem1(wrAddr)(0) := wrData(260, 252)
+    }
+    when (wben(2) === 1.U) {
+      mem1(wrAddr)(1) := wrData(269, 261)
     }
   }
-  rdData := mem(rdAddr).asUInt
+  rdData := Cat(mem1(rdAddr).asUInt, mem0(rdAddr))
 
   /*******************Output**********************************/
   io.out.tag := DontCare
@@ -115,9 +121,9 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(UInt((128).W), UInt
     io.out.tag := tag_a1
     io.out.valid := true.B
     when (opcode_a1 === 0.U) {
-      io.out.bits := ptr_o
+      io.out.bits := ptr_o.asTypeOf(new llNode_t)
     } .otherwise {
-      io.out.bits := rdData
+      io.out.bits := rdData.asTypeOf(new llNode_t)
     }
   }
   
