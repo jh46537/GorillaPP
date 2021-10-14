@@ -12,7 +12,7 @@
 #define NUM_ALUOPS_LG 4
 #define NUM_ALUS 2
 #define NUM_FUOPS_LG 2
-#define NUM_FUS 3
+#define NUM_FUS 6
 #define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
 #define NUM_SRC 2
 #define NUM_SRC_LG int(ceil(log2(NUM_SRC)))
@@ -33,15 +33,17 @@ struct fuOp_t {
 class instruction
 {
 	const map<string, int> preOp_dict {
-		{"FT"     , 0},
-		{"BR"     , 1},
-		{"ALUA"   , 2},
-		{"ALUB"   , 3},
-		{"AND"    , 4},
-		{"OR"     , 5},
-		{"GT"     , 6},
-		{"INPUT"  , 7},
-		{"OUTPUT" , 8}
+		{"FT"        , 0},
+		{"BR"        , 1},
+		{"ALUA"      , 2},
+		{"ALUB"      , 3},
+		{"AND"       , 4},
+		{"OR"        , 5},
+		{"GT"        , 6},
+		{"INPUT"     , 7},
+		{"OUTPUT"    , 8},
+		{"OUTPUTRET" , 9},
+		{"RET"       , 10}
 	};
 
 	const map<string, int> aluOp_dict {
@@ -55,31 +57,53 @@ class instruction
 		{"LTE"    , 7},
 		{"GT"     , 8},
 		{"GTE"    , 9},
-		{"CAT"    ,10}
+		{"AND"    ,10},
+		{"OR"     ,11},
+		{"CAT"    ,12}
 	};
 
 	const map<string, int> srcType_dict {
-		{"uint32" , 0},
-		{"uint16" , 1},
-		{"uint8"  , 2},
-		{"uint4"  , 3},
-		{"int32"  , 4},
-		{"int16"  , 5},
-		{"int8"   , 6},
-		{"int4"   , 7},
-		{"uimm8"  , 8},
-		{"imm8"   , 9},
-		{"uimm16" , 10}
+		{"uint1"  , 0},
+		{"uint2"  , 1},
+		{"uint3"  , 2},
+		{"uint5"  , 3},
+		{"uint6"  , 4},
+		{"uint8"  , 5},
+		{"uint9"  , 6},
+		{"uint10" , 7},
+		{"uint12" , 8},
+		{"uint16" , 9},
+		{"uint32" , 10},
+		{"uint56" , 11},
+		{"uint96" , 12},
+		{"uint"   , 13},
+		{"uimm8"  , 14},
+		{"uimm16" , 15}
 	};
 
 	const map<string, int> dstType_dict {
-		{"uint128" , 0},
-		{"uint32"  , 1},
-		{"uint16"  , 2},
-		{"uint8"   , 3}
+		{"uint1"  , 0},
+		{"uint2"  , 1},
+		{"uint3"  , 2},
+		{"uint5"  , 3},
+		{"uint6"  , 4},
+		{"uint8"  , 5},
+		{"uint9"  , 6},
+		{"uint10" , 7},
+		{"uint12" , 8},
+		{"uint16" , 9},
+		{"uint32" , 10},
+		{"uint56" , 11},
+		{"uint96" , 12},
+		{"uint"   , 13}
 	};
 
 	const map<string, fuOp_t> fuOp_dict {
+		{"HASH"    , {0, 1}},
+		{"FTLOOKUP", {0, 1}},
+		{"INSERT"  , {1, 0}},
+		{"UPDATE"  , {2, 0}},
+		{"DELETE"  , {3, 0}},
 		{"MALLOC"  , {0, 1}},
 		{"LOOKUP"  , {1, 1}},
 		{"UPDATE0" , {2, 0}},
@@ -159,7 +183,7 @@ instruction::instruction(string asm_line) {
 			if (preOp_dict.find(operand) != preOp_dict.end()) {
 				preOp = preOp_dict.at(operand);
 			} else {
-				cout << "Undefined preOp\n";
+				cout << preOp << ", Undefined preOp\n";
 			}
 		} else if (i <= NUM_ALUS) {
 			//alu-isnt
@@ -169,7 +193,7 @@ instruction::instruction(string asm_line) {
 			if (aluOp_dict.find(alu_operand) != aluOp_dict.end()) {
 				aluOp[ii] = aluOp_dict.at(alu_operand);
 			} else {
-				cout << "Undefined aluOp\n";
+				cout << alu_operand << ", Undefined aluOp\n";
 			}
 			for (int ij = 0; ij < NUM_SRC; ij++) {
 				// src select
@@ -180,7 +204,7 @@ instruction::instruction(string asm_line) {
 				if (srcType_dict.find(alu_operand) != srcType_dict.end()) {
 					srcMode[ii][ij] = srcType_dict.at(alu_operand);
 				} else {
-					cout << "Undefined src type\n";
+					cout << alu_operand << ", Undefined src type\n";
 				}
 				// src shiftR
 				getline(alu_stream, alu_operand, ',');
@@ -191,7 +215,7 @@ instruction::instruction(string asm_line) {
 			if (dstType_dict.find(alu_operand) != dstType_dict.end()) {
 				dstMode[ii] = dstType_dict.at(alu_operand);
 			} else {
-				cout << "Undefined dst type\n";
+				cout << alu_operand << ", Undefined dst type\n";
 			}
 			// dst shiftL
 			getline(alu_stream, alu_operand, ',');
@@ -213,7 +237,7 @@ instruction::instruction(string asm_line) {
 						}
 					}
 				} else {
-					cout << "Undefined FUOp\n";
+					cout << operand << ", Undefined FUOp\n";
 				}
 			}
 			l++;

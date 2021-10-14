@@ -12,8 +12,9 @@ import scala.collection.mutable.HashMap
  */
 
 class Top extends Module with GorillaUtil {
-  val io = IO(new gInOutOffBundle(new insertIfc_t, new insertIfc_t))
-  val main = MTEngine("pktReassembly.c", 1)
+  val io = IO(new gInOutOffBundle(new metadata_t, new metadata_t))
+  val main = MTEngine("pktReassembly.c", 16)
   val dynamicMem = Engine("dynamicMem.c")
-  val result = Offload(main, dynamicMem, "dynamicMem")
+  val hash = Engine("hash.c")
+  val result = Offload(Offload(main, hash, "hash"), dynamicMem, "dynamicMem")
 }

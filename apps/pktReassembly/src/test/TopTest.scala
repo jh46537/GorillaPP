@@ -5,13 +5,13 @@ import matchers.should._
 
 
 class TopTests(c: Top) extends gTester[Top](c) {
-  val inputData = List(0, 10, 20, 30)
+  val inputData = List(0, 11, 21, 1)
   val iDelay = 1
 
   //Spin for a while without any test input
   for (time <- 0 until 5) {
     poke(c.io.in.valid, false.B)
-    poke(c.io.in.bits.pkt.seq, 0.U)
+    poke(c.io.in.bits.seq, 0.U)
     poke(c.io.pcIn.valid, false.B)
     poke(c.io.pcIn.bits.pcType, Pcounters.pcReset)
     poke(c.io.pcIn.bits.moduleId, (0).U)
@@ -42,31 +42,32 @@ class TopTests(c: Top) extends gTester[Top](c) {
 
   while(sourced < numOfInputs || sinked < numOfInputs) {
     if (sourced < numThreads) {
-      poke(c.io.in.bits.res, 0xff.U)
-      poke(c.io.in.bits.head_ptr, 0xffff.U)
-      poke(c.io.in.bits.pkt.flags, 0.U)
-      poke(c.io.in.bits.pkt.pktID, sourcedIndex.U)
-      poke(c.io.in.bits.pkt.seq, (inputData(sourcedIndex)).U)
-      poke(c.io.in.bits.pkt.length, 10.U)
+      poke(c.io.in.bits.prot, 0x6.U)
+      poke(c.io.in.bits.tuple.sIP, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.dIP, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.sPort, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.dPort, (sourced % numThreads).U)
+      poke(c.io.in.bits.seq, (inputData(sourcedIndex)).U)
+      poke(c.io.in.bits.len, 10.U)
+      poke(c.io.in.bits.pktID, sourcedIndex.U)
+      poke(c.io.in.bits.tcp_flags, 2.U)
       
       poke(c.io.in.valid, true.B)
       poke(c.io.out.ready, true.B)
     } else if ((sourced < numOfInputs) && (cycles % iDelay == 0)) {
-      poke(c.io.in.bits.res, 0xff.U)
-      poke(c.io.in.bits.head_ptr, (sourced % numThreads).U)
-      poke(c.io.in.bits.pkt.flags, 0.U)
-      poke(c.io.in.bits.pkt.pktID, sourcedIndex.U)
-      poke(c.io.in.bits.pkt.seq, (inputData(sourcedIndex)).U)
-      poke(c.io.in.bits.pkt.length, 10.U)
+      poke(c.io.in.bits.prot, 0x6.U)
+      poke(c.io.in.bits.tuple.sIP, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.dIP, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.sPort, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.dPort, (sourced % numThreads).U)
+      poke(c.io.in.bits.seq, (inputData(sourcedIndex)).U)
+      poke(c.io.in.bits.len, 10.U)
+      poke(c.io.in.bits.pktID, sourcedIndex.U)
+      poke(c.io.in.bits.tcp_flags, 0.U)
+
       poke(c.io.in.valid, true.B)
       poke(c.io.out.ready, true.B)
     } else {
-      poke(c.io.in.bits.res, 0xff.U)
-      poke(c.io.in.bits.head_ptr, 0xffff.U)
-      poke(c.io.in.bits.pkt.flags, 0.U)
-      poke(c.io.in.bits.pkt.pktID, 0.U)
-      poke(c.io.in.bits.pkt.seq, 0.U)
-      poke(c.io.in.bits.pkt.length, 10.U)
       poke(c.io.in.valid, false.B)
       poke(c.io.out.ready, true.B)
     }
@@ -86,7 +87,7 @@ class TopTests(c: Top) extends gTester[Top](c) {
         //         " expected " + (inputData(sinkedIndex) + 2))
         println("Sinked is " + sinked)
       }
-        println("At " + cycles + " output " + peek(c.io.out.bits.res) +
+        println("At " + cycles + " output " + peek(c.io.out.bits.pkt_flags) +
                 " sinked. sinked is " + sinked)
       sinked += 1
       sinkedIndex = sinked % inputData.length
