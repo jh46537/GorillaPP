@@ -1,13 +1,11 @@
-package Tutorial
+import chisel3._
+import chisel3.util._
 
-import Chisel._
-import Node._
-import Literal._
-import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
 
 
-class #MODULE_NAME (extCompName:String) extends gComponentLeaf #IO (extCompName = extCompName + "__type__engine__MT__#NUM_OF_THREADS__") with include {
+class #MODULE_NAME(extCompName: String) extends gComponentLeaf(#IO, extCompName + "__type__engine__MT__#NUM_OF_THREADS__") {
   val numOfThreads = #NUM_OF_THREADS 
   val NONE_SELECTED = UFix(numOfThreads,log2Up(numOfThreads+1))
   val WaitForInputValid = UFix(0, 8)
@@ -18,34 +16,35 @@ class #MODULE_NAME (extCompName:String) extends gComponentLeaf #IO (extCompName 
   val State = Vec(numOfThreads) {Reg(UFix(width=8), resetVal=WaitForInputValid)} 
   val EmitReturnState = Vec(numOfThreads) {Reg(UFix(width=8), resetVal=WaitForInputValid)} 
   //val outstandingOffs = Vec(numOfThreads) {Reg(resetVal=UFix(0, 5))}
-  val AllOffloadsReady = Bool()
-  val AllOffloadsValid  = Vec(numOfThreads) {Bool()}
+  val AllOffloadsReady = Reg(Bool())
+  val AllOffloadsValid  = Vec(numOfThreads) {Reg(Bool())}
   /*******************Thread states*********************************/
   val subStateTh = Vec(numOfThreads) {Reg(resetVal=WaitForReady)}
 
-  def  myOff = io.elements.find(_._1 == "off").getOrElse(elseV)._2
+  //def myOff = io.elements.getOrElse("off", nullOff)
+  def myOff = io.elements("off")
 #DUMP_FILE definition.magillac
 
    /******************Winner threads*********************************/
-  val rThreadEncoder = new RREncode (numOfThreads) 
+  val rThreadEncoder = Module(new RREncode(numOfThreads))
   val rThread =  rThreadEncoder.io.chosen
   Range(0, numOfThreads, 1).map(i => 
     rThreadEncoder.io.valid(i) := (subStateTh(i) === WaitForReady))
-  rThreadEncoder.io.ready := (rThread != NONE_SELECTED)
+  rThreadEncoder.io.ready := (rThread =/= NONE_SELECTED)
 
-  val vThreadEncoder = new RREncode (numOfThreads) 
+  val vThreadEncoder = Module(new RREncode(numOfThreads))
   val vThread =  vThreadEncoder.io.chosen
   Range(0, numOfThreads, 1).map(i => 
     vThreadEncoder.io.valid(i) := (subStateTh(i) === WaitForValid) && AllOffloadsValid(i))
-  vThreadEncoder.io.ready := vThread != NONE_SELECTED
+  vThreadEncoder.io.ready := vThread =/= NONE_SELECTED
 
-  val sThreadEncoder = new RREncode (numOfThreads) 
+  val sThreadEncoder = Module(new RREncode(numOfThreads))
   val sThread =  sThreadEncoder.io.chosen
   Range(0, numOfThreads, 1).map(i => sThreadEncoder.io.valid(i) := (subStateTh(i) === WaitForReady) && (State(i) === WaitForInputValid))
-  sThreadEncoder.io.ready := sThread != NONE_SELECTED
+  sThreadEncoder.io.ready := sThread =/= NONE_SELECTED
 
 
-Range(0, numOfThreads, 1).foreach(i => subStateTh(i) := MuxCase(subStateTh(i), Seq((AllOffloadsReady && UFix(i) === rThread && State(i) != WaitForInputValid && State(i) != WaitForOutputReady , WaitForValid), (UFix(i) === vThread, WaitForReady)))) 
+Range(0, numOfThreads, 1).foreach(i => subStateTh(i) := MuxCase(subStateTh(i), Seq((AllOffloadsReady && UFix(i) === rThread && State(i) =/= WaitForInputValid && State(i) =/= WaitForOutputReady , WaitForValid), (UFix(i) === vThread, WaitForReady)))) 
 
 #FOREACH_FU
   ##Port.rep.ready := Bool(true)
@@ -90,13 +89,13 @@ AllOffloadsValid(i) :=
 
 #DUMP_FILE combinational.magillac
 
-  when (sThread != NONE_SELECTED && io.in.valid) {
+  when (sThread =/= NONE_SELECTED && io.in.valid) {
     inputReg(sThread) := io.in.bits
     inputTag(sThread) := io.in.tag
     State(sThread) := #FIRST_STATE 
   } 
 
-  when (rThread != NONE_SELECTED && State(rThread) === WaitForOutputReady && io.out.ready) {
+  when (rThread =/= NONE_SELECTED && State(rThread) === WaitForOutputReady && io.out.ready) {
     State(rThread) := EmitReturnState(rThread) 
   } 
 
@@ -104,8 +103,8 @@ AllOffloadsValid(i) :=
 
   io.out.tag := inputTag(rThread)
   io.out.bits := outputReg(rThread)
-  io.out.valid := rThread != NONE_SELECTED && State(rThread) === WaitForOutputReady
-  io.in.ready := sThread != NONE_SELECTED 
+  io.out.valid := rThread =/= NONE_SELECTED && State(rThread) === WaitForOutputReady
+  io.in.ready := sThread =/= NONE_SELECTED
 
 /******************Engine specific performance counters************************/
   val IsPcReset = 
@@ -114,7 +113,7 @@ AllOffloadsValid(i) :=
   when (IsPcReset) {
     engineUtilization := UFix(0, Pcounters.PCWIDTH) 
   } .otherwise {
-    when (State(0) != WaitForInputValid) {
+    when (State(0) =/= WaitForInputValid) {
       engineUtilization := engineUtilization + 
        UFix(1, Pcounters.PCWIDTH) 
     }

@@ -19,9 +19,9 @@ $partDir = "xilinx/virtex6/xc6vhx250t/";
     "synModelVerilogFile" => $DPFPlibDir . 
      "adder/pipelinedVerilog/" . $partDir . 
      "types_float_double_grp_fu_86_ACMP_dadd_2.v",
-    "synModel" =>  "() => new FUSynWrapper (() => UFix(width=64)) " . 
-     "(() => new types_float_double_grp_fu_86_ACMP_dadd_2_io) (stages=4)" ,
-    "ioType" => "() => UFix(width=64)"
+    "synModel" =>  "new FUSynWrapper (UFix(width=64)) " .
+     "(new types_float_double_grp_fu_86_ACMP_dadd_2_io) (stages=4)" ,
+    "ioType" => "UFix(width=64)"
   },
   FPDPMultiplier => {
     "simModelFile" => $DPFPlibDir . "multiplier/sim/multiplier.c",
@@ -32,9 +32,9 @@ $partDir = "xilinx/virtex6/xc6vhx250t/";
     "synModelVerilogFile" => $DPFPlibDir . 
      "multiplier/pipelinedVerilog/" . $partDir . 
      "types_float_double_grp_fu_93_ACMP_dmul_3.v",
-    "synModel" =>  "() => new FUSynWrapper (() => UFix(width=64)) " . 
-     "(() => new types_float_double_grp_fu_93_ACMP_dmul_3_io) (stages=4)" ,
-    "ioType" => "() => UFix(width=64)"
+    "synModel" =>  "new FUSynWrapper (UFix(width=64)) " .
+     "(new types_float_double_grp_fu_93_ACMP_dmul_3_io) (stages=4)" ,
+    "ioType" => "UFix(width=64)"
   },
   FPDPDivider => {
     "simModelFile" => $DPFPlibDir . "divider/sim/divider.c",
@@ -45,9 +45,9 @@ $partDir = "xilinx/virtex6/xc6vhx250t/";
     "synModelVerilogFile" => $DPFPlibDir . 
      "divider/pipelinedVerilog/" . $partDir . 
      "types_float_double_grp_fu_100_ACMP_ddiv_4.v",
-    "synModel" =>  "() => new FUSynWrapper (() => UFix(width=64)) " . 
-     "(() => new types_float_double_grp_fu_100_ACMP_ddiv_4_io) (stages=12)" ,
-    "ioType" => "() => UFix(width=64)"
+    "synModel" =>  "new FUSynWrapper (UFix(width=64)) " .
+     "(new types_float_double_grp_fu_100_ACMP_ddiv_4_io) (stages=12)" ,
+    "ioType" => "UFix(width=64)"
   },
   FPDPSqrt => {
     "simModelFile" => $DPFPlibDir . "sqrt/sim/sqrt.c",
@@ -58,9 +58,9 @@ $partDir = "xilinx/virtex6/xc6vhx250t/";
     "synModelVerilogFile" => $DPFPlibDir . 
      "sqrt/pipelinedVerilog/" . $partDir . 
      "types_float_double_grp_fu_100_ACMP_dsqrt_4.v",
-    "synModel" =>  "() => new FUSynWrapper (() => UFix(width=64)) " . 
-     "(() => new types_float_double_grp_fu_100_ACMP_dsqrt_4_io) (stages=12)" ,
-    "ioType" => "() => UFix(width=64)"
+    "synModel" =>  "new FUSynWrapper (UFix(width=64)) " .
+     "(new types_float_double_grp_fu_100_ACMP_dsqrt_4_io) (stages=12)" ,
+    "ioType" => "UFix(width=64)"
   },
 
   PipedFPDPAdder => {
@@ -72,9 +72,9 @@ $partDir = "xilinx/virtex6/xc6vhx250t/";
     "synModelVerilogFile" => $DPFPlibDir . 
      "adder/pipelinedVerilog/" . $partDir . 
      "types_float_double_grp_fu_86_ACMP_dadd_2.v",
-    "synModel" =>  "() => new FUSynWrapper (() => UFix(width=64)) " . 
-     "(() => new types_float_double_grp_fu_86_ACMP_dadd_2_io) (stages=4)" ,
-    "ioType" => "() => UFix(width=64)"
+    "synModel" =>  "new FUSynWrapper (UFix(width=64)) " .
+     "(new types_float_double_grp_fu_86_ACMP_dadd_2_io) (stages=4)" ,
+    "ioType" => "UFix(width=64)"
   },
   PipedFPDPMultiplier => {
     "simModelFile" => $DPFPlibDir . "multiplier/sim/multiplier.c",
@@ -85,9 +85,9 @@ $partDir = "xilinx/virtex6/xc6vhx250t/";
     "synModelVerilogFile" => $DPFPlibDir . 
      "multiplier/pipelinedVerilog/" . $partDir . 
      "types_float_double_grp_fu_93_ACMP_dmul_3.v",
-    "synModel" =>  "() => new FUSynWrapper (() => UFix(width=64)) " . 
-     "(() => new types_float_double_grp_fu_93_ACMP_dmul_3_io) (stages=4)" ,
-    "ioType" => "() => UFix(width=64)"
+    "synModel" =>  "new FUSynWrapper (UFix(width=64)) " .
+     "(new types_float_double_grp_fu_93_ACMP_dmul_3_io) (stages=4)" ,
+    "ioType" => "UFix(width=64)"
   },
   PipedFPDPDivider => {
     "simModelFile" => $DPFPlibDir . "divider/sim/divider.c",
@@ -98,9 +98,9 @@ $partDir = "xilinx/virtex6/xc6vhx250t/";
     "synModelVerilogFile" => $DPFPlibDir . 
      "divider/pipelinedVerilog/" . $partDir . 
      "types_float_double_grp_fu_100_ACMP_ddiv_4.v",
-    "synModel" =>  "() => new FUSynWrapper (() => UFix(width=64)) " . 
-     "(() => new types_float_double_grp_fu_100_ACMP_ddiv_4_io) (stages=12)" ,
-    "ioType" => "() => UFix(width=64)"
+    "synModel" =>  "new FUSynWrapper (UFix(width=64)) " .
+     "(new types_float_double_grp_fu_100_ACMP_ddiv_4_io) (stages=12)" ,
+    "ioType" => "UFix(width=64)"
   },
   PipedFPDPSqrt => {
     "simModelFile" => $DPFPlibDir . "sqrt/sim/sqrt.c",
@@ -111,9 +111,9 @@ $partDir = "xilinx/virtex6/xc6vhx250t/";
     "synModelVerilogFile" => $DPFPlibDir . 
      "sqrt/pipelinedVerilog/" . $partDir . 
      "types_float_double_grp_fu_100_ACMP_dsqrt_4.v",
-    "synModel" =>  "() => new FUSynWrapper (() => UFix(width=64)) " . 
-     "(() => new types_float_double_grp_fu_100_ACMP_dsqrt_4_io) (stages=12)" ,
-    "ioType" => "() => UFix(width=64)"
+    "synModel" =>  "new FUSynWrapper (UFix(width=64)) " .
+     "(new types_float_double_grp_fu_100_ACMP_dsqrt_4_io) (stages=12)" ,
+    "ioType" => "UFix(width=64)"
   }
 );
 open FILE, "<", "$topModuleName" . "Configed.scala" or die "cannot open input file\n";
@@ -143,11 +143,11 @@ foreach $line (@file_line_array) {
     if ($synSim eq "sim") {
       $line = "$1$2 $3 = " . $lib{$4}{"simModel"} . "\n"; 
     } elsif ($synSim eq "syn") {
-      print "$1$2 $3_MD = new gComponentMD(() => (new dualInput(" .  $lib{$4}{"ioType"} .
-       ")), " . $lib{$4}{"ioType"} . ", ArrayBuffer())\n";  
+      #print "$1$2 $3_MD = new gComponentMD((new dualInput(" .  $lib{$4}{"ioType"} .
+      # ")), " . $lib{$4}{"ioType"} . ", ArrayBuffer())\n";
       $line = "$1$2 $3 = ($3_MD, " . $lib{$4}{"synModel"} . "(extCompName = \"$3\"))" . 
        ".asInstanceOf[(gComponentMD[Chisel.Data,Chisel.Data], " . 
-       "() => gComponent[Chisel.Data,Chisel.Data])]\n"; 
+       "gComponent[Chisel.Data,Chisel.Data])]\n";
     }
   }
   print $line;

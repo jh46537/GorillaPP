@@ -409,7 +409,7 @@ and_expression
     ;
 equality_expression
     : relational_expression (('=='{$Symbols::cg.outString("===");}|
-       '!='{$Symbols::cg.outString("!=");}) relational_expression)*
+       '!='{$Symbols::cg.outString("=/=");}) relational_expression)*
     ;
 
 relational_expression

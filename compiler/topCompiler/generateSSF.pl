@@ -34,7 +34,7 @@ do {
      $line !~ /ArrayBuffer/ && $line !~ /gComponent/) {
       $version = $version + 1;
       print OUTPUT "$1val xx$version = $4($5)\n";
-      print OUTPUT "$1$2($3 xx$version $6)\n";
+      print OUTPUT "$1$2($3xx$version$6)\n";
       $moreChanges = 1;
     } else {
      print OUTPUT $line;
@@ -42,9 +42,10 @@ do {
   }
   close(INPUT);
   close(OUTPUT);
-  `>>version`;
-  `echo "//XX variable version $version" > version`; 
-  `cat version SSF/$SSFModule.scala > temp.scala`;
+  #`>>version`;
+  #`echo "//XX variable version $version" > version`;
+  #`cat version SSF/$SSFModule.scala > temp.scala`;
+  `cat SSF/$SSFModule.scala >temp.scala`;
   #print "Version is $version\n";
 } while ($moreChanges);
 `mv temp.scala SSF/$SSFModule.scala`;

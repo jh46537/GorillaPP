@@ -79,11 +79,28 @@ scope Symbols {
 
 @members {
   public enum OUT_STREAM { REQUEST_BUILDER, CONTEXT_EDIT, JUMP};
+
   void   set_output_string(OUT_STREAM os) {
       Symbols_scope scope = (Symbols_scope)Symbols_stack.get(0);
       scope.out_stream = os;    
   }
   
+  String chisel2GeneralChiselType(String type) {
+    String s = type;
+
+    int end = s.indexOf("(");
+    if (end != -1) {
+      s = s.substring(0, end);
+    }
+
+    int start = s.indexOf("new");
+    if (start != -1) {
+      s = s.substring(start + 4, s.length());
+    }
+
+    return s;
+  }
+
   String C2ChiselType(String s) {
     if (s.equals("int")) { 
       return ("UFix(width = 32)");
@@ -403,7 +420,7 @@ external_declaration
      (type_definition|define)*) 
      {$Symbols::Is_global_type_def = true; 
       $Symbols::definition_string = $Symbols::type_definition_string;}| 
-     (in_pragma out_pragma off_pragma* other_pragma* {$Symbols::IO_string += "))";} 
+     (in_pragma out_pragma off_pragma* other_pragma* {$Symbols::IO_string += ")";}
       global_declaration* {
           $Symbols::global_context_edit_string += 
             "when (SubState === WaitForValid && AllOffloadsValid) {";
@@ -415,16 +432,21 @@ external_declaration
           while (off_it.hasNext()) {
             String offPort = (String) off_it.next();
             $Symbols::definition_string += 
-              "def  myOff = io.elements.find(_._1 == \"off\").getOrElse(elseV)._2\n";
+              //"def myOff = io.elements.getOrElse(\"off\", nullOff)\n";
+              "def myOff = io.elements(\"off\")\n";
             $Symbols::definition_string += 
-              "def mymyOff = myOff.asInstanceOf[Bundle].elements.find(_._1 == \"" + offPort + 
-              "\").getOrElse(elseV)._2\n"; 
-            $Symbols::definition_string += 
-              "val " + offPort + "Port = " + "new gOffBundleND(() => " + 
-              $Symbols::offload_ports_req_type.get(offPort) + 
-              ", () => " + $Symbols::offload_ports_rep_type.get(offPort) + ")\n";
-            $Symbols::definition_string += 
-              offPort + "Port <>" + "mymyOff\n";
+              //"val " + offPort + "Port = myOff.asInstanceOf[Bundle].elements." +
+              //"getOrElse(\"" + offPort + "\", nullOff).asInstanceOf[gOffBundle[" +
+              "val " + offPort + "Port = myOff.asInstanceOf[Bundle]" +
+              ".elements(\"off\").asInstanceOf[gOffBundle[" +
+              chisel2GeneralChiselType($Symbols::offload_ports_req_type.get(offPort)) + ", " +
+              chisel2GeneralChiselType($Symbols::offload_ports_rep_type.get(offPort)) + "]]\n";
+            //$Symbols::definition_string +=
+            //  "val " + offPort + "Port = " + "Wire(new gOffBundleND(" +
+            //  $Symbols::offload_ports_req_type.get(offPort) +
+            //  ", " + $Symbols::offload_ports_rep_type.get(offPort) + "))\n";
+            //$Symbols::definition_string +=
+            //  offPort + "Port <>" + "mymyOff\n";
           } 
        } magilla_instr+ {
          $Symbols::global_context_edit_string += " SubState := WaitForReady \n } \n"; 
@@ -503,13 +525,13 @@ other_pragma
 
 in_pragma
     : '#pragma' 'INPUT'   in_type=ID  {    
-        $Symbols::IO_string += "(() => " + C2ChiselType($in_type.text) + ")";
+        $Symbols::IO_string += C2ChiselType($in_type.text) + ", ";
         $Symbols::inputType = $in_type.text;
     };
 
 out_pragma
     : '#pragma' 'OUTPUT'  out_type=ID  {    
-        $Symbols::IO_string += "(() => " + C2ChiselType($out_type.text) + ") (ArrayBuffer(";
+        $Symbols::IO_string += C2ChiselType($out_type.text) + ", ArrayBuffer(";
         $Symbols::outputType = $out_type.text;
     };
 
@@ -522,7 +544,7 @@ off_pragma
         $Symbols::offload_ports.add($offPort.text);
         $Symbols::offload_ports_req_type.put($offPort.text, C2ChiselType($req_type.text));
         $Symbols::offload_ports_rep_type.put($offPort.text, C2ChiselType($rep_type.text));
-        $Symbols::IO_string += "(\"" + $offPort.text  + "\", () => " + C2ChiselType($req_type.text) + " , () => " + C2ChiselType($rep_type.text) + ")";
+        $Symbols::IO_string += "(\"" + $offPort.text  + "\", " + C2ChiselType($req_type.text) + ", " + C2ChiselType($rep_type.text) + ")";
       }
     };
 
@@ -829,7 +851,7 @@ and_expression
     : equality_expression ('&' {out_string("&");}equality_expression)*
     ;
 equality_expression
-    : relational_expression (('=='{out_string("===");}|'!='{out_string("!=");}) relational_expression)*
+    : relational_expression (('=='{out_string("===");}|'!='{out_string("=/=");}) relational_expression)*
     ;
 
 relational_expression

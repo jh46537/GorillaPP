@@ -1,16 +1,14 @@
-package Tutorial
+import chisel3._
+import chisel3.util._
 
-import Chisel._
-import Node._
-import Literal._
-import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
 
 
-class #MODULE_NAME (extCompName:String) extends gComponentLeaf #IO (extCompName =  extCompName + "__type_engine__pipelined__") with include {
-  val tagWidth = 5*2
+class #MODULE_NAME(extCompName: String) extends gComponentLeaf(#IO, extCompName + "__type_engine__pipelined__") {
+  val TAGWIDTH = 5*2
   val numOfThreads = #NUM_OF_THREADS 
-  val NONE_SELECTED = UFix(numOfThreads,log2Up(numOfThreads)+1)
+  val NONE_SELECTED = UFix(numOfThreads)
   val outputReg_ready = io.out.ready 
 
 #FOREACH_INSTR_WITH_OFFLOAD
@@ -21,7 +19,8 @@ class #MODULE_NAME (extCompName:String) extends gComponentLeaf #IO (extCompName 
   val ##PipeValidMove = Bool ()
 #END_FOREACH_INSTR_WITH_OFFLOAD
 
-  def  myOff = io.elements.find(_._1 == "off").getOrElse(elseV)._2
+  //def myOff = io.elements.getOrElse("off", nullOff)
+  def myOff = io.elements("off")
   /*****************Definitions******************************************************/
 #DUMP_FILE definition.magillac
 val #FIRST_STATE_valid = Bool(true)
@@ -48,12 +47,12 @@ val #FIRST_STATE_valid = Bool(true)
 
   /******************Winner threads for each instruction with offload*****************/
 #FOREACH_INSTR_WITH_OFFLOAD
-  ##PipeReadyMove := (##RThread != NONE_SELECTED && ##PRegPostOff_ready && ##AllOffloadsReady) 
+  ##PipeReadyMove := (##RThread =/= NONE_SELECTED && ##PRegPostOff_ready && ##AllOffloadsReady)
   Range(0, ##NumOfThreads, 1).map(i => 
     ##RThreadEncoder.io.valid(i) := !##PRegPostOff_valid(i))
   ##RThreadEncoder.io.ready := (##PipeReadyMove)
 
-  ##PipeValidMove := (##VThread != NONE_SELECTED && #nextInstrReady && ##AllOffloadsValid(##VThread)) 
+  ##PipeValidMove := (##VThread =/= NONE_SELECTED && #nextInstrReady && ##AllOffloadsValid(##VThread))
   Range(0, ##NumOfThreads, 1).map(i => 
     ##VThreadEncoder.io.valid(i) := (##PRegPostOff_valid(i)) && ##AllOffloadsValid(i))
   ##VThreadEncoder.io.ready := (##PipeValidMove)
@@ -106,15 +105,15 @@ val #FIRST_STATE_valid = Bool(true)
   for (i <- 0 to ##NumOfThreads-1) {
     ##AllOffloadsValid(i) :=  
 #FOREACH_FU_OF_THIS_INSTR
-     ((%%Port.rep.valid && (%%Port.rep.tag === UFix(i, tagWidth)))|| %%ValidReceived(i) || !%%PortHadValidRequest(i)) &&  
+     ((%%Port.rep.valid && (%%Port.rep.tag === UFix(i, TAGWIDTH)))|| %%ValidReceived(i) || !%%PortHadValidRequest(i)) &&  
 #END_FOREACH_FU_OF_THIS_INSTR
      Bool(true)
 #END_FOREACH_INSTR_WITH_OFFLOAD
 
 #FOREACH_INSTR_WITH_OFFLOAD
 #FOREACH_FU_OF_THIS_INSTR
-  %%ValidReceived(i) := !(##PipeValidMove && ##VThread === UFix(i, tagWidth)) && ((%%ValidReceived(i)) || (%%Port.rep.valid && %%Port.rep.tag === UFix(i, tagWidth)))
-  %%PortHadValidRequest(i) := !(##PipeValidMove && ##VThread === UFix(i,tagWidth)) && (%%PortHadValidRequest(i) || (UFix(i,tagWidth)===##RThread && %%Port.req.valid))
+  %%ValidReceived(i) := !(##PipeValidMove && ##VThread === UFix(i, TAGWIDTH)) && ((%%ValidReceived(i)) || (%%Port.rep.valid && %%Port.rep.tag === UFix(i, TAGWIDTH)))
+  %%PortHadValidRequest(i) := !(##PipeValidMove && ##VThread === UFix(i,TAGWIDTH)) && (%%PortHadValidRequest(i) || (UFix(i,TAGWIDTH)===##RThread && %%Port.req.valid))
 #END_FOREACH_FU_OF_THIS_INSTR
 }
 #END_FOREACH_INSTR_WITH_OFFLOAD
