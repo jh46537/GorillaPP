@@ -43,6 +43,7 @@ val addr0 = UInt((12).W)
 val tuple = new tuple_t
 }
 class fce_t extends Bundle { 
+val pointer2 = UInt((9).W)
 val addr3 = UInt((12).W)
 val addr2 = UInt((12).W)
 val addr1 = UInt((12).W)

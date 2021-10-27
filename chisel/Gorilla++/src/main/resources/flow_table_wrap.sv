@@ -10,7 +10,7 @@ parameter PQ_DEPTH      = 8;
 parameter PQ_AWIDTH     = ($clog2(PQ_DEPTH));
 parameter TUPLE_DWIDTH = (32 + 32 + 16 + 16);
 parameter LL_DWIDTH = (1 + 32 + 16 + 16 + PKT_AWIDTH + 1 + 56);
-parameter FT_DWIDTH = (1 + TUPLE_DWIDTH + 32 + LL_AWIDTH + 1 +
+parameter FT_DWIDTH = (1 + TUPLE_DWIDTH + 32 + LL_AWIDTH*2 + 1 +
                        PKT_AWIDTH + 56 + (4 * FT_AWIDTH));
 parameter FT_INSERT=1;
 parameter FT_UPDATE=2;
@@ -46,6 +46,7 @@ typedef struct packed {
     logic [FT_AWIDTH-1:0] addr1;
     logic [FT_AWIDTH-1:0] addr2;
     logic [FT_AWIDTH-1:0] addr3;
+    logic [LL_AWIDTH-1:0] pointer2;
 } fce_t; // Flow context entry
 
 
@@ -1666,6 +1667,7 @@ module flowTableV (
     output [11:0] ch0_q_addr1,
     output [11:0] ch0_q_addr2,
     output [11:0] ch0_q_addr3,
+    output [8:0]  ch0_q_pointer2,
     output        ch0_rd_valid,
     output [4:0]  ch0_bit_map,
     output        ch0_rd_stall,
@@ -1687,6 +1689,7 @@ module flowTableV (
     input  [11:0] ch1_data_addr1,
     input  [11:0] ch1_data_addr2,
     input  [11:0] ch1_data_addr3,
+    input  [8:0]  ch1_data_pointer2,
     output        ch1_insert_stall
 );
 
@@ -1734,6 +1737,7 @@ assign ch0_q_addr0 = ch0_q.addr0;
 assign ch0_q_addr1 = ch0_q.addr1;
 assign ch0_q_addr2 = ch0_q.addr2;
 assign ch0_q_addr3 = ch0_q.addr3;
+assign ch0_q_pointer2 = ch0_q.pointer2;
 assign ch1_data.valid = ch1_data_valid;
 assign ch1_data.tuple.sIP = ch1_data_tuple_sIP;
 assign ch1_data.tuple.dIP = ch1_data_tuple_dIP;
@@ -1748,6 +1752,7 @@ assign ch1_data.addr0 = ch1_data_addr0;
 assign ch1_data.addr1 = ch1_data_addr1;
 assign ch1_data.addr2 = ch1_data_addr2;
 assign ch1_data.addr3 = ch1_data_addr3;
+assign ch1_data.pointer2 = ch1_data_pointer2;
 
 assign ch2_rden = 'b0;
 assign ch3_wren = 'b0;

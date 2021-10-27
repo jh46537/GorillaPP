@@ -40,10 +40,11 @@ class instruction
 		{"AND"       , 4},
 		{"OR"        , 5},
 		{"GT"        , 6},
-		{"INPUT"     , 7},
-		{"OUTPUT"    , 8},
-		{"OUTPUTRET" , 9},
-		{"RET"       , 10}
+		{"GE"        , 7},
+		{"INPUT"     , 8},
+		{"OUTPUT"    , 9},
+		{"OUTPUTRET" , 10},
+		{"RET"       , 11}
 	};
 
 	const map<string, int> aluOp_dict {
@@ -101,6 +102,7 @@ class instruction
 	const map<string, fuOp_t> fuOp_dict {
 		{"HASH"    , {0, 1}},
 		{"FTLOOKUP", {0, 1}},
+		{"UNLOCK"  , {1, 0}},
 		{"INSERT"  , {1, 0}},
 		{"UPDATE"  , {2, 0}},
 		{"DELETE"  , {3, 0}},

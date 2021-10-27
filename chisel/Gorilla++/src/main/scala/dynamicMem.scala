@@ -5,6 +5,24 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 
+class ram_simple2port(num: Int, width: Int) extends 
+  BlackBox(Map("AWIDTH" -> log2Up(num),
+               "DWIDTH" -> width,
+               "DEPTH"  -> num)) with HasBlackBoxResource {
+  val io = IO(new Bundle {
+    val clock     = Input(Clock())
+    val data      = Input(UInt(width.W))
+    val rdaddress = Input(UInt(log2Up(num).W))
+    val rden      = Input(Bool())
+    val wraddress = Input(UInt(log2Up(num).W))
+    val wren      = Input(Bool())
+    val q         = Output(UInt(width.W))
+  })
+
+  addResource("/ram_simple2port_sim.v")
+
+}
+
 class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, new llNode_t, ArrayBuffer(), extCompName + "__type__engine__MT__1__") {
   /*******************Decode, allocate new ptr*****************/
   val inputTag = Reg(UInt((TAGWIDTH*2).W))
@@ -34,9 +52,13 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, n
 
   /*******************Access RAM 0*****************************/
   val tag_a0 = Reg(UInt((TAGWIDTH*2).W))
-  val mem0 = Reg(Vec(512, UInt(252.W)))
-  val mem1 = Reg(Vec(512, Vec(2, UInt(9.W))))
+  val mem0 = Module(new ram_simple2port(512, 252))
+  val mem1 = Module(new ram_simple2port(512, 9))
+  val mem2 = Module(new ram_simple2port(512, 9))
+  // val mem0 = Reg(Vec(512, UInt(252.W)))
+  // val mem1 = Reg(Vec(512, Vec(2, UInt(9.W))))
   val wren = Reg(Bool())
+  val rden = Reg(Bool())
   val wben = Reg(UInt(3.W))
   val wrAddr = Reg(UInt(9.W))
   val wrData = Reg(UInt(270.W))
@@ -48,6 +70,7 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, n
 
   valid_a0 := DontCare
   wren := false.B
+  rden := false.B
   wben := 0.U
   wrAddr := DontCare
   wrData := DontCare
@@ -73,6 +96,7 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, n
       ptr_a := new_ptr
     } .elsewhen (opcode === 1.U) {
       wren := false.B
+      rden := true.B
       rdAddr := input_u(8, 0)
     } .elsewhen (opcode === 2.U) {
       wrData := Cat(0.U(9.W), input_u(17, 9), 0.U(252.W))
@@ -90,7 +114,7 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, n
   /*******************Access RAM 1*****************************/
   val tag_a1 = Reg(UInt((TAGWIDTH*2).W))
   val valid_a1 = Reg(Bool())
-  val rdData = Reg(UInt(270.W))
+  val rdData = Wire(UInt(270.W))
   val opcode_a1 = Reg(UInt(2.W))
   val ptr_o = Reg(UInt(9.W))
 
@@ -100,28 +124,61 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, n
     opcode_a1 := opcode_a0
     ptr_o := ptr_a
   }
-  when (wren) {
-    when (wben(0) === 1.U) {
-      mem0(wrAddr) := wrData(251, 0)
-    }
-    when (wben(1) === 1.U) {
-      mem1(wrAddr)(0) := wrData(260, 252)
-    }
-    when (wben(2) === 1.U) {
-      mem1(wrAddr)(1) := wrData(269, 261)
-    }
-  }
-  rdData := Cat(mem1(rdAddr).asUInt, mem0(rdAddr))
+
+  mem0.io.clock := clock
+  mem1.io.clock := clock
+  mem2.io.clock := clock
+  mem0.io.data := wrData(251, 0)
+  mem1.io.data := wrData(260, 252)
+  mem2.io.data := wrData(269, 261)
+  mem0.io.rdaddress := rdAddr
+  mem1.io.rdaddress := rdAddr
+  mem2.io.rdaddress := rdAddr
+  mem0.io.rden := rden
+  mem1.io.rden := rden
+  mem2.io.rden := rden
+  mem0.io.wraddress := wrAddr
+  mem1.io.wraddress := wrAddr
+  mem2.io.wraddress := wrAddr
+  mem0.io.wren := wren && (wben(0) === 1.U)
+  mem1.io.wren := wren && (wben(1) === 1.U)
+  mem2.io.wren := wren && (wben(2) === 1.U)
+
+
+  // when (wren) {
+  //   when (wben(0) === 1.U) {
+  //     mem0(wrAddr) := wrData(251, 0)
+  //   }
+  //   when (wben(1) === 1.U) {
+  //     mem1(wrAddr)(0) := wrData(260, 252)
+  //   }
+  //   when (wben(2) === 1.U) {
+  //     mem1(wrAddr)(1) := wrData(269, 261)
+  //   }
+  // }
+  // rdData := Cat(mem1(rdAddr).asUInt, mem0(rdAddr))
 
   /*******************Output**********************************/
+  val tag_a2 = Reg(UInt((TAGWIDTH*2).W))
+  val valid_a2 = Reg(Bool())
+  val opcode_a2 = Reg(UInt(2.W))
+  val ptr_o_r = Reg(UInt(9.W))
+  when (io.out.ready) {
+    opcode_a2 := opcode_a1
+    valid_a2 := valid_a1
+    tag_a2 := tag_a1
+    ptr_o_r := ptr_o
+  }
+  rdData := Cat(mem2.io.q, mem1.io.q, mem0.io.q)
+
   io.out.tag := DontCare
   io.out.valid := false.B
   io.out.bits := DontCare
-  when (valid_a1) {
-    io.out.tag := tag_a1
+  when (valid_a2) {
+    io.out.tag := tag_a2
     io.out.valid := true.B
-    when (opcode_a1 === 0.U) {
-      io.out.bits := ptr_o.asTypeOf(new llNode_t)
+    when (opcode_a2 === 0.U) {
+      io.out.bits := ptr_o_r.asTypeOf(new llNode_t)
     } .otherwise {
       io.out.bits := rdData.asTypeOf(new llNode_t)
     }
