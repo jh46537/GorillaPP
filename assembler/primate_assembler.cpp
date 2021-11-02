@@ -18,9 +18,10 @@
 #define NUM_SRC_LG int(ceil(log2(NUM_SRC)))
 #define NUM_DEST 2
 #define NUM_REGS_LG 4
+#define NUM_BT 3
 #define IP_W 8
 #define IMM_W 16
-#define INST_W (NUM_ALUS*(NUM_ALUOPS_LG+NUM_SRC*10+9)+NUM_FUS*(1+NUM_FUOPS_LG)+(NUM_SRC+NUM_DEST)*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W+OP_W+IMM_W)
+#define INST_W (NUM_ALUS*(NUM_ALUOPS_LG+NUM_SRC*10+9)+NUM_FUS*(1+NUM_FUOPS_LG)+(NUM_SRC+NUM_DEST)*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W*NUM_BT+OP_W+IMM_W)
 #define NUM_INT ((INST_W+31)/32)
 
 using namespace std;
@@ -44,7 +45,8 @@ class instruction
 		{"INPUT"     , 8},
 		{"OUTPUT"    , 9},
 		{"OUTPUTRET" , 10},
-		{"RET"       , 11}
+		{"RET"       , 11},
+		{"FU"        , 12}
 	};
 
 	const map<string, int> aluOp_dict {
@@ -128,7 +130,7 @@ class instruction
 	int destEn[NUM_DEST];
 	int destId[NUM_DEST];
 	int destLane[NUM_DEST];
-	int brTarget;
+	int brTarget[NUM_BT];
 	int imm;
 
 public:
@@ -161,7 +163,9 @@ instruction::instruction(string asm_line) {
 		dstShiftL[i] = 0;
 		dstMode[i] = 0;
 	}
-	brTarget = 0;
+	for (int i = 0; i < NUM_BT; i++) {
+		brTarget[i] = 0;
+	}
 	imm = 0;
 	
 	//parse asm
@@ -256,12 +260,13 @@ instruction::instruction(string asm_line) {
 				destEn[m] = 1;
 				m++;
 			}
-		} else if (i == NUM_ALUS+NUM_FUS+NUM_SRC+NUM_DEST+1) {
+		} else if (i <= NUM_ALUS+NUM_FUS+NUM_SRC+NUM_DEST+NUM_BT) {
 			//brTarget
 			if (operand != " ") {
-				brTarget = stoi(operand);
+				brTarget[n] = stoi(operand);
+				n++;
 			}
-		} else if (i == NUM_ALUS+NUM_FUS+NUM_SRC+NUM_DEST+2) {
+		} else if (i == NUM_ALUS+NUM_FUS+NUM_SRC+NUM_DEST+NUM_BT+1) {
 			//immediate
 			if (operand != " ") {
 				imm = stoi(operand, nullptr, 0);
@@ -346,8 +351,10 @@ void instruction::assemble(ofstream &bin_file) {
 		insert(inst, j, shift_w, destLane_u, NUM_FUS_LG);
 	}
 	// brTarget
-	unsigned brTarget_u = unsigned(brTarget) & ((1 << IP_W) - 1);
-	insert(inst, j, shift_w, brTarget_u, IP_W);
+	for (i = 0; i < NUM_BT; i++) {
+		unsigned brTarget_u = unsigned(brTarget[i]) & ((1 << IP_W) - 1);
+		insert(inst, j, shift_w, brTarget_u, IP_W);
+	}
 	// immediate
 	unsigned imm_u = unsigned(imm) & ((1 << IMM_W) - 1);
 	insert(inst, j, shift_w, imm_u, IMM_W);

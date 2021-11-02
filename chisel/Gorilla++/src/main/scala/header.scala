@@ -58,8 +58,10 @@ val tuple = new tuple_t
 class ftCh0Input_t extends Bundle { 
 val ch0_opcode = UInt((3).W)
 val ch0_meta = new fce_meta_t
+val ch0_pkt = new metadata_t
 }
 class ftCh0Output_t extends Bundle { 
+val flag = UInt((2).W)
 val ch0_bit_map = UInt((5).W)
 val ch0_q = new fce_t
 }

@@ -47,45 +47,39 @@
 # 0, 1,  2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25
 # 0, 8, 96, 104, 108, 120, 128, 132, 136, 137, 138, 148, 152, 162, 168, 173, 182, 191, 194, 196, 204, 216, 228, 240, 252, 261
 #
-INPUT;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0;HASH; ; ; ; ;WEN; ; ;R1;R0;0;0;#                  #INPUT unit also sets pkt_flags
-ALUA;NEQ,s0,uint8,0,s1,uimm8,0,uint32,0;FTB,s0,uint32,0,s1,uint,0,uint,0; ; ; ; ; ; ;R0; ; ; ;2;0x11;
-BR;FTA,s0,uimm8,0,s1,uint,0,uint3,17;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ; ; ;R0; ;34;2;#                       #goto output
-OR;NEQ,s0,uint9,16,s1,uimm8,0,uint32,0;NEQ,s0,uint16,8,s1,uimm8,0,uint32,0; ; ; ; ; ; ;R0; ; ; ;2;0x1000;
-BR;FTA,s0,uimm8,0,s1,uint,0,uint3,17;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ; ; ;R0; ;32;0;#                       #goto output
-FT;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;FTLOOKUP; ; ; ; ;R0;R1;R2; ;0;0;#                  #lock, lookup ft
-ALUA;EQ,s0,uint5,25,s1,uimm8,0,uint32,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ;R2; ; ; ;32;0;#                    #goto insert new ft
-ALUA;NEQ,s0,uint32,3,s1,uint32,2,uint32,0;FTB,s0,uint32,0,s1,uint32,0,uint32,0; ; ; ; ; ; ;R0;R2; ; ;11;0;#           #goto insert new pkt or drop
-ALUA;NEQ,s0,uint10,10,s1,uimm8,0,uint32,0;FTA,s0,uint9,6,s1,uint32,0,uint9,24; ; ; ; ; ;WEN;R2; ;R0; ;5;0;#           #goto release pkt
-OR;AND,s0,uint9,16,s1,uimm8,0,uint32,0;AND,s0,uint9,16,s1,uimm8,0,uint32,0; ; ; ; ; ; ;R0; ; ; ;3;0x401;
-FT;ADD,s0,uint32,3,s0,uint16,8,uint32,2;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN; ;R0; ;R2; ;0;0;#                  #prepare to update
-OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;UPDATE; ; ; ;R0;R2; ; ;0;0;#         #output, update, return
-OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;DELETE; ; ; ;R0;R2; ; ;0;0;#         #output, delete, return
-FT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTA,s0,uint9,24,s1,uint32,0,uint32,0; ; ; ;LOOKUP;WEN; ;R0; ;R3;R4;0;0;
-ALUA;NEQ,s0,uint32,0,s1,uint32,3,uint32,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ;R4;R3; ; ;-4;0;#                 #match ll head seq
-OUTPUT;FTA,s0,uint,0,s1,uint,0,uint,0;FTA,s1,uint,0,s1,uint,0,uint,0; ; ; ; ; ;WEN;R0;R3;R0; ;1;0;
-ALUA;SUB,s0,uint10,10,s1,uimm8,0,uint10,10;FTB,s0,uint,0,s1,uint9,24,uint9,6; ; ; ; ;WEN;WEN;R2;R3;R2;R2;-3;1;
-BR;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ; ; ; ; ;-8;0;
-ALUA;GT,s0,uint32,3,s1,uint32,2,uint32,0;FTB,s0,uint32,0,s1,uint32,0,uint32,0; ; ; ; ; ; ;R0;R2; ; ;2;0;#             #goto insert if true
-BR;FTA,s0,uimm8,0,s1,uint,0,uint3,17;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN; ; ; ;R0; ;18;1;#                     #drop, goto output
-FT;FTB,s0,uint,0,s1,uint10,10,uint10,0;FTA,s0,uint,0,s1,uint,0,uint,0; ; ; ;MALLOC;WEN; ;R0;R2;R4;R6;0;0;#            #insert new pkt
-ALUA;NEQ,s0,uint10,10,s1,uimm8,0,uint,0;FTA,s0,uint9,24,s1,uint,0,uint9,0; ; ; ;LOOKUP; ;WEN;R2; ;R3;R5;2;0;#         #check empty, look up tail
-BR;FTA,s0,uint9,0,s1,uint,0,uint9,6;FTA,s0,uint9,0,s1,uint,0,uint9,24; ; ; ; ;WEN;WEN;R4; ;R2;R2;12;0;#               #goto update ft
-GE;FTA,s0,uint32,3,s1,uint,0,uint32,0;ADD,s1,uint32,3,s1,uint16,8,uint32,0; ; ; ; ; ; ;R0;R3; ; ;6;0;#                #if true, go to insert tail
-FT;FTA,s0,uint,0,s1,uint,0,uint,0;FTA,s0,uint9,6,s1,uint,0,uint9,0; ; ; ;LOOKUP; ; ;R2; ;R3; ;0;0;
-GT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTB,s0,uint,0,s1,uint32,3,uint32,0; ; ; ; ; ; ;R0;R3; ; ;2;0;#                #check head seq
-BR;FTA,s0,uint9,0,s1,uint,0,uint9,6;CAT,s0,uint9,0,s1,uint9,0,uint,0; ; ; ;UPDATE0;WEN; ;R4;R5;R2; ;8;0;#             #goto update ft
-GT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTB,s0,uint,0,s1,uint32,3,uint32,0; ; ; ; ; ; ;R3;R0; ; ;-8;0;#               #goto drop if true
-ALUA;SUB,s0,uint10,0,s1,uimm8,0,uint10,0;FTB,s0,uint,0,s1,uint9,24,uint,0; ; ; ;LOOKUP;WEN; ;R6;R3;R7;R6;2;1;
-BR;FTB,s0,uint,0,s1,uint,0,uint9,24;CAT,s0,uint9,0,s1,uint9,0,uint,0; ; ; ;UPDATE0;WEN; ;R5;R4;R2; ;5;0;#             #insert to tail
-GT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTB,s0,uint,0,s1,uint32,3,uint32,0; ; ; ; ; ; ;R0;R7; ; ;3;0;#                #compare next seq
-FT;FTA,s0,uint,0,s1,uint,0,uint,0;CAT,s0,uint9,0,s1,uint9,24,uint,0; ; ; ;UPDATE0; ; ;R4;R3; ; ;0;0;#                 #insert
-BR;FTA,s0,uint,0,s1,uint,0,uint,0;CAT,s0,uint9,0,s1,uint9,0,uint,0; ; ; ;UPDATE0; ; ;R5;R4; ; ;2;0;#                  #goto update ft
-BR;FTA,s0,uint9,24,s1,uint,0,uint9,24;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN;WEN;R3;R7;R5;R3;-6;0;
-FT;ADD,s0,uint10,10,s1,uimm8,0,uint10,10;FTA,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN; ;R2; ;R2; ;0;1;#                 #increment slow_cnt
-RET;FTA,s0,uint,0,s1,uint,0,uint,0;FTA,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;UPDATE; ; ; ;R2; ; ; ;0;0;#                #update ft and return
-OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ;R0; ; ; ;1;0;#                    #output, ret
-OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK; ; ; ; ;R0; ; ; ;1;0;#               #output, ret, unlock
-OR;AND,s0,uint9,16,s1,uimm8,0,uint32,0;AND,s0,uint9,16,s1,uimm8,0,uint32,0; ; ; ; ; ; ;R0; ; ; ;-1;0x401;
-ALUA;AND,s0,uint9,16,s1,uimm8,0,uint32,0;ADD,s0,uint32,3,s1,uimm8,0,uint32,20; ; ; ; ; ;WEN;R0; ;R1; ;2;0x102;#       #goto insert and output if true
-FT;FTA,s0,uint56,19,s1,uint,0,uint56,11;ADD,s0,uint32,3,s0,uint16,8,uint32,20; ; ; ; ;WEN;WEN;R0; ;R1;R1;0;0;
-OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;INSERT; ; ; ;R0;R1; ; ;0;0;#         #insert, output, return
+INPUT;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0;HASH; ; ; ; ;WEN; ; ;R1;R0;0;0;0;0;#                  #INPUT unit also sets pkt_flags
+FU;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;FTLOOKUP; ; ; ; ;R0;R1;R2; ;1;6;11;0;#                 #fast path, lock if slow path, lookup ft
+OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ;R0; ; ; ;0;0;0;0;
+OR;AND,s0,uint9,16,s1,uimm8,0,uint32,0;AND,s0,uint9,16,s1,uimm8,0,uint32,0; ; ; ; ; ; ;R0; ; ; ;3;0;0;0x401;
+FT;ADD,s0,uint32,3,s0,uint16,8,uint32,2;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN; ;R0; ;R2; ;0;0;0;0;#                  #prepare to update
+OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;UPDATE; ; ; ;R0;R2; ; ;0;0;0;0;#         #output, update, return
+OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;DELETE; ; ; ;R0;R2; ; ;0;0;0;0;#         #output, delete, return
+FT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTA,s0,uint9,24,s1,uint32,0,uint32,0; ; ; ;LOOKUP;WEN; ;R0; ;R3;R4;0;0;0;0;#      #start releasing pkt
+ALUA;NEQ,s0,uint32,0,s1,uint32,3,uint32,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ;R4;R3; ; ;-4;0;0;0;#                 #match ll head seq
+OUTPUT;FTA,s0,uint,0,s1,uint,0,uint,0;FTA,s1,uint,0,s1,uint,0,uint,0; ; ; ; ; ;WEN;R0;R3;R0; ;1;0;0;0;
+ALUA;SUB,s0,uint10,10,s1,uimm8,0,uint10,10;FTB,s0,uint,0,s1,uint9,24,uint9,6; ; ; ; ;WEN;WEN;R2;R3;R2;R2;-3;0;0;1;
+BR;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ; ; ; ; ;-8;0;0;0;
+ALUA;GT,s0,uint32,3,s1,uint32,2,uint32,0;FTB,s0,uint32,0,s1,uint32,0,uint32,0; ; ; ; ; ; ;R0;R2; ; ;2;0;0;0;#             #start inserting pkt, goto insert if true
+BR;FTA,s0,uimm8,0,s1,uint,0,uint3,17;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN; ; ; ;R0; ;18;0;0;1;#                     #drop, goto output
+FT;FTB,s0,uint,0,s1,uint10,10,uint10,0;FTA,s0,uint,0,s1,uint,0,uint,0; ; ; ;MALLOC;WEN; ;R0;R2;R4;R6;0;0;0;0;#            #insert new pkt
+ALUA;NEQ,s0,uint10,10,s1,uimm8,0,uint,0;FTA,s0,uint9,24,s1,uint,0,uint9,0; ; ; ;LOOKUP; ;WEN;R2; ;R3;R5;2;0;0;0;#         #check empty, look up tail
+BR;FTA,s0,uint9,0,s1,uint,0,uint9,6;FTA,s0,uint9,0,s1,uint,0,uint9,24; ; ; ; ;WEN;WEN;R4; ;R2;R2;12;0;0;0;#               #goto update ft
+GE;FTA,s0,uint32,3,s1,uint,0,uint32,0;ADD,s1,uint32,3,s1,uint16,8,uint32,0; ; ; ; ; ; ;R0;R3; ; ;6;0;0;0;#                #if true, go to insert tail
+FT;FTA,s0,uint,0,s1,uint,0,uint,0;FTA,s0,uint9,6,s1,uint,0,uint9,0; ; ; ;LOOKUP; ; ;R2; ;R3; ;0;0;0;0;
+GT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTB,s0,uint,0,s1,uint32,3,uint32,0; ; ; ; ; ; ;R0;R3; ; ;2;0;0;0;#                #check head seq
+BR;FTA,s0,uint9,0,s1,uint,0,uint9,6;CAT,s0,uint9,0,s1,uint9,0,uint,0; ; ; ;UPDATE0;WEN; ;R4;R5;R2; ;8;0;0;0;#             #goto update ft
+GT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTB,s0,uint,0,s1,uint32,3,uint32,0; ; ; ; ; ; ;R3;R0; ; ;-8;0;0;0;#               #goto drop if true
+ALUA;SUB,s0,uint10,0,s1,uimm8,0,uint10,0;FTB,s0,uint,0,s1,uint9,24,uint,0; ; ; ;LOOKUP;WEN; ;R6;R3;R7;R6;2;0;0;1;
+BR;FTB,s0,uint,0,s1,uint,0,uint9,24;CAT,s0,uint9,0,s1,uint9,0,uint,0; ; ; ;UPDATE0;WEN; ;R5;R4;R2; ;5;0;0;0;#             #insert to tail
+GT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTB,s0,uint,0,s1,uint32,3,uint32,0; ; ; ; ; ; ;R0;R7; ; ;3;0;0;0;#                #compare next seq
+FT;FTA,s0,uint,0,s1,uint,0,uint,0;CAT,s0,uint9,0,s1,uint9,24,uint,0; ; ; ;UPDATE0; ; ;R4;R3; ; ;0;0;0;0;#                 #insert
+BR;FTA,s0,uint,0,s1,uint,0,uint,0;CAT,s0,uint9,0,s1,uint9,0,uint,0; ; ; ;UPDATE0; ; ;R5;R4; ; ;2;0;0;0;#                  #goto update ft
+BR;FTA,s0,uint9,24,s1,uint,0,uint9,24;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN;WEN;R3;R7;R5;R3;-6;0;0;0;
+FT;ADD,s0,uint10,10,s1,uimm8,0,uint10,10;FTA,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN; ;R2; ;R2; ;0;0;0;1;#                 #increment slow_cnt
+RET;FTA,s0,uint,0,s1,uint,0,uint,0;FTA,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;UPDATE; ; ; ;R2; ; ; ;0;0;0;0;#                #update ft and return
+OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ;R0; ; ; ;1;0;0;0;#                    #output, ret
+OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK; ; ; ; ;R0; ; ; ;1;0;0;0;#               #output, ret, unlock
+OR;AND,s0,uint9,16,s1,uimm8,0,uint32,0;AND,s0,uint9,16,s1,uimm8,0,uint32,0; ; ; ; ; ; ;R0; ; ; ;-1;0;0;0x401;
+ALUA;AND,s0,uint9,16,s1,uimm8,0,uint32,0;ADD,s0,uint32,3,s1,uimm8,0,uint32,20; ; ; ; ; ;WEN;R0; ;R1; ;2;0;0;0x102;#       #goto insert and output if true
+FT;FTA,s0,uint56,19,s1,uint,0,uint56,11;ADD,s0,uint32,3,s0,uint16,8,uint32,20; ; ; ; ;WEN;WEN;R0; ;R1;R1;0;0;0;0;
+OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;INSERT; ; ; ;R0;R1; ; ;0;0;0;0;#         #insert, output, return
