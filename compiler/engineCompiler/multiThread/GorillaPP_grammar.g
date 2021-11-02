@@ -633,8 +633,9 @@ magilla_instr
              " State(rThread) === " + 
              $GORILLA_INSTR_NAME.text ;	
             $Symbols::globalContextEditString += 
-             "\n when (vThread =/= NONE_SELECTED &&" + 
-             "State(vThread) === " + 
+             "\nfor (i <- 0 to numOfThreads-1) {\n" +
+             "  when (vThread === i.U &&" +
+             " State(i.U) === " +
              $GORILLA_INSTR_NAME.text;	
             $Symbols::globalRequestBuilderString +=  
              ")" + "{\n";	
@@ -645,9 +646,9 @@ magilla_instr
             $Symbols::globalContextEditString += 
             $Symbols::contextEditString;	
             $Symbols::globalRequestBuilderString += 
-             "} \n";	
+             "}\n";	
 	    $Symbols::globalContextEditString += 
-             "} \n";	
+             "  }\n}\n";
 	    $Symbols::locals.clear();
             $Symbols::localsVersion.clear();
 	  $Symbols::localsType.clear();
@@ -973,10 +974,10 @@ selection_statement
 
 finish_statement
     : 'finish' '(' ')' SEMICOLON {
-      outString("EmitReturnState(vThread) := WaitForInputValid\n"); 
-      outString("State(vThread) := WaitForOutputReady\n");
+      outString("EmitReturnState(i.U) := WaitForInputValid\n");
+      outString("State(i.U) := WaitForOutputReady\n");
     } | 'emit' '(' (emitTarget = ID)? ')' SEMICOLON {
-      outString("State(vThread) := WaitForOutputReady\n");
+      outString("State(i.U) := WaitForOutputReady\n");
     }
     ;
 //expr 	
@@ -1125,9 +1126,9 @@ assignment_expression
            } else {
              String idPrint;
              if ($lValueId.text.equals("Output")){
-               idPrint = "outputReg(vThread)";
+               idPrint = "outputReg(i.U)";
              } else {
-               idPrint = $lValueId.text + "(vThread)";
+               idPrint = $lValueId.text + "(i.U)";
              }
 	     $Symbols::colonAssign = true;
 	     outString(idPrint);
@@ -1253,14 +1254,14 @@ primary_expression
               if ($Symbols::isPreOff) {
                 idPrint = "inputReg(rThread)";
               } else {
-                idPrint = "inputReg(vThread)";
+                idPrint = "inputReg(i.U)";
               }  //TODO what if none
             } else {
               if (!$Symbols::isPreOff && 
                !$Symbols::isPostOff) {
                 idPrint = "inputReg(rThread)";
               } else {
-                idPrint = "inputReg(vThread)";
+                idPrint = "inputReg(i.U)";
               }
             }
           } else { 
@@ -1279,13 +1280,13 @@ primary_expression
                   if ($Symbols::isPreOff) {
                     idPrint = $ID.text + "(rThread)";
                   } else {
-                    idPrint = $ID.text + "(vThread)";
+                    idPrint = $ID.text + "(i.U)";
                   }
                 } else {
                   if (!$Symbols::isPreOff && !$Symbols::isPostOff) {
                     idPrint = $ID.text + "(rThread)";
                   } else {
-                    idPrint = $ID.text + "(vThread)";
+                    idPrint = $ID.text + "(i.U)";
                   }
                 }
               } else {
