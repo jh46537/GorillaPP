@@ -54,7 +54,7 @@ OR;AND,s0,uint9,16,s1,uimm8,0,uint32,0;AND,s0,uint9,16,s1,uimm8,0,uint32,0; ; ; 
 FT;ADD,s0,uint32,3,s0,uint16,8,uint32,2;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ;WEN; ;R0; ;R2; ;0;0;0;0;#                  #prepare to update
 OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;UPDATE; ; ; ;R0;R2; ; ;0;0;0;0;#         #output, update, return
 OUTPUTRET;FTA,s0,uint,0,s1,uint,0,uint,0;FTB,s0,uint,0,s1,uint,0,uint,0; ;UNLOCK;DELETE; ; ; ;R0;R2; ; ;0;0;0;0;#         #output, delete, return
-FT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTA,s0,uint9,24,s1,uint32,0,uint32,0; ; ; ;LOOKUP;WEN; ;R0; ;R3;R4;0;0;0;0;#      #start releasing pkt
+FT;ADD,s0,uint32,3,s0,uint16,8,uint32,0;FTB,s0,uint,0,s1,uint9,6,uint32,0; ; ; ;LOOKUP;WEN; ;R0;R2;R3;R4;0;0;0;0;#        #start releasing pkt
 ALUA;NEQ,s0,uint32,0,s1,uint32,3,uint32,0;FTB,s0,uint,0,s1,uint,0,uint,0; ; ; ; ; ; ;R4;R3; ; ;-4;0;0;0;#                 #match ll head seq
 OUTPUT;FTA,s0,uint,0,s1,uint,0,uint,0;FTA,s1,uint,0,s1,uint,0,uint,0; ; ; ; ; ;WEN;R0;R3;R0; ;1;0;0;0;
 ALUA;SUB,s0,uint10,10,s1,uimm8,0,uint10,10;FTB,s0,uint,0,s1,uint9,24,uint9,6; ; ; ; ;WEN;WEN;R2;R3;R2;R2;-3;0;0;1;
