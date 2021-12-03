@@ -11,17 +11,19 @@
 #define OP_W 4
 #define NUM_ALUOPS_LG 4
 #define NUM_ALUS 2
+#define NUM_SRC_POS 26
+#define NUM_SRC_POS_LG int(ceil(log2(NUM_SRC_POS)))
+#define NUM_SRC_MODE 14
+#define NUM_SRC_MODE_LG int(ceil(log2(NUM_SRC_MODE)))
 #define NUM_FUOPS_LG 2
 #define NUM_FUS 6
 #define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
-#define NUM_SRC 2
-#define NUM_SRC_LG int(ceil(log2(NUM_SRC)))
 #define NUM_DEST 2
 #define NUM_REGS_LG 4
 #define NUM_BT 3
 #define IP_W 8
-#define IMM_W 16
-#define INST_W (NUM_ALUS*(NUM_ALUOPS_LG+NUM_SRC*10+9)+NUM_FUS*(1+NUM_FUOPS_LG)+(NUM_SRC+NUM_DEST)*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W*NUM_BT+OP_W+IMM_W)
+#define IMM_W 8
+#define INST_W (NUM_ALUS*(NUM_ALUOPS_LG+3*(NUM_SRC_POS_LG+NUM_SRC_MODE_LG)+2*NUM_REGS_LG)+NUM_FUS*(1+NUM_FUOPS_LG)+NUM_DEST*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W*NUM_BT+OP_W+IMM_W*NUM_ALUS)
 #define NUM_INT ((INST_W+31)/32)
 
 using namespace std;
@@ -119,19 +121,18 @@ class instruction
     bool comment;
     int preOp;
     int aluOp[NUM_ALUS];
-    int srcSlct[NUM_ALUS][NUM_SRC];
-    int srcShiftR[NUM_ALUS][NUM_SRC];
-    int srcMode[NUM_ALUS][NUM_SRC];
+    int srcId[NUM_ALUS][2];
+    int srcShiftR[NUM_ALUS][2];
+    int srcMode[NUM_ALUS][2];
     int dstShiftL[NUM_ALUS];
     int dstMode[NUM_ALUS];
     int fuOp[NUM_FUS];
     int fuValids[NUM_FUS];
-    int srcId[NUM_SRC];
     int destEn[NUM_DEST];
     int destId[NUM_DEST];
     int destLane[NUM_DEST];
     int brTarget[NUM_BT];
-    int imm;
+    int imm[NUM_ALUS];
 
 public:
     instruction(string asm_line);
@@ -147,26 +148,25 @@ instruction::instruction(string asm_line) {
         fuValids[i] = 0;
         fuOp[i] = 0;
     }
-    for (int i = 0; i < NUM_SRC; i++) srcId[i] = 0;
     for (int i = 0; i < NUM_DEST; i++) {
         destEn[i] = 0;
         destId[i] = 0;
         destLane[i] = 0;
     }
     for (int i = 0; i < NUM_ALUS; i++) {
-        for (int j = 0; j < NUM_SRC; j++) {
-            srcSlct[i][j] = 0;
+        for (int j = 0; j < 2; j++) {
+            srcId[i][j] = 0;
             srcShiftR[i][j] = 0;
             srcMode[i][j] = 0;
         }
         aluOp[i] = 0;
         dstShiftL[i] = 0;
         dstMode[i] = 0;
+        imm[i] = 0;
     }
     for (int i = 0; i < NUM_BT; i++) {
         brTarget[i] = 0;
     }
-    imm = 0;
     
     //parse asm
     stringstream s_stream(asm_line);
@@ -201,10 +201,10 @@ instruction::instruction(string asm_line) {
             } else {
                 cout << alu_operand << ", Undefined aluOp\n";
             }
-            for (int ij = 0; ij < NUM_SRC; ij++) {
+            for (int ij = 0; ij < 2; ij++) {
                 // src select
                 getline(alu_stream, alu_operand, ',');
-                srcSlct[ii][ij] = stoi(alu_operand.substr(1));
+                srcId[ii][ij] = stoi(alu_operand.substr(1));
                 // src type
                 getline(alu_stream, alu_operand, ',');
                 if (srcType_dict.find(alu_operand) != srcType_dict.end()) {
@@ -247,29 +247,24 @@ instruction::instruction(string asm_line) {
                 }
             }
             l++;
-        } else if (i <= NUM_ALUS+NUM_FUS+NUM_SRC) {
-            //src
-            if (operand != " ") {
-                srcId[k] = stoi(operand.substr(1));
-                k++;
-            }
-        } else if (i <= NUM_ALUS+NUM_FUS+NUM_SRC+NUM_DEST) {
+        } else if (i <= NUM_ALUS+NUM_FUS+NUM_DEST) {
             //dstA
             if (operand != " ") {
                 destId[m] = stoi(operand.substr(1));
                 destEn[m] = 1;
                 m++;
             }
-        } else if (i <= NUM_ALUS+NUM_FUS+NUM_SRC+NUM_DEST+NUM_BT) {
+        } else if (i <= NUM_ALUS+NUM_FUS+NUM_DEST+NUM_BT) {
             //brTarget
             if (operand != " ") {
                 brTarget[n] = stoi(operand);
                 n++;
             }
-        } else if (i == NUM_ALUS+NUM_FUS+NUM_SRC+NUM_DEST+NUM_BT+1) {
+        } else if (i <= NUM_ALUS+NUM_FUS+NUM_DEST+NUM_BT+NUM_ALUS) {
             //immediate
             if (operand != " ") {
-                imm = stoi(operand, nullptr, 0);
+                imm[k] = stoi(operand, nullptr, 0);
+                k++;
             }
         }
         i++;
@@ -303,22 +298,22 @@ void instruction::assemble(ofstream &bin_file) {
     for (i = 0; i < NUM_ALUS; i++) {
         unsigned aluOp_u = unsigned(aluOp[i]) & ((1 << NUM_ALUOPS_LG) - 1);
         insert(inst, j, shift_w, aluOp_u, NUM_ALUOPS_LG);
-        for (int k = 0; k < NUM_SRC; k++) {
-            unsigned srcSlct_u = unsigned(srcSlct[i][k]) & 1;
-            insert(inst, j, shift_w, srcSlct_u, 1);
+        for (int k = 0; k < 2; k++) {
+            unsigned srcId_u = unsigned(srcId[i][k]) & ((1 << NUM_REGS_LG) - 1);
+            insert(inst, j, shift_w, srcId_u, NUM_REGS_LG);
         }
-        for (int k = 0; k < NUM_SRC; k++) {
-            unsigned srcShiftR_u = unsigned(srcShiftR[i][k]) & ((1 << 5) - 1);
-            insert(inst, j, shift_w, srcShiftR_u, 5);
+        for (int k = 0; k < 2; k++) {
+            unsigned srcShiftR_u = unsigned(srcShiftR[i][k]) & ((1 << NUM_SRC_POS_LG) - 1);
+            insert(inst, j, shift_w, srcShiftR_u, NUM_SRC_POS_LG);
         }
-        for (int k = 0; k < NUM_SRC; k++) {
-            unsigned srcMode_u = unsigned(srcMode[i][k]) & ((1 << 4) - 1);
-            insert(inst, j, shift_w, srcMode_u, 4);
+        for (int k = 0; k < 2; k++) {
+            unsigned srcMode_u = unsigned(srcMode[i][k]) & ((1 << NUM_SRC_MODE_LG) - 1);
+            insert(inst, j, shift_w, srcMode_u, NUM_SRC_MODE_LG);
         }
-        unsigned dstShiftL_u = unsigned(dstShiftL[i]) & ((1 << 5) - 1);
-        insert(inst, j, shift_w, dstShiftL_u, 5);
-        unsigned dstMode_u = unsigned(dstMode[i]) & ((1 << 4) - 1);
-        insert(inst, j, shift_w, dstMode_u, 4);
+        unsigned dstShiftL_u = unsigned(dstShiftL[i]) & ((1 << NUM_SRC_POS_LG) - 1);
+        insert(inst, j, shift_w, dstShiftL_u, NUM_SRC_POS_LG);
+        unsigned dstMode_u = unsigned(dstMode[i]) & ((1 << NUM_SRC_MODE_LG) - 1);
+        insert(inst, j, shift_w, dstMode_u, NUM_SRC_MODE_LG);
     }
     // fuValids
     for (i = 0; i < NUM_FUS; i++) {
@@ -329,11 +324,6 @@ void instruction::assemble(ofstream &bin_file) {
     for (i = 0; i < NUM_FUS; i++) {
         unsigned tmp = unsigned(fuOp[i]) & ((1 << NUM_FUOPS_LG) - 1);
         insert(inst, j, shift_w, tmp, NUM_FUOPS_LG);
-    }
-    // srcId
-    for (i = 0; i < NUM_SRC; i++) {
-        unsigned srcId_u = unsigned(srcId[i]) & ((1 << NUM_REGS_LG) - 1);
-        insert(inst, j, shift_w, srcId_u, NUM_REGS_LG);
     }
     // destId
     for (i = 0; i < NUM_DEST; i++) {
@@ -356,8 +346,10 @@ void instruction::assemble(ofstream &bin_file) {
         insert(inst, j, shift_w, brTarget_u, IP_W);
     }
     // immediate
-    unsigned imm_u = unsigned(imm) & ((1 << IMM_W) - 1);
-    insert(inst, j, shift_w, imm_u, IMM_W);
+    for (i = 0; i < NUM_ALUS; i++) {
+        unsigned imm_u = unsigned(imm[i]) & ((1 << IMM_W) - 1);
+        insert(inst, j, shift_w, imm_u, IMM_W);
+    }
 
     // Output
     for (i = NUM_INT-1; i >= 0; i--) {
