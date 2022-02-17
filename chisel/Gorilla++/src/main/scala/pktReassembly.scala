@@ -7,10 +7,11 @@ import chisel3.util.experimental.loadMemoryFromFileInline
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
+import scala.io.Source
 
 
-class Gather(imm_width: Int, reg_width: Int, num_blocks: Int, block_widths: ArrayBuffer[Int],
-   max_out_width: Int, num_modes:Int, mode_bits: ArrayBuffer[Int]) extends Module {
+class Gather(imm_width: Int, reg_width: Int, num_blocks: Int, src_pos: Array[Int],
+   max_out_width: Int, num_modes:Int, src_mode: Array[Int]) extends Module {
   val io = IO(new Bundle {
     val din = Input(UInt(reg_width.W))
     val shift = Input(UInt(log2Up(num_blocks).W))
@@ -27,32 +28,32 @@ class Gather(imm_width: Int, reg_width: Int, num_blocks: Int, block_widths: Arra
 
   val num_muxes : Int = (num_blocks+7)/8
   val reg0 = Reg(Vec(num_muxes, UInt(max_out_width.W)))
-  block_widths ++= List(0, 0, 0, 0, 0, 0, 0)
+  val src_pos_i = src_pos ++ Array(0, 0, 0, 0, 0, 0, 0)
   for (i <- 0 until num_muxes) {
     switch(io.shift(2, 0)) {
       is (0.U) {
-        reg0(i) := io.din((block_widths(i*8)+max_out_width-1).min(reg_width-1), block_widths(i*8))
+        reg0(i) := io.din((src_pos_i(i*8)+max_out_width-1).min(reg_width-1), src_pos_i(i*8))
       }
       is (1.U) {
-        reg0(i) := io.din((block_widths(i*8+1)+max_out_width-1).min(reg_width-1), block_widths(i*8+1))
+        reg0(i) := io.din((src_pos_i(i*8+1)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+1))
       }
       is (2.U) {
-        reg0(i) := io.din((block_widths(i*8+2)+max_out_width-1).min(reg_width-1), block_widths(i*8+2))
+        reg0(i) := io.din((src_pos_i(i*8+2)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+2))
       }
       is (3.U) {
-        reg0(i) := io.din((block_widths(i*8+3)+max_out_width-1).min(reg_width-1), block_widths(i*8+3))
+        reg0(i) := io.din((src_pos_i(i*8+3)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+3))
       }
       is (4.U) {
-        reg0(i) := io.din((block_widths(i*8+4)+max_out_width-1).min(reg_width-1), block_widths(i*8+4))
+        reg0(i) := io.din((src_pos_i(i*8+4)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+4))
       }
       is (5.U) {
-        reg0(i) := io.din((block_widths(i*8+5)+max_out_width-1).min(reg_width-1), block_widths(i*8+5))
+        reg0(i) := io.din((src_pos_i(i*8+5)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+5))
       }
       is (6.U) {
-        reg0(i) := io.din((block_widths(i*8+6)+max_out_width-1).min(reg_width-1), block_widths(i*8+6))
+        reg0(i) := io.din((src_pos_i(i*8+6)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+6))
       }
       is (7.U) {
-        reg0(i) := io.din((block_widths(i*8+7)+max_out_width-1).min(reg_width-1), block_widths(i*8+7))
+        reg0(i) := io.din((src_pos_i(i*8+7)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+7))
       }
     }
   }
@@ -81,7 +82,7 @@ class Gather(imm_width: Int, reg_width: Int, num_blocks: Int, block_widths: Arra
   mode_d2 := mode_d1
   imm_d2 := imm_d1
 
-  val cases2 = (0 until num_modes).map( x => x.U -> reg1(mode_bits(x)-1, 0))
+  val cases2 = (0 until num_modes).map( x => x.U -> reg1(src_mode(x)-1, 0))
   reg2 := MuxLookup(mode_d1, DontCare, cases2)
   when (mode_d2 === num_modes.U) {
     io.dout := Cat(0.U, imm_d2)
@@ -92,8 +93,8 @@ class Gather(imm_width: Int, reg_width: Int, num_blocks: Int, block_widths: Arra
 }
 
 class Scatter(reg_width: Int, lg_num_rdBlocks: Int, lg_num_modes: Int, num_wrBlocks: Int,
-  num_wr_offset: Int, wr_encode: ArrayBuffer[Int], wr_offset: ArrayBuffer[Int],
-  num_wbens: Int, wben_encode: ArrayBuffer[(Int, Int)], wbens: ArrayBuffer[Int]) extends Module {
+  num_dst_pos: Int, dst_encode: Array[Int], dst_pos: Array[Int],
+  num_wbens: Int, dst_en_encode: Array[(Int, Int)], wbens: Array[Int]) extends Module {
   val io = IO(new Bundle {
     val din = Input(UInt(reg_width.W))
     val shift = Input(UInt(lg_num_rdBlocks.W))
@@ -106,9 +107,9 @@ class Scatter(reg_width: Int, lg_num_rdBlocks: Int, lg_num_modes: Int, num_wrBlo
   val wben_r = Reg(UInt(num_wrBlocks.W))
   din_w := io.din
 
-  val cases = (0 until num_wr_offset).map(i => (io.shift === wr_encode(i).U) -> (din_w << wr_offset(i)))
+  val cases = (0 until num_dst_pos).map(i => (io.shift === dst_encode(i).U) -> (din_w << dst_pos(i)))
   dout_r := MuxCase(DontCare, cases)
-  val cases2 = (0 until num_wbens).map(i => ((io.shift === wben_encode(i)._1.U) && ((wben_encode(i)._2 == -1).B || (io.mode === wben_encode(i)._2.S.asUInt))) -> wbens(i).U)
+  val cases2 = (0 until num_wbens).map(i => ((io.shift === dst_en_encode(i)._1.U) && ((dst_en_encode(i)._2 == -1).B || (io.mode === dst_en_encode(i)._2.S.asUInt))) -> wbens(i).U)
   wben_r := MuxCase(0.U, cases2)
 
   io.dout := dout_r
@@ -237,7 +238,7 @@ class ram_qp(num: Int, width: Int) extends
 
 }
 
-class Regfile(num: Int, width: Int, num_blocks: Int, block_widths: ArrayBuffer[Int]) extends Module {
+class Regfile(num: Int, width: Int, num_blocks: Int, block_widths: Array[Int]) extends Module {
   val io = IO(new Bundle {
     val rdAddr1 = Input(UInt(log2Up(num).W))
     val rdAddr2 = Input(UInt(log2Up(num).W))
@@ -281,7 +282,7 @@ class Regfile(num: Int, width: Int, num_blocks: Int, block_widths: ArrayBuffer[I
 
 }
 
-class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: Int, num_blocks: Int, block_widths: ArrayBuffer[Int]) extends Module {
+class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: Int, num_blocks: Int, block_widths: Array[Int]) extends Module {
   val io = IO(new Bundle {
     val rdEn        = Input(Bool())
     val thread_rd   = Input(UInt(log2Up(threadnum).W))
@@ -1077,34 +1078,61 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
 }
 
 class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, new metadata_t, ArrayBuffer(("dynamicMem", new dyMemInput_t, new llNode_t), ("hash", new tuple_t, new fce_meta_t)), extCompName + "__type__engine__MT__16__") {
-  val NUM_THREADS = 16
+  val filename = "./src/main/scala/primate.cfg"
+  val fileSource = Source.fromFile(filename)
+  val lines = fileSource.getLines.toList
+  var knobs:Map[String, String] = Map()
+  for (line <- lines) {
+    val Array(key, value) = line.split("=")
+    knobs += (key -> value)
+  }
+  val NUM_THREADS = knobs.apply("NUM_THREADS").toInt
+  val REG_WIDTH = knobs.apply("REG_WIDTH").toInt
+  val NUM_REGS = knobs.apply("NUM_REGS").toInt
+  val NUM_BFUS = knobs.apply("NUM_BFUS").toInt
+  val NUM_ALUS = knobs.apply("NUM_ALUS").toInt
+  val IMM_WIDTH = knobs.apply("IMM_WIDTH").toInt
+  val NUM_REGBLOCKS = knobs.apply("NUM_REGBLOCKS").toInt
+  val NUM_SRC_POS = knobs.apply("NUM_SRC_POS").toInt
+  val NUM_SRC_MODES = knobs.apply("NUM_SRC_MODES").toInt
+  val NUM_DST_POS = knobs.apply("NUM_DST_POS").toInt
+  val NUM_DST_MODE = knobs.apply("NUM_DST_MODE").toInt
+  val MAX_FIELD_WIDTH = knobs.apply("MAX_FIELD_WIDTH").toInt
+  val IP_WIDTH = knobs.apply("IP_WIDTH").toInt
+  val reg_block_width:Array[Int] = knobs.apply("REG_BLOCK_WIDTH").split(" ").map(_.toInt)
+  val src_pos:Array[Int] = knobs.apply("SRC_POS").split(" ").map(_.toInt)
+  val src_mode:Array[Int] = knobs.apply("SRC_MODE").split(" ").map(_.toInt)
+  val dst_encode:Array[Int] = knobs.apply("DST_ENCODE").split(" ").map(_.toInt)
+  val dst_pos:Array[Int] = knobs.apply("DST_POS").split(" ").map(_.toInt)
+  val wbens:Array[Int] = knobs.apply("DST_EN").split(" ").map(_.toInt)
+  val dst_en_encode:Array[(Int, Int)] = knobs.apply("DST_EN_ENCODE").split(";").map(_.split(" ") match {case Array(a1, a2) => (a1.toInt, a2.toInt)})
+
+  // val NUM_THREADS = 16
+  // val REG_WIDTH = 270
+  // val NUM_REGS = 16
+  // val NUM_BFUS = 4
+  // val NUM_ALUS = 2
+  // val IMM_WIDTH = 8
+  // val NUM_REGBLOCKS = 14
+  // val NUM_SRC_POS = 26
+  // val NUM_SRC_MODES = 14
+  // val NUM_DST_POS = 9
+  // val NUM_DST_MODE = 10
+  // val MAX_FIELD_WIDTH = 56
+  // val IP_WIDTH = 8
   val NUM_THREADS_LG = log2Up(NUM_THREADS)
-  val REG_WIDTH = 270
-  val NUM_REGS = 16
   val NUM_REGS_LG = log2Up(NUM_REGS)
   val NUM_FUOPS_LG = 2
-  val NUM_FUS = 6
+  val NUM_FUS = NUM_BFUS + NUM_ALUS
   val NUM_FUS_LG = log2Up(NUM_FUS)
-  // val VLIW_OPS = 2
   val NUM_DST = 1
   val NUM_PREOPS = 11
   val NUM_PREOPS_LG = log2Up(NUM_PREOPS)
-  val IMM_WIDTH = 8
   val NUM_ALUOPS_LG = 4
-  val NUM_ALUS = 2
   val NUM_BTS = 3
-  val NUM_REGBLOCKS = 14
-  val NUM_SRC_POS = 26
-  val NUM_SRC_MODES = 14
   val NUM_SRC_POS_LG = log2Up(NUM_SRC_POS)
   val NUM_SRC_MODES_LG = log2Up(NUM_SRC_MODES)
-  val NUM_DST_POS = 9
-  val NUM_DST_MODE = 10
-  val MAX_FIELD_WIDTH = 56
   // FIXME
-  //val BR_INSTR_WIDTH = 8
-  //val INSTR_WIDTH = NUM_PREOPS_LG + VLIW_OPS * (NUM_FUS_LG + 2 * NUM_REGS_LG) + BR_INSTR_WIDTH
-  val IP_WIDTH = 8
   val INSTR_WIDTH = NUM_PREOPS_LG + NUM_ALUS * (NUM_ALUOPS_LG + 3 * (NUM_SRC_POS_LG + NUM_SRC_MODES_LG) + 2 * NUM_REGS_LG) + 2 * NUM_DST * (NUM_FUS_LG + NUM_REGS_LG + 1) + NUM_FUS * (1 + NUM_FUOPS_LG) + IP_WIDTH * NUM_BTS + NUM_ALUS * IMM_WIDTH
   // val INSTR_WIDTH = 6  // 40-bits
 
@@ -1208,7 +1236,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   val GS_RET         = 11.U
   val GS_BFU         = 12.U
 
-  val reg_block_width = ArrayBuffer(96, 8, 24, 8, 1, 1, 10, 43, 3, 10, 32, 16, 9, 9)
+  // val reg_block_width = ArrayBuffer(96, 8, 24, 8, 1, 1, 10, 43, 3, 10, 32, 16, 9, 9)
   val regfile = Module(new RegRead(NUM_THREADS, NUM_ALUS, NUM_DST, NUM_REGS, REG_WIDTH, NUM_REGBLOCKS, reg_block_width))
 
   class ThreadMemT extends Bundle {
@@ -1425,10 +1453,10 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   srcA := regfile.io.rdData1
   srcB := regfile.io.rdData2
 
-  val block_widths = ArrayBuffer(0, 8, 96, 104, 108, 120, 128, 132, 136, 137, 138, 148, 152, 162, 168, 173, 182, 191, 194, 196, 204, 216, 228, 240, 252, 261)
-  val mode_bits = ArrayBuffer(1, 2, 3, 5, 6, 8, 9, 10, 12, 16, 32, 56, 56, 56)
-  val gather_aluA = Seq.fill(NUM_ALUS)(Module(new Gather(IMM_WIDTH, REG_WIDTH, NUM_SRC_POS, block_widths, MAX_FIELD_WIDTH, NUM_SRC_MODES, mode_bits)))
-  val gather_aluB = Seq.fill(NUM_ALUS)(Module(new Gather(IMM_WIDTH, REG_WIDTH, NUM_SRC_POS, block_widths, MAX_FIELD_WIDTH, NUM_SRC_MODES, mode_bits)))
+  // val src_pos = ArrayBuffer(0, 8, 96, 104, 108, 120, 128, 132, 136, 137, 138, 148, 152, 162, 168, 173, 182, 191, 194, 196, 204, 216, 228, 240, 252, 261)
+  // val src_mode = ArrayBuffer(1, 2, 3, 5, 6, 8, 9, 10, 12, 16, 32, 56, 56, 56)
+  val gather_aluA = Seq.fill(NUM_ALUS)(Module(new Gather(IMM_WIDTH, REG_WIDTH, NUM_SRC_POS, src_pos, MAX_FIELD_WIDTH, NUM_SRC_MODES, src_mode)))
+  val gather_aluB = Seq.fill(NUM_ALUS)(Module(new Gather(IMM_WIDTH, REG_WIDTH, NUM_SRC_POS, src_pos, MAX_FIELD_WIDTH, NUM_SRC_MODES, src_mode)))
   for (i <- 0 until NUM_ALUS) {
     gather_aluA(i).io.din := srcA(i)
     gather_aluA(i).io.shift := aluA_shift_vec(0)(i)
@@ -1456,10 +1484,6 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
     alus(i).io.aluOp := aluOp_vec(0)(i)
   }
 
-  // val execBundle0 = new Bundle {
-  //   val tag = UInt(NUM_THREADS_LG.W)
-  //   val bits = (new lockUInput_t)
-  // }
   val execBundle0 = new Bundle {
     val tag = UInt(NUM_THREADS_LG.W)
     val bits = (new tuple_t)
@@ -1627,12 +1651,12 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   // fuReqReadys(2) = qosCountPort.req.ready
 
   // Bypass ALU results
-  val wr_encode = ArrayBuffer(0, 2, 3, 6, 10, 17, 20, 24, 25)
-  val wr_offset = ArrayBuffer(0, 96, 104, 128, 138, 191, 204, 252, 261)
-  val wben_encode = ArrayBuffer((0, 10), (0, -1), (2, -1), (3, -1), (6, -1), (10, -1), (17, -1), (20, -1), (24, -1), (25, -1))
-  val wbens = ArrayBuffer(0x1, 0xffff, 0x6, 0xc, 0x18, 0x40, 0x100, 0x400, 0x1000, 0x2000)
+  // val wr_encode = ArrayBuffer(0, 2, 3, 6, 10, 17, 20, 24, 25)
+  // val wr_offset = ArrayBuffer(0, 96, 104, 128, 138, 191, 204, 252, 261)
+  // val dst_en_encode = Array((0, 10), (0, -1), (2, -1), (3, -1), (6, -1), (10, -1), (17, -1), (20, -1), (24, -1), (25, -1))
+  // val wbens = ArrayBuffer(0x1, 0xffff, 0x6, 0xc, 0x18, 0x40, 0x100, 0x400, 0x1000, 0x2000)
 
-  val scatter = Seq.fill(NUM_ALUS)(Module(new Scatter(REG_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_REGBLOCKS, NUM_DST_POS, wr_encode, wr_offset, NUM_DST_MODE, wben_encode, wbens)))
+  val scatter = Seq.fill(NUM_ALUS)(Module(new Scatter(REG_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_REGBLOCKS, NUM_DST_POS, dst_encode, dst_pos, NUM_DST_MODE, dst_en_encode, wbens)))
 
   for (i <- 0 until NUM_ALUS) {
     scatter(i).io.din := RegNext(preOpRes(i))
