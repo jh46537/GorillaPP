@@ -145,6 +145,6 @@ class TopTests(c: Top) extends gTester[Top](c) {
 
   expect(allPassed.B, true.B)
 
-  fileSource.close
+  // fileSource.close
   
 }
