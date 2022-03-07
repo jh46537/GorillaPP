@@ -286,7 +286,8 @@ void insert(unsigned* inst, int &idx, int &shift_w, unsigned operand, int width)
 }
 
 void instruction::assemble(ofstream &bin_file) {
-    unsigned inst[NUM_INT] = {0};
+    const int size = NUM_INT;
+    unsigned inst[size] = {0};
     int shift_w = 0;
     int i = 0;
     int j = 0;

@@ -505,6 +505,54 @@ class Scheduler(num_threads: Int, num_regfile: Int) extends Module {
   io.chosen := chosen_i(thread)
 }
 
+class Scheduler_order(num_threads: Int) extends Module {
+  val io = IO(new Bundle {
+    val valid = Input(Bool())
+    val tag = Input(UInt((log2Up(num_threads)).W))
+    val order_ready = Input(Vec(num_threads, Bool()))
+    val ready = Input(Vec(num_threads, Bool()))
+    val chosen = Output(UInt((log2Up(num_threads)+1).W))
+  })
+  val thread = RegInit(0.U(1.W))
+  val thread_count = RegInit(0.U((log2Up(num_threads) + 1).W))
+  val fifo0 = Module(new Queue(UInt((log2Up(num_threads)).W), num_threads))
+  val fifo1 = Module(new Queue(UInt((log2Up(num_threads)).W), num_threads))
+  thread := thread + 1.U
+  val chosen_i = Wire(Vec(2, UInt((log2Up(num_threads)+1).W)))
+  for (i <- 0 until 2) {
+    val cases = (0 until (num_threads/2)).map( x => io.ready(x * 2 + i) -> (x * 2 + i).U)
+    chosen_i(i) := MuxCase(num_threads.U, cases)
+  }
+  thread := thread + 1.U
+
+  fifo0.io.enq.valid := false.B
+  fifo0.io.enq.bits := DontCare
+  fifo1.io.enq.valid := false.B
+  fifo1.io.enq.bits := DontCare
+  when (io.valid) {
+    fifo0.io.enq.valid := true.B
+    fifo0.io.enq.bits := io.tag
+    fifo1.io.enq.valid := true.B
+    fifo1.io.enq.bits := io.tag
+  }
+
+  io.chosen := num_threads.U
+  fifo0.io.deq.ready := false.B
+  fifo1.io.deq.ready := false.B
+  // deq fifo0
+  val tag0 = fifo0.io.deq.bits
+  val tag1 = fifo1.io.deq.bits
+  when (fifo0.io.count > 0.U && (tag0(0) === thread) && io.order_ready(tag0)) {
+    io.chosen := fifo0.io.deq.bits
+    fifo0.io.deq.ready := true.B
+  } .elsewhen (fifo1.io.count > 0.U && (tag1(0) === thread) && io.order_ready(tag1)) {
+    io.chosen := fifo1.io.deq.bits
+    fifo1.io.deq.ready := true.B
+  } .otherwise {
+    io.chosen := chosen_i(thread)
+  }
+}
+
 class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   val io = IO(new Bundle {
     val ip         = Input(UInt(ipWidth.W))
@@ -533,7 +581,7 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
     "h00000000002af53440a181ac0c0106839c0a0252".U,
     "h0000000000cb322500c1b1ac0002031b58000401".U,
     "h0000000000600000000281348199950368033007".U,
-    "h000000000000d030402181ac0301068374000200".U,
+    "h00000000000af53440a181ac0301068374000200".U,
     "h00000000002000000002815a30180d0269030026".U,
     "h0000000000811021806340cc002a631b58005401".U,
     "h000000000f8000000002815a30018d0269033326".U,
@@ -542,7 +590,7 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
     "h00000000003000000002815a30380d0269030026".U,
     "h0000000000000000802340cd801a668374003400".U,
     "h0000000000200000802340cc0022e68374004501".U,
-    "h000000000fab335500c341ba00398b6358187301".U,
+    "h000000000fab335500c341ba00398b0358187301".U,
     "h0000100000011021004341ba000103ab9c0a0220".U,
     "h0000000000000000241b41ba000106837400020b".U,
     "h0000000000100000000341ba00000e837400000a".U,
@@ -693,20 +741,6 @@ class flowTableV extends
 
 }
 
-class fse_meta_t extends Bundle {
-  val addr3 = UInt(12.W)
-  val addr2 = UInt(12.W)
-  val addr1 = UInt(12.W)
-  val addr0 = UInt(12.W)
-  val pkt = new metadata_t
-}
-
-class fse_t extends Bundle {
-  val meta = new fse_meta_t
-  val waiting = Bool()
-  val running = Bool()
-}
-
 class flowTable(tag_width: Int, num_threads: Int) extends Module {
   val io = IO(new Bundle {
     val ch0_req_valid  = Input(Bool())
@@ -730,8 +764,24 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
     val ch1_rep_ready  = Input(Bool())
   })
 
+  class fse_meta_t extends Bundle {
+    val addr3 = UInt(12.W)
+    val addr2 = UInt(12.W)
+    val addr1 = UInt(12.W)
+    val addr0 = UInt(12.W)
+    val pkt = new metadata_t
+  }
+
+  class fse_t extends Bundle {
+    val meta = new fse_meta_t
+    val wait_head = UInt(tag_width.W)
+    val wait_tail = UInt(tag_width.W)
+    val waiting = Bool()
+    val running = Bool()
+  }
+
   val ft_inst = Module(new flowTableV)
-  val fs_table = RegInit(VecInit(Seq.fill(16)(0.U.asTypeOf(new fse_t))))
+  val fs_table = RegInit(VecInit(Seq.fill(num_threads)(0.U.asTypeOf(new fse_t))))
   val state = RegInit(0.U(3.W))
   val key = Reg(UInt(96.W))
   val opcode = Reg(UInt(2.W))
@@ -739,8 +789,8 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
   val meta_last = Reg(new fse_meta_t)
   val tag = Reg(UInt(tag_width.W))
   val tag_last = Reg(UInt(tag_width.W))
-  val isWaiting = RegInit(VecInit(Seq.fill(16)(false.B)))
-  val isRunning = RegInit(VecInit(Seq.fill(16)(false.B)))
+  val isWaiting = RegInit(VecInit(Seq.fill(num_threads)(false.B)))
+  val isRunning = RegInit(VecInit(Seq.fill(num_threads)(false.B)))
   val path_sel = Reg(Bool())
   val ch0_req_valid = Reg(Bool())
   val ch0_req_data = Reg(new ftCh0Input_t)
@@ -758,6 +808,10 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
   val ch1_wren = Reg(Bool())
   val ch1_req_data = Reg(new ftCh1Input_t)
   val ch1_req_data_valid = Reg(Bool())
+  val head = Reg(UInt(tag_width.W))
+  val tail = Reg(UInt(tag_width.W))
+  val new_pkt = Reg(Bool())
+  val new_pkt_last = Reg(Bool())
 
   // flow table channel 0 response
   ch0_q_out.tuple.sIP := ft_inst.io.ch0_q_tuple_sIP
@@ -834,6 +888,7 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
         ch0_rep_tag := io.ch0_req_tag
         ch0_rep_data.flag := 0.U
       } .otherwise {
+        new_pkt := true.B
         state := 1.U
       }
       opcode := io.ch0_req_data.ch0_opcode
@@ -854,6 +909,8 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
       ch0_rep_data.ch0_bit_map := ch0_bit_map
       ch0_rep_data.flag := 0.U
       path_sel := false.B
+      head := fs_table(tag_last).wait_head
+      tail := fs_table(tag_last).wait_tail
       when (ch0_bit_map =/= 0.U) {
         // flow entry exists
         when (meta_last.pkt.seq === ch0_q.seq) {
@@ -875,7 +932,7 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
             path_sel := true.B
             ch0_rep_data.flag := 1.U
           }
-        } .otherwise {
+        } .elsewhen (meta_last.pkt.seq > ch0_q.seq) {
           // Slow path
           path_sel := true.B
           ch0_rep_data.flag := 2.U
@@ -912,6 +969,8 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
       fs_table(tag).meta := meta
     }
 
+    head := fs_table(tag).wait_head
+    tail := fs_table(tag).wait_tail
     isWaiting := fs_table.map(fse => ((fse.meta.pkt.tuple.asUInt === key) && fse.waiting))
     isRunning := fs_table.map(fse => ((fse.meta.pkt.tuple.asUInt === key) && fse.running))
     state := 2.U
@@ -943,7 +1002,7 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
             path_sel := true.B
             ch0_rep_data.flag := 1.U
           }
-        } .otherwise {
+        } .elsewhen (meta_last.pkt.seq > ch0_q.seq) {
           path_sel := true.B
           ch0_rep_data.flag := 2.U
         }
@@ -975,9 +1034,12 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
 
     when (opcode === 1.U) {
       when (isWaiting.asUInt =/= 0.U) {
-        val hotValue = PriorityEncoder(isWaiting.asUInt)
-        meta := fs_table(hotValue).meta
-        tag := hotValue
+        // val hotValue = PriorityEncoder(isWaiting.asUInt)
+        // meta := fs_table(hotValue).meta
+        new_pkt := false.B
+        tag := head
+        meta := fs_table(head).meta
+        fs_table(head).wait_tail := tail
         state := 3.U
       } .otherwise {
         state := 4.U
@@ -995,24 +1057,123 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
       when (((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) && (!ft_inst.io.ch0_rd_stall)) {
         meta_last := meta
         tag_last := tag
-        state := 0.U
+        new_pkt_last := new_pkt
+        when (new_pkt) {
+          state := 0.U
+        } .otherwise {
+          state := 7.U
+        }
       }
     } .elsewhen ((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) {
       fs_table(tag).waiting := true.B
-      state := 0.U
+      fs_table(tag).wait_head := tag
+      fs_table(tag).wait_tail := tag
+      when (path_sel && (meta.pkt.tuple.asUInt === meta_last.pkt.tuple.asUInt)) {
+        head := tag_last
+        tail := tag_last
+      } .otherwise {
+        val hotValue = PriorityEncoder(isRunning.asUInt)
+        head := hotValue
+        tail := fs_table(hotValue).wait_tail
+      }
+      state := 5.U
     }
 
     when (path_sel) {
       fs_table(tag_last).running := true.B
+      when (new_pkt_last) {
+        fs_table(tag_last).wait_head := tag_last
+        fs_table(tag_last).wait_tail := tag_last
+      }
     }
   }
   .elsewhen (state === 4.U) {
     // no new packet
     when (path_sel) {
       fs_table(tag_last).running := true.B
+      when (new_pkt_last) {
+        fs_table(tag_last).wait_head := tag_last
+        fs_table(tag_last).wait_tail := tag_last
+      }
+      when ((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) {
+        state := 0.U
+      }
+    } .otherwise {
+      when((!new_pkt) && fs_table(head).waiting) {
+        // current thread fast path, activate waiting thread
+        new_pkt := false.B
+        tag := head
+        meta := fs_table(head).meta
+        fs_table(head).wait_tail := tail
+        state := 6.U
+      } .otherwise {
+        // current thread insert new flow or fast path
+        when ((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) {
+          state := 0.U
+        }
+      }
     }
-    when ((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) {
-      state := 0.U
+
+  }
+  .elsewhen (state === 5.U) {
+    when (fs_table(head).wait_head === head) {
+      fs_table(head).wait_head := tag
+    }
+    fs_table(head).wait_tail := tag
+    fs_table(tail).wait_head := tag
+    fs_table(tail).wait_tail := tag
+    state := 0.U
+  }
+  .elsewhen (state === 6.U) {
+    ft_inst.io.ch0_rden := true.B
+    fs_table(tag).waiting := false.B
+    when (((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) && (!ft_inst.io.ch0_rd_stall)) {
+      meta_last := meta
+      tag_last := tag
+      new_pkt_last := new_pkt
+      state := 7.U
+    }
+  }
+  .elsewhen (state === 7.U) {
+    when (ch0_rd_valid) {
+      // last packet returns
+      state := 4.U
+      ch0_rd_ready := true.B
+      ch0_rep_valid := true.B
+      ch0_rep_tag := tag_last
+      ch0_rep_data.ch0_q := ch0_q
+      ch0_rep_data.ch0_bit_map := ch0_bit_map
+      ch0_rep_data.flag := 0.U
+      path_sel := false.B
+      head := fs_table(tag_last).wait_head
+      tail := fs_table(tag_last).wait_tail
+      when (ch0_bit_map =/= 0.U) {
+        // flow entry exists
+        when (meta_last.pkt.seq === ch0_q.seq) {
+          when (ch0_q.slow_cnt === 0.U) {
+            // Fast path
+            ch1_wren := true.B
+            ch1_req_data.ch1_data := ch0_q
+            ch1_req_data_valid := true.B
+            ch1_req_data.ch1_data.seq := meta_last.pkt.seq + meta_last.pkt.len
+            ch1_req_data.ch1_bit_map := ch0_bit_map
+            when ((meta_last.pkt.tcp_flags & 5.U) =/= 0.U) {
+              ch1_req_data.ch1_opcode := 3.U
+              ch1_req_data_valid := false.B
+            } .otherwise {
+              ch1_req_data.ch1_opcode := 2.U
+            }
+          } .otherwise {
+            // Slow path
+            path_sel := true.B
+            ch0_rep_data.flag := 1.U
+          }
+        } .otherwise {
+          // Slow path
+          path_sel := true.B
+          ch0_rep_data.flag := 2.U
+        }
+      }
     }
   }
 
@@ -1177,6 +1338,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
 
   object ThreadStageEnum extends ChiselEnum {
     val idle   = Value
+    val order_fetch = Value
     val fetch  = Value
     val decode = Value
     val read   = Value
@@ -1219,6 +1381,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
     val execValids  = Vec(NUM_FUS, Bool())
     val execDone    = Bool()
     val finish      = Bool()
+    val order_ready = Bool()
   }
   val threadStates  = Reg(Vec(NUM_THREADS, ThreadStateT))
 
@@ -1277,6 +1440,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   val in_tag_d0 = Reg(UInt((TAGWIDTH*2).W))
   val in_valid_d0 = Reg(Bool())
   val sThread_reg = RegInit(NONE_SELECTED)
+  val vThreadEncoder = Module(new Scheduler_order(NUM_THREADS))
   Range(0, NUM_THREADS, 1).map(i =>
     sThreadEncoder.io.valid(i) := threadStages(i) === ThreadStageEnum.idle)
   sThreadEncoder.io.ready := sThread =/= NONE_SELECTED
@@ -1287,16 +1451,20 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   in_bits_d0 := io.in.bits
 
   when (sThread =/= NONE_SELECTED && io.in.valid) {
-    threadStages(sThread) := ThreadStageEnum.fetch
+    threadStages(sThread) := ThreadStageEnum.order_fetch
 
     // threadStates(sThread).tag := io.in.tag
     // threadStates(sThread).input := io.in.bits
     in_valid_d0 := true.B
     threadStates(sThread).ip := 0.U(IP_WIDTH.W)
     io.in.ready := true.B
+    vThreadEncoder.io.valid := true.B
+    vThreadEncoder.io.tag := sThread
   }
   .otherwise {
     in_valid_d0 := false.B
+    vThreadEncoder.io.valid := false.B
+    vThreadEncoder.io.tag := DontCare
   }
 
   when (in_valid_d0) {
@@ -1313,11 +1481,14 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   /****************** Scheduler logic *********************************/
   // select valid thread
   // val vThreadEncoder = Module(new RREncode(NUM_THREADS))
-  val vThreadEncoder = Module(new Scheduler(NUM_THREADS, scala.math.pow(2, log2Up(NUM_ALUS)).toInt))
+  // val vThreadEncoder = Module(new Scheduler(NUM_THREADS, scala.math.pow(2, log2Up(NUM_ALUS)).toInt))
   val vThread = vThreadEncoder.io.chosen
+  // Range(0, NUM_THREADS, 1).map(i =>
+  //   vThreadEncoder.io.valid(i) := (threadStages(i) === ThreadStageEnum.fetch))
   Range(0, NUM_THREADS, 1).map(i =>
-    vThreadEncoder.io.valid(i) := (threadStages(i) === ThreadStageEnum.fetch))
-  // vThreadEncoder.io.ready := vThread =/= NONE_SELECTED
+    vThreadEncoder.io.order_ready(i) := (threadStages(i) === ThreadStageEnum.order_fetch))
+  Range(0, NUM_THREADS, 1).map(i =>
+    vThreadEncoder.io.ready(i) := (threadStages(i) === ThreadStageEnum.fetch))
 
   /****************** Fetch logic *********************************/
   val fetchUnit = Module(new Fetch(NUM_THREADS, IP_WIDTH, INSTR_WIDTH))
@@ -1875,7 +2046,11 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
       threadStages(branchThread_d0) := ThreadStageEnum.idle
     }
     .otherwise {
-      threadStages(branchThread_d0) := ThreadStageEnum.fetch
+      when (threadStates(branchThread_d0).ip > 0.U) {
+        threadStages(branchThread_d0) := ThreadStageEnum.fetch
+      } .otherwise {
+        threadStages(branchThread_d0) := ThreadStageEnum.order_fetch
+      }
     }
   }
   .otherwise {

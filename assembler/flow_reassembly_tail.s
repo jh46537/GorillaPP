@@ -65,7 +65,7 @@ FT;FTB,R0,uint,0,R2,uint10,10,uint10,0;FTA,R0,uint,0,R2,uint,0,uint,0; ; ; ;MALL
 ALUA;NEQ,R2,uint10,10,R0,uimm8,0,uint,0;FTA,R2,uint9,24,R0,uint,0,uint9,0; ; ; ;LOOKUP; ;WEN;R3;R5;2;0;0;0;0;#          #check empty, look up tail
 BR;FTA,R4,uint9,0,R0,uint,0,uint9,6;FTA,R4,uint9,0,R0,uint,0,uint9,24; ; ; ; ;WEN;WEN;R2;R2;12;0;0;0;0;#                #goto update ft
 GE;FTA,R0,uint32,3,R3,uint,0,uint32,0;ADD,R3,uint32,3,R3,uint16,8,uint32,0; ; ; ; ; ; ; ; ;6;0;0;0;0;#                  #if true, go to insert tail
-FT;FTA,R2,uint,0,R0,uint,0,uint,0;FTA,R2,uint9,6,R0,uint,0,uint9,0; ; ; ;LOOKUP; ; ;R3; ;0;0;0;0;0;
+FT;FTA,R2,uint,0,R0,uint,0,uint,0;FTA,R2,uint9,6,R0,uint,0,uint9,0; ; ; ;LOOKUP; ;WEN;R3;R5;0;0;0;0;0;
 GT;ADD,R0,uint32,3,R0,uint16,8,uint32,0;FTB,R0,uint,0,R3,uint32,3,uint32,0; ; ; ; ; ; ; ; ;2;0;0;0;0;#                  #check head seq
 BR;FTA,R4,uint9,0,R5,uint,0,uint9,6;CAT,R4,uint9,0,R5,uint9,0,uint,0; ; ; ;UPDATE0;WEN; ;R2; ;8;0;0;0;0;#               #goto update ft
 GT;ADD,R3,uint32,3,R3,uint16,8,uint32,0;FTB,R3,uint,0,R0,uint32,3,uint32,0; ; ; ; ; ; ; ; ;-8;0;0;0;0;#                 #goto drop if true
@@ -74,7 +74,7 @@ BR;FTB,R5,uint,0,R4,uint,0,uint9,24;CAT,R5,uint9,0,R4,uint9,0,uint,0; ; ; ;UPDAT
 GT;ADD,R0,uint32,3,R0,uint16,8,uint32,0;FTB,R0,uint,0,R7,uint32,3,uint32,0; ; ; ; ; ; ; ; ;3;0;0;0;0;#                  #compare next seq
 FT;FTA,R4,uint,0,R3,uint,0,uint,0;CAT,R4,uint9,0,R3,uint9,24,uint,0; ; ; ;UPDATE0; ; ; ; ;0;0;0;0;0;#                   #insert
 BR;FTA,R5,uint,0,R4,uint,0,uint,0;CAT,R5,uint9,0,R4,uint9,0,uint,0; ; ; ;UPDATE0; ; ; ; ;2;0;0;0;0;#                    #goto update ft
-BR;FTA,R3,uint9,24,R7,uint,0,uint9,24;FTB,R3,uint,0,R7,uint,0,uint,0; ; ; ; ;WEN;WEN;R5;R3;-6;0;0;0;0;
+BR;FTA,R3,uint9,24,R7,uint,0,uint9,0;FTB,R3,uint,0,R7,uint,0,uint,0; ; ; ; ;WEN;WEN;R5;R3;-6;0;0;0;0;
 FT;ADD,R2,uint10,10,R0,uimm8,0,uint10,10;FTA,R2,uint,0,R0,uint,0,uint,0; ; ; ; ;WEN; ;R2; ;0;0;0;1;0;#                  #increment slow_cnt
 RET;FTA,R2,uint,0,R0,uint,0,uint,0;FTA,R2,uint,0,R0,uint,0,uint,0; ;UNLOCK;UPDATE; ; ; ; ; ;0;0;0;0;0;#                 #update ft and return
 OUTPUTRET;FTA,R0,uint,0,R0,uint,0,uint,0;FTB,R0,uint,0,R0,uint,0,uint,0; ; ; ; ; ; ; ; ;1;0;0;0;0;#                     #output, ret
