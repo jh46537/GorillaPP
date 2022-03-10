@@ -16,7 +16,7 @@
 #define NUM_SRC_MODE 14
 #define NUM_SRC_MODE_LG int(ceil(log2(NUM_SRC_MODE)))
 #define NUM_FUOPS_LG 2
-#define NUM_FUS 6
+#define NUM_FUS 5
 #define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
 #define NUM_DEST 2
 #define NUM_REGS_LG 4
@@ -44,11 +44,12 @@ class instruction
         {"OR"        , 5},
         {"GT"        , 6},
         {"GE"        , 7},
-        {"INPUT"     , 8},
-        {"OUTPUT"    , 9},
-        {"OUTPUTRET" , 10},
-        {"RET"       , 11},
-        {"FU"        , 12}
+        {"EQ"        , 8},
+        {"NEQ"       , 9},
+        {"INPUT"     , 10},
+        {"OUTPUT"    , 11},
+        {"OUTPUTRET" , 12},
+        {"RET"       , 13}
     };
 
     const map<string, int> aluOp_dict {
@@ -104,7 +105,6 @@ class instruction
     };
 
     const map<string, fuOp_t> fuOp_dict {
-        {"HASH"    , {0, 1}},
         {"FTLOOKUP", {0, 1}},
         {"UNLOCK"  , {1, 0}},
         {"INSERT"  , {1, 0}},
@@ -113,7 +113,8 @@ class instruction
         {"MALLOC"  , {0, 1}},
         {"LOOKUP"  , {1, 1}},
         {"UPDATE0" , {2, 0}},
-        {"UPDATE1" , {3, 0}},
+        // {"UPDATE1" , {3, 0}},
+        {"RELEASE" , {3, 0}},
         {"EN"      , {0, 0}},
         {"WEN"     , {1, 1}}
     };

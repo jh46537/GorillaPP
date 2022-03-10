@@ -15,6 +15,5 @@ class Top extends Module with GorillaUtil {
   val io = IO(new gInOutOffBundle(new metadata_t, new metadata_t))
   val main = MTEngine("pktReassembly.c", 16)
   val dynamicMem = Engine("dynamicMem.c")
-  val hash = Engine("hash.c")
-  val result = Offload(Offload(main, hash, "hash"), dynamicMem, "dynamicMem")
+  val result = Offload(main, dynamicMem, "dynamicMem")
 }

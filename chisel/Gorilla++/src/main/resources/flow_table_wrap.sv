@@ -1,3 +1,14 @@
+parameter PROT_TCP = 8'h06;
+parameter PROT_UDP = 8'h11;
+parameter TCP_FIN = 0;
+parameter TCP_SYN = 1;
+parameter TCP_RST = 2;
+parameter TCP_PSH = 3;
+parameter TCP_FACK = 4;
+parameter TCP_URG = 5;
+parameter TCP_ECE = 6;
+parameter TCP_CWR = 7;
+parameter TCP_NS = 8;
 parameter PKT_NUM = 1024;
 parameter PKT_AWIDTH    = ($clog2(PKT_NUM));
 parameter LL_DEPTH      = (PKT_NUM/2);
@@ -17,6 +28,8 @@ parameter FT_UPDATE=2;
 parameter FT_DELETE=3;
 parameter PQ_OP_FAST_INSERT = 0;
 parameter PQ_OP_FAST_DELETE = 1;
+parameter TAG_WIDTH = 5;
+parameter NUM_THREADS = 16;
 
 typedef struct packed {
     logic [31:0] sIP;
@@ -24,6 +37,21 @@ typedef struct packed {
     logic [15:0] sPort;
     logic [15:0] dPort;
 } tuple_t;
+
+typedef struct packed {
+    logic [7:0] prot;
+    tuple_t tuple;
+    logic [31:0] seq;
+    logic [15:0] len;               // Payload length
+    logic [PKT_AWIDTH-1:0] pktID;
+    logic [5:0] empty;
+    logic [4:0] flits;              // Total number of flits
+    logic [8:0] hdr_len;            // In bytes
+    logic [8:0] tcp_flags;
+    logic [2:0] pkt_flags;
+    logic [1:0] pdu_flag;
+    logic [55:0] last_7_bytes;
+} metadata_t; // Metadata
 
 typedef struct packed {
     tuple_t tuple;
@@ -48,6 +76,121 @@ typedef struct packed {
     logic [FT_AWIDTH-1:0] addr3;
     logic [LL_AWIDTH-1:0] pointer2;
 } fce_t; // Flow context entry
+
+typedef struct packed { 
+    logic [2:0] ch0_opcode;
+    metadata_t ch0_pkt;
+} ftCh0Input_t;
+
+typedef struct packed { 
+    logic [1:0] flag;
+    logic [4:0] ch0_bit_map;
+    fce_t ch0_q;
+} ftCh0Output_t;
+
+typedef struct packed { 
+    logic [2:0] ch1_opcode;
+    logic [4:0] ch1_bit_map;
+    fce_t ch1_data;
+} ftCh1Input_t;
+
+typedef struct packed {
+    metadata_t meta;
+    logic [TAG_WIDTH-1:0] wait_next;
+    logic [TAG_WIDTH-1:0] wait_tail;
+    logic is_tail;
+} fse_t;
+
+module hash_func (
+    input                   clk,
+    input                   rst,
+    input                   stall,
+    input   logic [31:0]    initval,
+    input   tuple_t         tuple_in,
+    input                   tuple_in_valid,
+    output  logic           hashed_valid,
+    output  logic [31:0]    hashed
+);
+
+logic [31:0] a;
+logic [31:0] b;
+logic [31:0] c;
+logic [31:0] a1;
+logic [31:0] b1;
+logic [31:0] c1;
+logic [31:0] a2;
+logic [31:0] b2;
+logic [31:0] c2;
+logic [31:0] a3;
+logic [31:0] b3;
+logic [31:0] c3;
+logic [31:0] a4;
+logic [31:0] b4;
+logic [31:0] c4;
+logic [31:0] a5;
+logic [31:0] b5;
+logic [31:0] c5;
+logic [31:0] a6;
+logic [31:0] b6;
+logic [31:0] c6;
+
+logic valid;
+logic valid1;
+logic valid2;
+logic valid3;
+logic valid4;
+logic valid5;
+logic valid6;
+
+logic [95:0] key;
+assign key = {tuple_in.sIP, tuple_in.sPort,
+              tuple_in.dIP, tuple_in.dPort};
+
+// Pipelined design
+always @(posedge clk) begin
+    if (!stall) begin
+        valid <= tuple_in_valid;
+        valid1 <= valid;
+        valid2 <= valid1;
+        valid3 <= valid2;
+        valid4 <= valid3;
+        valid5 <= valid4;
+        valid6 <= valid5;
+        hashed_valid <= valid6;
+
+        a <= 32'hdeadbefb + key[31:0] + initval;
+        b <= 32'hdeadbefb + key[63:32] + initval;
+        c <= 32'hdeadbefb + key[95:64] + initval;
+
+        a1 <= a;
+        b1 <= b;
+        c1 <= (c ^ b) - {b[17:0], b[31:18]};
+
+        a2 <= (a1 ^ c1) - {c1[20:0], c1[31:21]};
+        b2 <= b1;
+        c2 <= c1;
+
+        a3 <= a2;
+        b3 <= (b2 ^ a2) - {a2[6:0], a2[31:7]};
+        c3 <= c2;
+
+        a4 <= a3;
+        b4 <= b3;
+        c4 <= (c3 ^ b3) - {b3[15:0], b3[31:16]};
+
+        a5 <= (a4 ^ c4) - {c4[27:0], c4[31:28]};
+        b5 <= b4;
+        c5 <= c4;
+
+        a6 <= a5;
+        b6 <= (b5 ^ a5) - {a5[17:0], a5[31:18]};
+        c6 <= c5;
+
+        hashed <= (c6 ^ b6) - {b6[7:0], b6[31:8]};
+    end
+end
+
+endmodule
 
 module rr_arbiter_4(clk,rst,
     req,grant
@@ -1584,67 +1727,74 @@ rr_arbiter_4 port_b_arb (
 
 endmodule
 
+module flowTableV
+(
+    input                        clk,
+    input                        rst,
 
-module flowTableV (
-    input clk,
-    input rst,
+    input  logic                 ch0_req_valid,
+    input  logic [TAG_WIDTH-1:0] ch0_req_tag,
+    input  ftCh0Input_t          ch0_req_data,
+    output logic                 ch0_req_ready,
 
-    input  [31:0] ch0_meta_tuple_sIP,
-    input  [31:0] ch0_meta_tuple_dIP,
-    input  [15:0] ch0_meta_tuple_sPort,
-    input  [15:0] ch0_meta_tuple_dPort,
-    input  [11:0] ch0_meta_addr0,
-    input  [11:0] ch0_meta_addr1,
-    input  [11:0] ch0_meta_addr2,
-    input  [11:0] ch0_meta_addr3,
-    input  [2:0]  ch0_meta_opcode,
-    input         ch0_rden,
-    output        ch0_q_valid,
-    output [31:0] ch0_q_tuple_sIP,
-    output [31:0] ch0_q_tuple_dIP,
-    output [15:0] ch0_q_tuple_sPort,
-    output [15:0] ch0_q_tuple_dPort,
-    output [31:0] ch0_q_seq,
-    output [8:0]  ch0_q_pointer,
-    output        ch0_q_ll_valid,
-    output [9:0]  ch0_q_slow_cnt,
-    output [55:0] ch0_q_last_7_bytes,
-    output [11:0] ch0_q_addr0,
-    output [11:0] ch0_q_addr1,
-    output [11:0] ch0_q_addr2,
-    output [11:0] ch0_q_addr3,
-    output [8:0]  ch0_q_pointer2,
-    output        ch0_rd_valid,
-    output [4:0]  ch0_bit_map,
-    output        ch0_rd_stall,
+    output logic                 ch0_rep_valid,
+    output logic [TAG_WIDTH-1:0] ch0_rep_tag,
+    output ftCh0Output_t         ch0_rep_data,
+    input  logic                 ch0_rep_ready,
 
-    input  [2:0]  ch1_opcode,
-    input  [4:0]  ch1_bit_map,
-    input         ch1_wren,
-    input         ch1_data_valid,
-    input  [31:0] ch1_data_tuple_sIP,
-    input  [31:0] ch1_data_tuple_dIP,
-    input  [15:0] ch1_data_tuple_sPort,
-    input  [15:0] ch1_data_tuple_dPort,
-    input  [31:0] ch1_data_seq,
-    input  [8:0]  ch1_data_pointer,
-    input         ch1_data_ll_valid,
-    input  [9:0]  ch1_data_slow_cnt,
-    input  [55:0] ch1_data_last_7_bytes,
-    input  [11:0] ch1_data_addr0,
-    input  [11:0] ch1_data_addr1,
-    input  [11:0] ch1_data_addr2,
-    input  [11:0] ch1_data_addr3,
-    input  [8:0]  ch1_data_pointer2,
-    output        ch1_insert_stall
+    input  logic                 ch1_req_valid,
+    input  logic [TAG_WIDTH-1:0] ch1_req_tag,
+    input  ftCh1Input_t          ch1_req_data,
+    output logic                 ch1_req_ready,
+
+    output logic                 ch1_rep_valid,
+    output logic [TAG_WIDTH-1:0] ch1_rep_tag,
+    output logic [7:0]           ch1_rep_data,
+    input  logic                 ch1_rep_ready
 );
+
+tuple_t         h0_tuple_in;
+logic           h0_tuple_in_valid;
+logic [31:0]    h0_initval;
+logic [31:0]    h0_hashed;
+logic           h0_hashed_valid;
+
+tuple_t         h1_tuple_in;
+logic           h1_tuple_in_valid;
+logic [31:0]    h1_initval;
+logic [31:0]    h1_hashed;
+logic           h1_hashed_valid;
+
+tuple_t         h2_tuple_in;
+logic           h2_tuple_in_valid;
+logic [31:0]    h2_initval;
+logic [31:0]    h2_hashed;
+logic           h2_hashed_valid;
+
+tuple_t         h3_tuple_in;
+logic           h3_tuple_in_valid;
+logic [31:0]    h3_initval;
+logic [31:0]    h3_hashed;
+logic           h3_hashed_valid;
 
 // Read channel 0
 fce_meta_t              ch0_meta;
+logic                   ch0_rden;
 fce_t                   ch0_q;
+logic                   ch0_rd_valid;
+logic [FT_SUBTABLE:0]   ch0_bit_map;
+logic                   ch0_rd_stall;
 
 // Write channel 1
+logic [2:0]             ch1_opcode;
+logic [FT_SUBTABLE:0]   ch1_bit_map;
+logic                   ch1_wren;
 fce_t                   ch1_data;
+logic [2:0]             ch1_opcode_i;
+logic [FT_SUBTABLE:0]   ch1_bit_map_i;
+logic                   ch1_wren_i;
+fce_t                   ch1_data_i;
+logic                   ch1_insert_stall;
 
 // Read channel 2
 fce_meta_t              ch2_meta;
@@ -1660,50 +1810,600 @@ logic                   ch3_ready;
 fce_t                   ch3_data;
 logic [PKT_AWIDTH-1:0]  ch3_rel_pkt_cnt;
 
-assign ch0_meta.tuple.sIP = ch0_meta_tuple_sIP;
-assign ch0_meta.tuple.dIP = ch0_meta_tuple_dIP;
-assign ch0_meta.tuple.sPort = ch0_meta_tuple_sPort;
-assign ch0_meta.tuple.dPort = ch0_meta_tuple_dPort;
-assign ch0_meta.addr0 = ch0_meta_addr0;
-assign ch0_meta.addr1 = ch0_meta_addr1;
-assign ch0_meta.addr2 = ch0_meta_addr2;
-assign ch0_meta.addr3 = ch0_meta_addr3;
-assign ch0_meta.opcode = ch0_meta_opcode;
-assign ch0_q_valid = ch0_q.valid;
-assign ch0_q_tuple_sIP = ch0_q.tuple.sIP;
-assign ch0_q_tuple_dIP = ch0_q.tuple.dIP;
-assign ch0_q_tuple_sPort = ch0_q.tuple.sPort;
-assign ch0_q_tuple_dPort = ch0_q.tuple.dPort;
-assign ch0_q_seq = ch0_q.seq;
-assign ch0_q_pointer = ch0_q.pointer;
-assign ch0_q_ll_valid = ch0_q.ll_valid;
-assign ch0_q_slow_cnt = ch0_q.slow_cnt;
-assign ch0_q_last_7_bytes = ch0_q.last_7_bytes;
-assign ch0_q_addr0 = ch0_q.addr0;
-assign ch0_q_addr1 = ch0_q.addr1;
-assign ch0_q_addr2 = ch0_q.addr2;
-assign ch0_q_addr3 = ch0_q.addr3;
-assign ch0_q_pointer2 = ch0_q.pointer2;
-assign ch1_data.valid = ch1_data_valid;
-assign ch1_data.tuple.sIP = ch1_data_tuple_sIP;
-assign ch1_data.tuple.dIP = ch1_data_tuple_dIP;
-assign ch1_data.tuple.sPort = ch1_data_tuple_sPort;
-assign ch1_data.tuple.dPort = ch1_data_tuple_dPort;
-assign ch1_data.seq = ch1_data_seq;
-assign ch1_data.pointer = ch1_data_pointer;
-assign ch1_data.ll_valid = ch1_data_ll_valid;
-assign ch1_data.slow_cnt = ch1_data_slow_cnt;
-assign ch1_data.last_7_bytes = ch1_data_last_7_bytes;
-assign ch1_data.addr0 = ch1_data_addr0;
-assign ch1_data.addr1 = ch1_data_addr1;
-assign ch1_data.addr2 = ch1_data_addr2;
-assign ch1_data.addr3 = ch1_data_addr3;
-assign ch1_data.pointer2 = ch1_data_pointer2;
+logic out_meta_valid, out_meta_valid_n;
+logic [TAG_WIDTH-1:0] out_meta_tag, out_meta_tag_n;
+ftCh0Output_t out_meta_data;
+
+ftCh0Input_t m0;
+ftCh0Input_t m1;
+ftCh0Input_t m2;
+ftCh0Input_t m3;
+ftCh0Input_t m4;
+ftCh0Input_t m5;
+ftCh0Input_t m6;
+ftCh0Input_t m7;
+
+logic [TAG_WIDTH-1:0] ch0_req_tag_vec [0:7];
+
+// Signal for forwarding
+logic f_pkt; // Not-forward pkt;
+logic ack_pkt; // Not-forward pkt;
+logic udp_pkt; // Not-forward pkt;
+
+logic stall;
+
+///////// Forward pkts /////////////////////////
+// Packets which are either ACK (0 length) OR
+// UDP can be forwarded without touching the HT.
+logic forward_meta_valid;
+logic forward_meta_ready;
+logic [1:0] forward_meta_flag;
+logic [TAG_WIDTH-1:0] forward_meta_tag;
+
+assign ack_pkt             = (ch0_req_data.ch0_pkt.tcp_flags == (1'b1 << TCP_FACK)) & (ch0_req_data.ch0_pkt.len == 0);
+assign udp_pkt             = (ch0_req_data.ch0_pkt.prot == PROT_UDP);
+assign f_pkt               = ack_pkt | udp_pkt;
+always_ff @(posedge clk) begin
+    if (forward_meta_ready) begin
+        if (ch0_req_valid && f_pkt) begin
+            forward_meta_valid <= 1'b1;
+            forward_meta_flag <= 'b0;
+            forward_meta_tag <= ch0_req_tag;
+        end else begin
+            forward_meta_valid <= 1'b0;
+        end
+    end
+end
+
+assign forward_meta_ready = !out_meta_valid;
+assign ch0_rep_valid = forward_meta_valid | out_meta_valid;
+assign ch0_rep_data.ch0_q = out_meta_data.ch0_q;
+assign ch0_rep_data.ch0_bit_map = out_meta_data.ch0_bit_map;
+assign ch0_rep_data.flag = out_meta_valid ? out_meta_data.flag : forward_meta_flag;
+assign ch0_rep_tag = out_meta_valid ? out_meta_tag : forward_meta_tag;
+assign ch0_req_ready = f_pkt ? forward_meta_ready : (!stall);
+
+
+logic [2:0] state, state_n;
+logic [TAG_WIDTH-1:0] tag, tag_n;
+logic [TAG_WIDTH-1:0] tag_last, tag_last_n;
+logic [TAG_WIDTH-1:0] tag_conflict, tag_conflict_n;
+logic [1:0] opcode, opcode_n;
+metadata_t meta, meta_n;
+metadata_t meta_last, meta_last_n;
+logic path_sel;
+logic [TAG_WIDTH-1:0] head, head_n;
+logic [TAG_WIDTH-1:0] tail, tail_n;
+logic new_packet, new_packet_n;
+logic new_packet_last, new_packet_last_n;
+fse_t fs_table [0:NUM_THREADS-1];
+logic [3:0] fs_table_wen0;
+logic [3:0] fs_table_wen1;
+logic [TAG_WIDTH-1:0] fs_table_waddr0;
+fse_t fs_table_wdata0;
+logic [TAG_WIDTH-1:0] fs_table_waddr1;
+fse_t fs_table_wdata1;
+logic [TAG_WIDTH-1:0] fs_table_raddr;
+fse_t fs_table_rdata;
+logic is_tail, is_tail_n;
+logic [NUM_THREADS-1:0] fs_table_running, fs_table_running_n;
+logic [47:0] key, key_n;
+logic [47:0] key_last, key_last_n;
+logic [47:0] fs_table_hash [0:NUM_THREADS-1];
+logic [47:0] fs_table_hash_n [0:NUM_THREADS-1];
+logic [NUM_THREADS-1:0] conflict, conflict_n;
+int i;
+logic ch0_rd_ready;
+always_comb begin
+    state_n = state;
+    opcode_n = opcode;
+    meta_n = meta;
+    meta_last_n = meta_last;
+    head_n = head;
+    tail_n = tail;
+    is_tail_n = is_tail;
+    conflict_n = conflict;
+    fs_table_running_n = fs_table_running;
+    fs_table_hash_n = fs_table_hash;
+    key_n = key;
+    key_last_n = key_last;
+    tag_n = tag;
+    tag_last_n = tag_last;
+    tag_conflict_n = tag_conflict;
+    out_meta_valid_n = 1'b0;
+    out_meta_tag_n = out_meta_tag;
+    ch0_rden = 1'b0;
+    ch0_meta.addr0 = key[11:0];
+    ch0_meta.addr1 = key[23:12];
+    ch0_meta.addr2 = key[35:24];
+    ch0_meta.addr3 = key[47:36];
+    ch0_meta.tuple = meta.tuple;
+    ch0_meta.opcode = 0;
+    ch0_rd_ready = 1'b0;
+    stall = 'b1;
+    forward_meta_ready = 'b1;
+    fs_table_wen0 = 'd0;
+    fs_table_waddr0 = tag;
+    fs_table_wdata0.meta = meta;
+    fs_table_wdata0.wait_next = 'd0;
+    fs_table_wdata0.wait_tail = 'd0;
+    fs_table_wdata0.is_tail = 'b0;
+    fs_table_wen1 = 'd0;
+    fs_table_waddr1 = head;
+    fs_table_wdata1.meta = meta;
+    fs_table_wdata1.wait_next = 'd0;
+    fs_table_wdata1.wait_tail = 'd0;
+    fs_table_wdata1.is_tail = 'b0;
+    case (state)
+        3'd0: begin
+            fs_table_raddr = head;
+            if (ch0_rd_valid) begin
+                if (!ch1_insert_stall) begin
+                    out_meta_valid_n = 1'b1;
+                    out_meta_tag_n = tag_last;
+                    state_n = 3'd4;
+                end
+            end else if (h0_hashed_valid) begin
+                stall = 1'b0;
+                state_n = 3'd1;
+                meta_n = m7.ch0_pkt;
+                key_n = {h3_hashed, h2_hashed, h1_hashed, h0_hashed};
+                tag_n = ch0_req_tag_vec[7];
+                fs_table_hash_n[tag_n] = key_n;
+                fs_table_raddr = tag_n;
+                opcode_n = m7.ch0_opcode;
+                if (m7.ch0_opcode == 1) begin
+                    fs_table_running_n[tag_n] = 1'b0;
+                    out_meta_valid_n = 1'b1;
+                    out_meta_tag_n = tag_n;
+                end
+            end else begin
+                stall = 1'b0;
+            end
+        end
+        3'd1: begin
+            conflict_n = 'd0;
+            for (i = 0; i < NUM_THREADS; i=i+1) begin
+                if (fs_table_hash[i] == key && fs_table_running[i]) begin
+                    conflict_n[i] = 1'b1;
+                end
+            end
+            if (opcode == 0) begin
+                fs_table_wen0 = 4'b1111;
+                fs_table_waddr0 = tag;
+                fs_table_wdata0.meta = meta;
+                fs_table_wdata0.wait_next = tag;
+                fs_table_wdata0.wait_tail = tag;
+                fs_table_wdata0.is_tail = 1'b1;
+                head_n = tag;
+                tail_n = tag;
+                is_tail_n = 1'b1;
+            end else begin
+                head_n = fs_table_rdata.wait_next;
+                tail_n = fs_table_rdata.wait_tail;
+                is_tail_n = fs_table_rdata.is_tail;
+            end
+            fs_table_raddr = fs_table_rdata.wait_next;
+
+            if (ch0_rd_valid && (!ch1_insert_stall)) begin
+                out_meta_valid_n = 1'b1;
+                out_meta_tag_n = tag_last;
+            end
+            state_n = 3'd2;
+        end
+        3'd2: begin
+            fs_table_raddr = head;
+            if (!ch0_rd_valid || !ch1_insert_stall) begin
+                for (i = 0; i < NUM_THREADS; i=i+1) begin
+                    if (conflict[i]) begin
+                        fs_table_raddr = i;
+                        tag_conflict_n = i;
+                    end
+                end
+                if (opcode == 1) begin
+                    if (!is_tail) begin
+                        tag_n = head;
+                        meta_n = fs_table_rdata.meta;
+                        head_n = fs_table_rdata.wait_next;
+                        tail_n = fs_table_rdata.wait_tail;
+                        fs_table_waddr0 = head;
+                        fs_table_wen0 = 6'b0010;
+                        fs_table_wdata0.wait_tail = tail;
+                        state_n = 3'd3;
+                    end else begin
+                        state_n = 3'd4;
+                    end
+                end else begin
+                    state_n = 3'd3;
+                end
+
+                if (ch0_rd_valid) begin
+                    out_meta_valid_n = 1'b1;
+                    out_meta_tag_n = tag_last;
+                end
+            end
+        end
+        3'd3: begin
+            fs_table_raddr = tag;
+            if ((conflict == 0) && (!((path_sel != 0) && (key == key_last)))) begin
+                // No conflict
+                ch0_rden = 1'b1;
+                if (!ch0_rd_stall) begin
+                    ch0_rd_ready = 1'b1;
+                    meta_last_n = meta;
+                    tag_last_n = tag;
+                    key_last_n = key;
+                    if (opcode == 1) begin
+                        state_n = 3'd7;
+                    end else begin
+                        state_n = 3'd0;
+                    end
+                end
+            end else begin
+                // Conflict
+                ch0_rd_ready = 1'b1;
+                fs_table_waddr0 = tag;
+                fs_table_wen0 = 4'b0111;
+                fs_table_wdata0.wait_next = tag;
+                fs_table_wdata0.wait_tail = tag;
+                fs_table_wdata0.is_tail = 1'b1;
+                state_n = 3'd5;
+                if ((path_sel != 0) && (key == key_last)) begin
+                    head_n = tag_last;
+                    tail_n = tag_last;
+                end else begin
+                    head_n = tag_conflict;
+                    tail_n = fs_table_rdata.wait_tail;
+                end
+            end
+
+            if (path_sel != 0) begin
+                fs_table_running_n[tag_last] = 1'b1;
+            end
+        end
+        3'd4: begin
+            // no new packet
+            fs_table_raddr = head;
+            ch0_rd_ready = 1'b1;
+            if (path_sel != 0) begin
+                fs_table_running_n[tag_last] = 1'b1;
+                state_n = 1'b0;
+            end else begin
+                if (!is_tail) begin
+                    // activate next thread
+                    tag_n = head;
+                    fs_table_waddr0 = head;
+                    fs_table_wdata0.wait_tail = tail;
+                    meta_n = fs_table_rdata.meta;
+                    state_n = 3'd6;
+                end else begin
+                    state_n = 1'b0;
+                end
+            end
+        end
+        3'd5: begin
+            fs_table_raddr = head;
+            fs_table_waddr0 = tail;
+            fs_table_wdata0.wait_next = tag;
+            fs_table_wdata0.wait_tail = tag;
+            fs_table_wdata0.is_tail = 1'b0;
+            fs_table_wen0 = 4'b0111;
+            if (head != tail) begin
+                fs_table_waddr1 = head;
+                fs_table_wdata1.wait_tail = tag;
+                fs_table_wen1 = 4'b0010;
+            end
+            state_n = 3'd0;
+        end
+        3'd6: begin
+            fs_table_raddr = tag;
+            ch0_rden = 1'b1;
+            if (!ch0_rd_stall) begin
+                tag_last_n = tag;
+                key_last_n = key;
+                meta_last_n = meta;
+                state_n = 3'd7;
+            end
+        end
+        3'd7: begin
+            fs_table_raddr = tag;
+            if (ch0_rd_valid && (!ch1_insert_stall)) begin
+                head_n = fs_table_rdata.wait_next;
+                tail_n = fs_table_rdata.wait_tail;
+                is_tail_n = fs_table_rdata.is_tail;
+                fs_table_raddr = fs_table_rdata.wait_next;
+                state_n = 3'd4;
+                out_meta_valid_n = 1'b1;
+                out_meta_tag_n = tag_last;
+            end
+        end
+    endcase // p_state
+end
+
+always_ff @(posedge clk) begin
+    if (rst) begin
+        state <= 3'd0;
+        out_meta_valid <= 'b0;
+    end else begin
+        state <= state_n;
+        out_meta_valid <= out_meta_valid_n;
+    end
+    opcode <= opcode_n;
+    meta <= meta_n;
+    meta_last <= meta_last_n;
+    head <= head_n;
+    tail <= tail_n;
+    is_tail <= is_tail_n;
+    conflict <= conflict_n;
+    fs_table_running <= fs_table_running_n;
+    fs_table_hash <= fs_table_hash_n;
+    key <= key_n;
+    key_last <= key_last_n;
+    tag <= tag_n;
+    tag_last <= tag_last_n;
+    tag_conflict <= tag_conflict_n;
+    out_meta_tag <= out_meta_tag_n;
+end
+
+always_ff @(posedge clk) begin
+    if (fs_table_wen0[0]) fs_table[fs_table_waddr0].is_tail <= fs_table_wdata0.is_tail;
+    if (fs_table_wen0[1]) fs_table[fs_table_waddr0].wait_tail <= fs_table_wdata0.wait_tail;
+    if (fs_table_wen0[2]) fs_table[fs_table_waddr0].wait_next <= fs_table_wdata0.wait_next;
+    if (fs_table_wen0[3]) fs_table[fs_table_waddr0].meta <= fs_table_wdata0.meta;
+
+    if (fs_table_wen1[0]) fs_table[fs_table_waddr1].is_tail <= fs_table_wdata1.is_tail;
+    if (fs_table_wen1[1]) fs_table[fs_table_waddr1].wait_tail <= fs_table_wdata1.wait_tail;
+    if (fs_table_wen1[2]) fs_table[fs_table_waddr1].wait_next <= fs_table_wdata1.wait_next;
+    if (fs_table_wen1[3]) fs_table[fs_table_waddr1].meta <= fs_table_wdata1.meta;
+
+    fs_table_rdata <= fs_table[fs_table_raddr];
+end
+
+always @(posedge clk) begin
+    if (rst) begin
+        ch1_opcode      <= 0;
+        ch1_bit_map     <= 0;
+        ch1_wren        <= 0;
+        ch1_data        <= 0;
+    end
+    // Stall the pipeline if inserting to full para_q
+    else if (!ch1_insert_stall) begin
+        // Default value
+        ch1_wren <= 0;
+        ch1_bit_map <= ch0_bit_map;
+        ch1_data <= ch0_q;
+        if (ch0_rd_ready) path_sel <= 'b0;
+
+        if (ch0_rd_valid) begin
+            // Hit, update or push to slow path
+            // Check in string matcher if it has payload.
+            out_meta_data.ch0_q <= ch0_q;
+            out_meta_data.ch0_bit_map <= ch0_bit_map;
+            out_meta_data.flag <= 'd0;
+            if (ch0_bit_map != 0) begin
+                ch1_data.valid <= 1;
+                ch1_opcode <= FT_UPDATE;
+                // Inorder and no LL_node, forward the pkt
+                if (meta_last.seq == ch0_q.seq) begin
+                    `ifdef DEBUG
+                    $display("Inorder : pkt %d, seq %x, length %d, expect %x, slow_cnt %d",
+                             meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq, ch0_q.slow_cnt);
+                    `endif
+
+                    ch1_wren <= 1;
+                    // Slow Path has packets, update cnt
+                    if (ch0_q.slow_cnt > 0) begin
+                        `ifdef DEBUG
+                        $display("Check LL");
+                        `endif
+
+                        ch1_data.slow_cnt <= ch0_q.slow_cnt + 1;
+                        path_sel <= 'd1;
+                        out_meta_data.flag <= 'd1;
+                    end
+                    // Inorder packets, with no OOO node in
+                    // the LL. Update seq. Most common case.
+                    else begin
+                        ch1_data.seq   <= meta_last.seq + meta_last.len;
+                        path_sel <= 'd0;
+                        out_meta_data.flag <= 'd0;
+                        // Delete the fce, forward the pkt
+                        if (meta_last.tcp_flags[TCP_FIN] | meta_last.tcp_flags[TCP_RST]) begin
+                            `ifdef DEBUG
+                            $display("FIN/RST : pkt %d, seq %x, length %d, expect %x",
+                                     meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq);
+                            `endif
+
+                            ch1_data.valid <= 0;
+                            ch1_opcode <= FT_DELETE;
+                        end
+                    end
+                end
+                // If incoming seq is bigger than expected, push to slow path
+                else if (meta_last.seq > ch0_q.seq) begin
+                    `ifdef DEBUG
+                    $display("OOO : pkt %d, seq %x, length %d, expect %x, slow_cnt %d",
+                             meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq, ch0_q.slow_cnt);
+                    `endif
+
+                    // Update the slow_cnt
+                    ch1_wren <= 1;
+                    // Keep the old seq number, only update the slow_cnt
+                    ch1_data.slow_cnt <= ch0_q.slow_cnt + 1;
+                    ch1_data.seq <= ch0_q.seq;
+                    path_sel <= 'd1;
+                    out_meta_data.flag <= 'd2;
+                end
+                // The incoming seq is smaller than expected (overlapping bytes).
+                // Current policy drops these packet, without changing the FCE.
+                else begin
+                    path_sel <= 'd0;
+                    out_meta_data.flag <= 'd0;
+
+                    `ifdef DEBUG
+                    $display("Overlap : pkt %d, seq %x, length %d, expect %x",
+                             meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq);
+                    `endif
+                end
+            end
+            // Miss, insert
+            else begin
+                // Insert to para_q, which is bit[4]
+                ch1_opcode          <= FT_INSERT;
+                ch1_bit_map         <= 5'b1_0000;
+                ch1_data.valid      <= 1;
+                ch1_data.tuple      <= meta_last.tuple;
+                ch1_data.pointer    <= 0;
+                ch1_data.ll_valid   <= 0;
+                ch1_data.slow_cnt   <= 0;
+                ch1_data.addr0      <= key_last[11:0];
+                ch1_data.addr1      <= key_last[23:12];
+                ch1_data.addr2      <= key_last[35:24];
+                ch1_data.addr3      <= key_last[47:36];
+                path_sel <= 'd0;
+                out_meta_data.flag <= 'd0;
+
+                // SYN's expected seq is special
+                if (meta_last.tcp_flags[TCP_SYN]) begin
+                    ch1_data.seq <= meta_last.seq + 1;
+                    ch1_data.last_7_bytes <= {56{1'b1}};
+                end
+                else begin
+                    ch1_data.seq <= meta_last.seq + meta_last.len;
+                    ch1_data.last_7_bytes <= meta_last.last_7_bytes;
+                end
+
+                // Insert only when necessary
+                if (meta_last.tcp_flags[TCP_FIN] | meta_last.tcp_flags[TCP_RST]) begin
+                    ch1_wren <= 0;
+                end
+                else begin
+                    ch1_wren <= 1;
+                end
+                `ifdef DEBUG
+                $display("Insert : pkt %d, seq %x, length %d, expect %x, slow_cnt %d",
+                   meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq, ch0_q.slow_cnt);
+                `endif
+            end
+        end
+    end
+end
+
+always @(posedge clk) begin
+    // Match up with the hashtable delay. The
+    // stall signal also stalls this pipeline.
+    if (!stall) begin
+        m0 <= ch0_req_data;
+        m1 <= m0;
+        m2 <= m1;
+        m3 <= m2;
+        m4 <= m3;
+        m5 <= m4;
+        m6 <= m5;
+        m7 <= m6;
+        ch0_req_tag_vec[0] <= ch0_req_tag;
+        ch0_req_tag_vec[1:7] <= ch0_req_tag_vec[0:6];
+    end
+end
+
+assign h0_tuple_in = ch0_req_data.ch0_pkt.tuple;
+assign h1_tuple_in = ch0_req_data.ch0_pkt.tuple;
+assign h2_tuple_in = ch0_req_data.ch0_pkt.tuple;
+assign h3_tuple_in = ch0_req_data.ch0_pkt.tuple;
+
+assign h0_initval = 32'd0;
+assign h1_initval = 32'd1;
+assign h2_initval = 32'd2;
+assign h3_initval = 32'd3;
+
+// Only accept when the pkt is dequed and the pkt is not f_pkt
+assign h0_tuple_in_valid = ch0_req_valid & ch0_req_ready & !f_pkt;
+assign h1_tuple_in_valid = ch0_req_valid & ch0_req_ready & !f_pkt;
+assign h2_tuple_in_valid = ch0_req_valid & ch0_req_ready & !f_pkt;
+assign h3_tuple_in_valid = ch0_req_valid & ch0_req_ready & !f_pkt;
+
+// Stall when: (a) a fast rd/wr happens on the
+// same cycle, or (b) inserting to full para_Q.
+logic h0_stall;
+logic h1_stall;
+logic h2_stall;
+logic h3_stall;
+assign h0_stall = stall;
+assign h1_stall = stall;
+assign h2_stall = stall;
+assign h3_stall = stall;
+
+hash_func hash0 (
+    .clk            (clk),
+    .rst            (rst),
+    .stall          (h0_stall),
+    .tuple_in       (h0_tuple_in),
+    .initval        (h0_initval),
+    .tuple_in_valid (h0_tuple_in_valid),
+    .hashed         (h0_hashed),
+    .hashed_valid   (h0_hashed_valid)
+);
+hash_func hash1 (
+    .clk            (clk),
+    .rst            (rst),
+    .stall          (h1_stall),
+    .tuple_in       (h1_tuple_in),
+    .initval        (h1_initval),
+    .tuple_in_valid (h1_tuple_in_valid),
+    .hashed         (h1_hashed),
+    .hashed_valid   (h1_hashed_valid)
+);
+hash_func hash2 (
+    .clk            (clk),
+    .rst            (rst),
+    .stall          (h2_stall),
+    .tuple_in       (h2_tuple_in),
+    .initval        (h2_initval),
+    .tuple_in_valid (h2_tuple_in_valid),
+    .hashed         (h2_hashed),
+    .hashed_valid   (h2_hashed_valid)
+);
+hash_func hash3 (
+    .clk            (clk),
+    .rst            (rst),
+    .stall          (h3_stall),
+    .tuple_in       (h3_tuple_in),
+    .initval        (h3_initval),
+    .tuple_in_valid (h3_tuple_in_valid),
+    .hashed         (h3_hashed),
+    .hashed_valid   (h3_hashed_valid)
+);
 
 assign ch2_rden = 'b0;
 assign ch3_wren = 'b0;
 assign ch3_opcode = 'b0;
 assign ch3_rel_pkt_cnt = 'b0;
+
+always_comb begin
+    if (ch1_wren) begin
+        ch1_opcode_i = ch1_opcode;
+        ch1_bit_map_i = ch1_bit_map;
+        ch1_wren_i = ch1_wren;
+        ch1_data_i = ch1_data;
+    end else begin
+        ch1_opcode_i = ch1_req_data.ch1_opcode;
+        ch1_bit_map_i = ch1_req_data.ch1_bit_map;
+        ch1_wren_i = ch1_req_valid;
+        ch1_data_i = ch1_req_data.ch1_data;
+        if (ch1_req_data.ch1_opcode == 3) begin
+            ch1_data_i.valid = 1'b0;
+        end else begin
+            ch1_data_i.valid = 1'b1;
+        end
+    end
+end
+assign ch1_wren_i = ch1_wren || ch1_req_valid;
+assign ch1_req_ready = (!ch1_wren) && (!ch1_insert_stall);
+always_ff @(posedge clk) begin
+    ch1_rep_valid <= ch1_req_valid && ch1_req_ready;
+    ch1_rep_tag <= ch1_req_tag;
+    ch1_rep_data <= 'd0;
+end
 
 flow_table flow_table_inst (
     .clk          (clk),
@@ -1714,10 +2414,10 @@ flow_table flow_table_inst (
     .ch0_rd_valid (ch0_rd_valid),
     .ch0_bit_map  (ch0_bit_map),
     .ch0_rd_stall (ch0_rd_stall),
-    .ch1_opcode   (ch1_opcode),
-    .ch1_bit_map  (ch1_bit_map),
-    .ch1_wren     (ch1_wren),
-    .ch1_data     (ch1_data),
+    .ch1_opcode   (ch1_opcode_i),
+    .ch1_bit_map  (ch1_bit_map_i),
+    .ch1_wren     (ch1_wren_i),
+    .ch1_data     (ch1_data_i),
     .ch1_insert_stall (ch1_insert_stall),
     .ch2_meta     (ch2_meta),
     .ch2_rden     (ch2_rden),
@@ -1730,5 +2430,136 @@ flow_table flow_table_inst (
     .ch3_data     (ch3_data),
     .ch3_rel_pkt_cnt     (ch3_rel_pkt_cnt)
 );
+
+endmodule
+
+module flow_table_wrap (
+    input                   clk,
+    input                   rst,
+
+    input                   ch0_req_valid,
+    input  [TAG_WIDTH-1:0]  ch0_req_tag,
+    input  [2:0]            ch0_req_data_ch0_opcode,
+    input  [7:0]            ch0_req_data_ch0_pkt_prot,
+    input  [31:0]           ch0_req_data_ch0_pkt_tuple_sIP,
+    input  [31:0]           ch0_req_data_ch0_pkt_tuple_dIP,
+    input  [15:0]           ch0_req_data_ch0_pkt_tuple_sPort,
+    input  [15:0]           ch0_req_data_ch0_pkt_tuple_dPort,
+    input  [31:0]           ch0_req_data_ch0_pkt_seq,
+    input  [15:0]           ch0_req_data_ch0_pkt_len,
+    input  [9:0]            ch0_req_data_ch0_pkt_pktID,
+    input  [5:0]            ch0_req_data_ch0_pkt_empty,
+    input  [4:0]            ch0_req_data_ch0_pkt_flits,
+    input  [8:0]            ch0_req_data_ch0_pkt_hdr_len,
+    input  [8:0]            ch0_req_data_ch0_pkt_tcp_flags,
+    input  [2:0]            ch0_req_data_ch0_pkt_pkt_flags,
+    input  [1:0]            ch0_req_data_ch0_pkt_pdu_flag,
+    input  [55:0]           ch0_req_data_ch0_pkt_last_7_bytes,
+    output                  ch0_req_ready,
+
+    output                  ch0_rep_valid,
+    output [TAG_WIDTH-1:0]  ch0_rep_tag,
+    output [1:0]            ch0_rep_data_flag,
+    output [4:0]            ch0_rep_data_ch0_bit_map,
+    output [31:0]           ch0_rep_data_ch0_q_tuple_sIP,
+    output [31:0]           ch0_rep_data_ch0_q_tuple_dIP,
+    output [15:0]           ch0_rep_data_ch0_q_tuple_sPort,
+    output [15:0]           ch0_rep_data_ch0_q_tuple_dPort,
+    output [31:0]           ch0_rep_data_ch0_q_seq,
+    output [8:0]            ch0_rep_data_ch0_q_pointer,
+    output                  ch0_rep_data_ch0_q_ll_valid,
+    output [9:0]            ch0_rep_data_ch0_q_slow_cnt,
+    output [55:0]           ch0_rep_data_ch0_q_last_7_bytes,
+    output [11:0]           ch0_rep_data_ch0_q_addr0,
+    output [11:0]           ch0_rep_data_ch0_q_addr1,
+    output [11:0]           ch0_rep_data_ch0_q_addr2,
+    output [11:0]           ch0_rep_data_ch0_q_addr3,
+    output [8:0]            ch0_rep_data_ch0_q_pointer2,
+    input                   ch0_rep_ready,
+
+    input                   ch1_req_valid,
+    input  [TAG_WIDTH-1:0]  ch1_req_tag,
+    input  [2:0]            ch1_req_data_ch1_opcode,
+    input  [4:0]            ch1_req_data_ch1_bit_map,
+    input  [31:0]           ch1_req_data_ch1_data_tuple_sIP,
+    input  [31:0]           ch1_req_data_ch1_data_tuple_dIP,
+    input  [15:0]           ch1_req_data_ch1_data_tuple_sPort,
+    input  [15:0]           ch1_req_data_ch1_data_tuple_dPort,
+    input  [31:0]           ch1_req_data_ch1_data_seq,
+    input  [8:0]            ch1_req_data_ch1_data_pointer,
+    input                   ch1_req_data_ch1_data_ll_valid,
+    input  [9:0]            ch1_req_data_ch1_data_slow_cnt,
+    input  [55:0]           ch1_req_data_ch1_data_last_7_bytes,
+    input  [11:0]           ch1_req_data_ch1_data_addr0,
+    input  [11:0]           ch1_req_data_ch1_data_addr1,
+    input  [11:0]           ch1_req_data_ch1_data_addr2,
+    input  [11:0]           ch1_req_data_ch1_data_addr3,
+    input  [8:0]            ch1_req_data_ch1_data_pointer2,
+    output                  ch1_req_ready,
+
+    output                  ch1_rep_valid,
+    output [TAG_WIDTH-1:0]  ch1_rep_tag,
+    output [7:0]            ch1_rep_data,
+    input                   ch1_rep_ready
+);
+
+ftCh0Input_t  ch0_req_data;
+ftCh0Output_t ch0_rep_data;
+ftCh1Input_t  ch1_req_data;
+
+assign ch0_req_data.ch0_opcode = ch0_req_data_ch0_opcode;
+assign ch0_req_data.ch0_pkt.prot = ch0_req_data_ch0_pkt_prot;
+assign ch0_req_data.ch0_pkt.tuple.sIP = ch0_req_data_ch0_pkt_tuple_sIP;
+assign ch0_req_data.ch0_pkt.tuple.dIP = ch0_req_data_ch0_pkt_tuple_dIP;
+assign ch0_req_data.ch0_pkt.tuple.sPort = ch0_req_data_ch0_pkt_tuple_sPort;
+assign ch0_req_data.ch0_pkt.tuple.dPort = ch0_req_data_ch0_pkt_tuple_dPort;
+assign ch0_req_data.ch0_pkt.seq = ch0_req_data_ch0_pkt_seq;
+assign ch0_req_data.ch0_pkt.len = ch0_req_data_ch0_pkt_len;
+assign ch0_req_data.ch0_pkt.pktID = ch0_req_data_ch0_pkt_pktID;
+assign ch0_req_data.ch0_pkt.empty = ch0_req_data_ch0_pkt_empty;
+assign ch0_req_data.ch0_pkt.flits = ch0_req_data_ch0_pkt_flits;
+assign ch0_req_data.ch0_pkt.hdr_len = ch0_req_data_ch0_pkt_hdr_len;
+assign ch0_req_data.ch0_pkt.tcp_flags = ch0_req_data_ch0_pkt_tcp_flags;
+assign ch0_req_data.ch0_pkt.pkt_flags = ch0_req_data_ch0_pkt_pkt_flags;
+assign ch0_req_data.ch0_pkt.pdu_flag = ch0_req_data_ch0_pkt_pdu_flag;
+assign ch0_req_data.ch0_pkt.last_7_bytes = ch0_req_data_ch0_pkt_last_7_bytes;
+
+assign ch0_rep_data_flag = ch0_rep_data.flag;
+assign ch0_rep_data_ch0_bit_map = ch0_rep_data.ch0_bit_map;
+assign ch0_rep_data_ch0_q_tuple_sIP = ch0_rep_data.ch0_q.tuple.sIP;
+assign ch0_rep_data_ch0_q_tuple_dIP = ch0_rep_data.ch0_q.tuple.dIP;
+assign ch0_rep_data_ch0_q_tuple_sPort = ch0_rep_data.ch0_q.tuple.sPort;
+assign ch0_rep_data_ch0_q_tuple_dPort = ch0_rep_data.ch0_q.tuple.dPort;
+assign ch0_rep_data_ch0_q_seq = ch0_rep_data.ch0_q.seq;
+assign ch0_rep_data_ch0_q_pointer = ch0_rep_data.ch0_q.pointer;
+assign ch0_rep_data_ch0_q_ll_valid = ch0_rep_data.ch0_q.ll_valid;
+assign ch0_rep_data_ch0_q_slow_cnt = ch0_rep_data.ch0_q.slow_cnt;
+assign ch0_rep_data_ch0_q_last_7_bytes = ch0_rep_data.ch0_q.last_7_bytes;
+assign ch0_rep_data_ch0_q_addr0 = ch0_rep_data.ch0_q.addr0;
+assign ch0_rep_data_ch0_q_addr1 = ch0_rep_data.ch0_q.addr1;
+assign ch0_rep_data_ch0_q_addr2 = ch0_rep_data.ch0_q.addr2;
+assign ch0_rep_data_ch0_q_addr3 = ch0_rep_data.ch0_q.addr3;
+assign ch0_rep_data_ch0_q_pointer2 = ch0_rep_data.ch0_q.pointer2;
+
+assign ch1_req_data.ch1_opcode = ch1_req_data_ch1_opcode;
+assign ch1_req_data.ch1_bit_map = ch1_req_data_ch1_bit_map;
+assign ch1_req_data.ch1_data.tuple.sIP = ch1_req_data_ch1_data_tuple_sIP;
+assign ch1_req_data.ch1_data.tuple.dIP = ch1_req_data_ch1_data_tuple_dIP;
+assign ch1_req_data.ch1_data.tuple.sPort = ch1_req_data_ch1_data_tuple_sPort;
+assign ch1_req_data.ch1_data.tuple.dPort = ch1_req_data_ch1_data_tuple_dPort;
+assign ch1_req_data.ch1_data.seq = ch1_req_data_ch1_data_seq;
+assign ch1_req_data.ch1_data.pointer = ch1_req_data_ch1_data_pointer;
+assign ch1_req_data.ch1_data.ll_valid = ch1_req_data_ch1_data_ll_valid;
+assign ch1_req_data.ch1_data.slow_cnt = ch1_req_data_ch1_data_slow_cnt;
+assign ch1_req_data.ch1_data.last_7_bytes = ch1_req_data_ch1_data_last_7_bytes;
+assign ch1_req_data.ch1_data.addr0 = ch1_req_data_ch1_data_addr0;
+assign ch1_req_data.ch1_data.addr1 = ch1_req_data_ch1_data_addr1;
+assign ch1_req_data.ch1_data.addr2 = ch1_req_data_ch1_data_addr2;
+assign ch1_req_data.ch1_data.addr3 = ch1_req_data_ch1_data_addr3;
+assign ch1_req_data.ch1_data.pointer2 = ch1_req_data_ch1_data_pointer2;
+
+
+flowTableV inst(.*);
+
 
 endmodule

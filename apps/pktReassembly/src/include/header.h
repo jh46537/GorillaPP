@@ -54,7 +54,7 @@ typedef struct {
 
 typedef struct {
   uint3_t ch0_opcode;
-  fce_meta_t ch0_meta;
+  metadata_t ch0_pkt;
 } ftCh0Input_t;
 
 typedef struct {

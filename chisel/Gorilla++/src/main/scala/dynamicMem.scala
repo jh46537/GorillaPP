@@ -30,25 +30,48 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, n
   val inputReg = Reg(new llNode_t)
   val valid_d = Reg(Bool())
 
+  /*******************Initialize empty list*********************/
+  val empty_list = Module(new Queue(UInt(9.W), 512))
+  val state = RegInit(0.U(1.W))
+  val init_id = RegInit(0.U(9.W))
   val ptr = RegInit(0.U(10.W))
   val new_ptr = RegInit(0.U(10.W))
 
   io.in.ready := io.out.ready
-  valid_d := io.in.valid && io.out.ready
-
-  when (io.in.valid && io.out.ready) {
-    opcode := io.in.bits.opcode
-    inputReg := io.in.bits.node
-    inputTag := io.in.tag
-    when (io.in.bits.opcode === 0.U) {
-      when (ptr < 512.U) {
-        new_ptr := ptr
-        ptr := ptr + 1.U
-      } .otherwise {
-        new_ptr := 512.U
+  when (state === 0.U) {
+    when (init_id === 511.U) {
+      println("Empty list initialization done")
+      state := 1.U
+    }
+    empty_list.io.enq.valid := true.B
+    empty_list.io.enq.bits := init_id
+    empty_list.io.deq.ready := false.B
+    valid_d := false.B
+    init_id := init_id + 1.U
+  } .otherwise {
+    empty_list.io.deq.ready := false.B
+    empty_list.io.enq.valid := false.B
+    empty_list.io.enq.bits := DontCare
+    when (io.in.valid && io.out.ready) {
+      opcode := io.in.bits.opcode
+      inputReg := io.in.bits.node
+      inputTag := io.in.tag
+      when (io.in.bits.opcode === 0.U) {
+        when (empty_list.io.count > 0.U) {
+          new_ptr := empty_list.io.deq.bits
+          empty_list.io.deq.ready := true.B
+        } .otherwise {
+          println("Empty list empty")
+        }
+      } .elsewhen (io.in.bits.opcode === 3.U) {
+        empty_list.io.enq.valid := true.B
+        val node_u = io.in.bits.node.asUInt
+        empty_list.io.enq.bits := node_u(8, 0)
       }
     }
+    valid_d := io.in.valid && io.out.ready
   }
+
 
   /*******************Access RAM 0*****************************/
   val tag_a0 = Reg(UInt((TAGWIDTH*2).W))
@@ -84,7 +107,7 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, n
     tag_a0 := inputTag
     val input_u = Wire(UInt(270.W))
     input_u := inputReg.asUInt
-    when (opcode === 0.U && new_ptr =/= 512.U) {
+    when (opcode === 0.U) {
       wren := true.B
       val ptr0 = Wire(UInt(9.W))
       val ptr1 = Wire(UInt(9.W))
@@ -103,12 +126,13 @@ class dynamicMem(extCompName: String) extends gComponentLeaf(new dyMemInput_t, n
       wrAddr := input_u(8, 0)
       wren := true.B
       wben := 0x2.U
-    } .elsewhen (opcode === 3.U) {
-      wrData := Cat(input_u(17, 9), 0.U(9.W), 0.U(252.W))
-      wrAddr := input_u(8, 0)
-      wren := true.B
-      wben := 0x4.U
     }
+    // .elsewhen (opcode === 3.U) {
+    //   wrData := Cat(input_u(17, 9), 0.U(9.W), 0.U(252.W))
+    //   wrAddr := input_u(8, 0)
+    //   wren := true.B
+    //   wben := 0x4.U
+    // }
   }
 
   /*******************Access RAM 1*****************************/

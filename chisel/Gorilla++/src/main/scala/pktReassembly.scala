@@ -515,8 +515,7 @@ class Scheduler_order(num_threads: Int) extends Module {
   })
   val thread = RegInit(0.U(1.W))
   val thread_count = RegInit(0.U((log2Up(num_threads) + 1).W))
-  val fifo0 = Module(new Queue(UInt((log2Up(num_threads)).W), num_threads))
-  val fifo1 = Module(new Queue(UInt((log2Up(num_threads)).W), num_threads))
+  val fifo = Module(new Queue(UInt((log2Up(num_threads)).W), num_threads))
   thread := thread + 1.U
   val chosen_i = Wire(Vec(2, UInt((log2Up(num_threads)+1).W)))
   for (i <- 0 until 2) {
@@ -525,29 +524,20 @@ class Scheduler_order(num_threads: Int) extends Module {
   }
   thread := thread + 1.U
 
-  fifo0.io.enq.valid := false.B
-  fifo0.io.enq.bits := DontCare
-  fifo1.io.enq.valid := false.B
-  fifo1.io.enq.bits := DontCare
+  fifo.io.enq.valid := false.B
+  fifo.io.enq.bits := DontCare
   when (io.valid) {
-    fifo0.io.enq.valid := true.B
-    fifo0.io.enq.bits := io.tag
-    fifo1.io.enq.valid := true.B
-    fifo1.io.enq.bits := io.tag
+    fifo.io.enq.valid := true.B
+    fifo.io.enq.bits := io.tag
   }
 
   io.chosen := num_threads.U
-  fifo0.io.deq.ready := false.B
-  fifo1.io.deq.ready := false.B
-  // deq fifo0
-  val tag0 = fifo0.io.deq.bits
-  val tag1 = fifo1.io.deq.bits
-  when (fifo0.io.count > 0.U && (tag0(0) === thread) && io.order_ready(tag0)) {
-    io.chosen := fifo0.io.deq.bits
-    fifo0.io.deq.ready := true.B
-  } .elsewhen (fifo1.io.count > 0.U && (tag1(0) === thread) && io.order_ready(tag1)) {
-    io.chosen := fifo1.io.deq.bits
-    fifo1.io.deq.ready := true.B
+  fifo.io.deq.ready := false.B
+  // deq fifo
+  val tag = fifo.io.deq.bits
+  when (fifo.io.count > 0.U && (tag(0) === thread) && io.order_ready(tag)) {
+    io.chosen := fifo.io.deq.bits
+    fifo.io.deq.ready := true.B
   } .otherwise {
     io.chosen := chosen_i(thread)
   }
@@ -563,42 +553,39 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
 
   // var mem_array = Array.fill[UInt](1 << ipWidth)(0.U(instrWidth.W))
   var mem = VecInit(
-    "h00000000000a3014008741ba00000e8374000008".U,
-    "h000000b060105020000b41ba00080e837400100c".U,
-    "h0000000000000000000341ba00080e837400100a".U,
-    "h0040100000300000000281cc08085503981010a5".U,
-    "h0000000000011021004341ba00080d0a69030020".U,
-    "h0000000000000000241b41ba00100e837400200a".U,
-    "h0000000000000000341b41ba00100e837400200a".U,
-    "h000000000008f431406280da60100d0269030020".U,
-    "h000000000fc00000000341ba001a0d02a8603452".U,
-    "h0000000000115004008341ba0019868374003009".U,
-    "h000010000fdb322500c18cdb80190bab9c0a3232".U,
-    "h000000000f800000000341ba00080e8374001001".U,
-    "h00000000002000000002815400100d02a8432082".U,
-    "h0000100001211001004341ba0008094778001001".U,
-    "h000000000008f641006341ba00100381f5402010".U,
-    "h00000000002af53440a181ac0c0106839c0a0252".U,
-    "h0000000000cb322500c1b1ac0002031b58000401".U,
-    "h0000000000600000000281348199950368033007".U,
-    "h00000000000af53440a181ac0301068374000200".U,
-    "h00000000002000000002815a30180d0269030026".U,
-    "h0000000000811021806340cc002a631b58005401".U,
-    "h000000000f8000000002815a30018d0269033326".U,
-    "h000010000028f671406340db801b0b839c003632".U,
-    "h0000000000511021806340cc0022e36374004511".U,
-    "h00000000003000000002815a30380d0269030026".U,
-    "h0000000000000000802340cd801a668374003400".U,
-    "h0000000000200000802340cc0022e68374004501".U,
-    "h000000000fab335500c341ba00398b0358187301".U,
-    "h0000100000011021004341ba000103ab9c0a0220".U,
-    "h0000000000000000241b41ba000106837400020b".U,
-    "h0000000000100000000341ba00000e837400000a".U,
-    "h0000000000100000040b41ba00000e837400000a".U,
-    "h004010000ff00000000281cc08005503981000a5".U,
-    "h00102000002150140082a9d401801503981000a2".U,
-    "h00000000000b311500c2a934818015af6c130000".U,
-    "h0000000000000000141b41ba00080e837400100a".U,
+    "h000000160c02c604202741ba00080e837400100a".U,
+    "h0000000000000000000341ba00080e837400100c".U,
+    "h0008020000060000000281cc08085503981010a5".U,
+    "h0000000000001a04202341ba00080d0a69030020".U,
+    "h0000000000000000048f41ba00100e837400200d".U,
+    "h0000000000000000068f41ba00100e837400200d".U,
+    "h0000000000021206081280da60100e837400300b".U,
+    "h0000000001f800000002815a30180d0269030029".U,
+    "h0000000000021a00383280da60100e8374003300".U,
+    "h0000020001fb1e44a0618cdb80190bab9c0a3232".U,
+    "h0000000001f00000000341ba00080e837400100b".U,
+    "h00000000000400000002815400100d02a8432082".U,
+    "h0000020000241a00202341ba0008094778001001".U,
+    "h000000000000d6c8203341ba00100381f5402010".U,
+    "h00000000000516a6885181ac030106839c0a0252".U,
+    "h0000000000151e44a061b1ac0002031b58000401".U,
+    "h00000000000400000002815a30180d0269030026".U,
+    "h0000000000101a04303340cc002a631b58005401".U,
+    "h0000000001f000000002815a30018d0269033326".U,
+    "h000002000004d6ce283340db801b0b839c003632".U,
+    "h00000000000a1a04303340cc0022e36374004511".U,
+    "h00000000000600000002815a30380d0269030026".U,
+    "h0000000000000000101340cd801a668374003400".U,
+    "h0000000000040000101340cc0022e68374004501".U,
+    "h0000000001f51e6aa06341ba00398b0358187301".U,
+    "h0000020000001a04202341ba000103ab9c0a0220".U,
+    "h0000000000000000048f41ba000106837400000d".U,
+    "h0000000000020000000341ba00000e837400000c".U,
+    "h0000000000020000008741ba00000e837400000c".U,
+    "h0008020001fe0000000281cc08005503981000a5".U,
+    "h00020400000422028042a9d401801503981000a2".U,
+    "h0000000000011e22a062a934818015af6c130000".U,
+    "h0000000000000000028f41ba00080e837400100c".U,
   )
 
 
@@ -678,67 +665,80 @@ class Decode(instrWidth: Int, num_regs_lg: Int, num_aluops_lg: Int, num_src_pos_
 }
 
 
-class flowTableV extends 
+class flow_table_wrap(tag_width: Int) extends 
   BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
-    // ch0 read channel
-    val ch0_meta_tuple_sIP    = Input(UInt(32.W))
-    val ch0_meta_tuple_dIP    = Input(UInt(32.W))
-    val ch0_meta_tuple_sPort  = Input(UInt(16.W))
-    val ch0_meta_tuple_dPort  = Input(UInt(16.W))
-    val ch0_meta_addr0        = Input(UInt(12.W))
-    val ch0_meta_addr1        = Input(UInt(12.W))
-    val ch0_meta_addr2        = Input(UInt(12.W))
-    val ch0_meta_addr3        = Input(UInt(12.W))
-    val ch0_meta_opcode       = Input(UInt(3.W))
-    val ch0_rden              = Input(Bool())
-    val ch0_q_valid           = Output(Bool())
-    val ch0_q_tuple_sIP       = Output(UInt(32.W))
-    val ch0_q_tuple_dIP       = Output(UInt(32.W))
-    val ch0_q_tuple_sPort     = Output(UInt(16.W))
-    val ch0_q_tuple_dPort     = Output(UInt(16.W))
-    val ch0_q_seq             = Output(UInt(32.W))
-    val ch0_q_pointer         = Output(UInt(9.W))
-    val ch0_q_ll_valid        = Output(Bool())
-    val ch0_q_slow_cnt        = Output(UInt(10.W))
-    val ch0_q_last_7_bytes    = Output(UInt(56.W))
-    val ch0_q_addr0           = Output(UInt(12.W))
-    val ch0_q_addr1           = Output(UInt(12.W))
-    val ch0_q_addr2           = Output(UInt(12.W))
-    val ch0_q_addr3           = Output(UInt(12.W))
-    val ch0_q_pointer2        = Output(UInt(9.W))
-    val ch0_rd_valid          = Output(Bool())
-    val ch0_bit_map           = Output(UInt(5.W))
-    val ch0_rd_stall          = Output(Bool())
+    val ch0_req_valid                       = Input(Bool())
+    val ch0_req_tag                         = Input(UInt(tag_width.W))
+    val ch0_req_data_ch0_opcode             = Input(UInt(3.W))
+    val ch0_req_data_ch0_pkt_prot           = Input(UInt(8.W))
+    val ch0_req_data_ch0_pkt_tuple_sIP      = Input(UInt(32.W))
+    val ch0_req_data_ch0_pkt_tuple_dIP      = Input(UInt(32.W))
+    val ch0_req_data_ch0_pkt_tuple_sPort    = Input(UInt(16.W))
+    val ch0_req_data_ch0_pkt_tuple_dPort    = Input(UInt(16.W))
+    val ch0_req_data_ch0_pkt_seq            = Input(UInt(32.W))
+    val ch0_req_data_ch0_pkt_len            = Input(UInt(16.W))
+    val ch0_req_data_ch0_pkt_pktID          = Input(UInt(10.W))
+    val ch0_req_data_ch0_pkt_empty          = Input(UInt(6.W))
+    val ch0_req_data_ch0_pkt_flits          = Input(UInt(5.W))
+    val ch0_req_data_ch0_pkt_hdr_len        = Input(UInt(9.W))
+    val ch0_req_data_ch0_pkt_tcp_flags      = Input(UInt(9.W))
+    val ch0_req_data_ch0_pkt_pkt_flags      = Input(UInt(3.W))
+    val ch0_req_data_ch0_pkt_pdu_flag       = Input(UInt(2.W))
+    val ch0_req_data_ch0_pkt_last_7_bytes   = Input(UInt(56.W))
+    val ch0_req_ready                       = Output(Bool())
 
-    // ch1 write channel
-    val ch1_opcode            = Input(UInt(3.W))
-    val ch1_bit_map           = Input(UInt(5.W))
-    val ch1_wren              = Input(Bool())
-    val ch1_data_valid        = Input(Bool())
-    val ch1_data_tuple_sIP    = Input(UInt(32.W))
-    val ch1_data_tuple_dIP    = Input(UInt(32.W))
-    val ch1_data_tuple_sPort  = Input(UInt(16.W))
-    val ch1_data_tuple_dPort  = Input(UInt(16.W))
-    val ch1_data_seq          = Input(UInt(32.W))
-    val ch1_data_pointer      = Input(UInt(9.W))
-    val ch1_data_ll_valid     = Input(Bool())
-    val ch1_data_slow_cnt     = Input(UInt(10.W))
-    val ch1_data_last_7_bytes = Input(UInt(56.W))
-    val ch1_data_addr0        = Input(UInt(12.W))
-    val ch1_data_addr1        = Input(UInt(12.W))
-    val ch1_data_addr2        = Input(UInt(12.W))
-    val ch1_data_addr3        = Input(UInt(12.W))
-    val ch1_data_pointer2     = Input(UInt(9.W))
-    val ch1_insert_stall      = Output(Bool())
+    val ch0_rep_valid                       = Output(Bool())
+    val ch0_rep_tag                         = Output(UInt(tag_width.W))
+    val ch0_rep_data_flag                   = Output(UInt(2.W))
+    val ch0_rep_data_ch0_bit_map            = Output(UInt(5.W))
+    val ch0_rep_data_ch0_q_tuple_sIP        = Output(UInt(32.W))
+    val ch0_rep_data_ch0_q_tuple_dIP        = Output(UInt(32.W))
+    val ch0_rep_data_ch0_q_tuple_sPort      = Output(UInt(16.W))
+    val ch0_rep_data_ch0_q_tuple_dPort      = Output(UInt(16.W))
+    val ch0_rep_data_ch0_q_seq              = Output(UInt(32.W))
+    val ch0_rep_data_ch0_q_pointer          = Output(UInt(9.W))
+    val ch0_rep_data_ch0_q_ll_valid         = Output(Bool())
+    val ch0_rep_data_ch0_q_slow_cnt         = Output(UInt(10.W))
+    val ch0_rep_data_ch0_q_last_7_bytes     = Output(UInt(56.W))
+    val ch0_rep_data_ch0_q_addr0            = Output(UInt(12.W))
+    val ch0_rep_data_ch0_q_addr1            = Output(UInt(12.W))
+    val ch0_rep_data_ch0_q_addr2            = Output(UInt(12.W))
+    val ch0_rep_data_ch0_q_addr3            = Output(UInt(12.W))
+    val ch0_rep_data_ch0_q_pointer2         = Output(UInt(9.W))
+    val ch0_rep_ready                       = Input(Bool())
 
-    val rst                   = Input(Reset())
-    val clk                   = Input(Clock())
+    val ch1_req_valid                       = Input(Bool())
+    val ch1_req_tag                         = Input(UInt(tag_width.W))
+    val ch1_req_data_ch1_opcode             = Input(UInt(3.W))
+    val ch1_req_data_ch1_bit_map            = Input(UInt(5.W))
+    val ch1_req_data_ch1_data_tuple_sIP     = Input(UInt(32.W))
+    val ch1_req_data_ch1_data_tuple_dIP     = Input(UInt(32.W))
+    val ch1_req_data_ch1_data_tuple_sPort   = Input(UInt(16.W))
+    val ch1_req_data_ch1_data_tuple_dPort   = Input(UInt(16.W))
+    val ch1_req_data_ch1_data_seq           = Input(UInt(32.W))
+    val ch1_req_data_ch1_data_pointer       = Input(UInt(9.W))
+    val ch1_req_data_ch1_data_ll_valid      = Input(Bool())
+    val ch1_req_data_ch1_data_slow_cnt      = Input(UInt(12.W))
+    val ch1_req_data_ch1_data_last_7_bytes  = Input(UInt(56.W))
+    val ch1_req_data_ch1_data_addr0         = Input(UInt(12.W))
+    val ch1_req_data_ch1_data_addr1         = Input(UInt(12.W))
+    val ch1_req_data_ch1_data_addr2         = Input(UInt(12.W))
+    val ch1_req_data_ch1_data_addr3         = Input(UInt(12.W))
+    val ch1_req_data_ch1_data_pointer2      = Input(UInt(9.W))
+    val ch1_req_ready                       = Output(Bool())
+
+    val ch1_rep_valid                       = Output(Bool())
+    val ch1_rep_tag                         = Output(UInt(tag_width.W))
+    val ch1_rep_data                        = Output(UInt(8.W))
+    val ch1_rep_ready                       = Input(Bool())
+
+    val rst                                 = Input(Reset())
+    val clk                                 = Input(Clock())
   })
 
   addResource("/bram_true2port_sim.v")
   addResource("/flow_table_wrap.sv")
-
 }
 
 class flowTable(tag_width: Int, num_threads: Int) extends Module {
@@ -764,481 +764,73 @@ class flowTable(tag_width: Int, num_threads: Int) extends Module {
     val ch1_rep_ready  = Input(Bool())
   })
 
-  class fse_meta_t extends Bundle {
-    val addr3 = UInt(12.W)
-    val addr2 = UInt(12.W)
-    val addr1 = UInt(12.W)
-    val addr0 = UInt(12.W)
-    val pkt = new metadata_t
-  }
-
-  class fse_t extends Bundle {
-    val meta = new fse_meta_t
-    val wait_head = UInt(tag_width.W)
-    val wait_tail = UInt(tag_width.W)
-    val waiting = Bool()
-    val running = Bool()
-  }
-
-  val ft_inst = Module(new flowTableV)
-  val fs_table = RegInit(VecInit(Seq.fill(num_threads)(0.U.asTypeOf(new fse_t))))
-  val state = RegInit(0.U(3.W))
-  val key = Reg(UInt(96.W))
-  val opcode = Reg(UInt(2.W))
-  val meta = Reg(new fse_meta_t)
-  val meta_last = Reg(new fse_meta_t)
-  val tag = Reg(UInt(tag_width.W))
-  val tag_last = Reg(UInt(tag_width.W))
-  val isWaiting = RegInit(VecInit(Seq.fill(num_threads)(false.B)))
-  val isRunning = RegInit(VecInit(Seq.fill(num_threads)(false.B)))
-  val path_sel = Reg(Bool())
-  val ch0_req_valid = Reg(Bool())
-  val ch0_req_data = Reg(new ftCh0Input_t)
-  val ch0_rep_valid  = Reg(Bool())
-  val ch0_rep_tag    = Reg(UInt(tag_width.W))
-  val ch0_rep_data   = Reg(new ftCh0Output_t)
-  val ch0_rd_valid = Wire(Bool())
-  val ch0_rd_valid_r = Reg(Bool())
-  val ch0_bit_map = Wire(UInt(5.W))
-  val ch0_bit_map_r = Reg(UInt(5.W))
-  val ch0_q = Wire(new fce_t)
-  val ch0_q_r = Reg(new fce_t)
-  val ch0_q_out = Wire(new fce_t)
-  val ch0_rd_ready = Wire(Bool())
-  val ch1_wren = Reg(Bool())
-  val ch1_req_data = Reg(new ftCh1Input_t)
-  val ch1_req_data_valid = Reg(Bool())
-  val head = Reg(UInt(tag_width.W))
-  val tail = Reg(UInt(tag_width.W))
-  val new_pkt = Reg(Bool())
-  val new_pkt_last = Reg(Bool())
-
-  // flow table channel 0 response
-  ch0_q_out.tuple.sIP := ft_inst.io.ch0_q_tuple_sIP
-  ch0_q_out.tuple.dIP := ft_inst.io.ch0_q_tuple_dIP
-  ch0_q_out.tuple.sPort := ft_inst.io.ch0_q_tuple_sPort
-  ch0_q_out.tuple.dPort := ft_inst.io.ch0_q_tuple_dPort
-  ch0_q_out.seq := ft_inst.io.ch0_q_seq
-  ch0_q_out.pointer := ft_inst.io.ch0_q_pointer
-  ch0_q_out.ll_valid := ft_inst.io.ch0_q_ll_valid
-  ch0_q_out.slow_cnt := ft_inst.io.ch0_q_slow_cnt
-  ch0_q_out.last_7_bytes := ft_inst.io.ch0_q_last_7_bytes
-  ch0_q_out.addr0 := ft_inst.io.ch0_q_addr0
-  ch0_q_out.addr1 := ft_inst.io.ch0_q_addr1
-  ch0_q_out.addr2 := ft_inst.io.ch0_q_addr2
-  ch0_q_out.addr3 := ft_inst.io.ch0_q_addr3
-  ch0_q_out.pointer2 := ft_inst.io.ch0_q_pointer2
-
-  when (ft_inst.io.ch0_rd_valid) {
-    ch0_q_r := ch0_q_out
-    ch0_bit_map_r := ft_inst.io.ch0_bit_map
-    ch0_q := ch0_q_out
-    ch0_bit_map := ft_inst.io.ch0_bit_map
-  } .otherwise {
-    ch0_q := ch0_q_r
-    ch0_bit_map := ch0_bit_map_r
-  }
-
-  when (ft_inst.io.ch0_rd_valid) {
-    ch0_rd_valid_r := !ch0_rd_ready
-  } .elsewhen (ch0_rd_ready) {
-    ch0_rd_valid_r := false.B
-  }
-  ch0_rd_valid := ch0_rd_valid_r || (ft_inst.io.ch0_rd_valid)
-
-  io.ch0_rep_valid := ch0_rep_valid
-  io.ch0_rep_tag := ch0_rep_tag
-  io.ch0_rep_data := ch0_rep_data
-
-  // Main FSM
-  io.ch0_req_ready := false.B
-  ch0_req_valid := false.B
-  ch0_rep_valid := false.B
-  ch1_wren := false.B
-  ch0_rd_ready := false.B
-  ft_inst.io.ch0_rden := false.B
-  ft_inst.io.ch0_meta_tuple_sIP := meta.pkt.tuple.sIP
-  ft_inst.io.ch0_meta_tuple_dIP := meta.pkt.tuple.dIP
-  ft_inst.io.ch0_meta_tuple_sPort := meta.pkt.tuple.sPort
-  ft_inst.io.ch0_meta_tuple_dPort := meta.pkt.tuple.dPort
-  ft_inst.io.ch0_meta_addr0 := meta.addr0
-  ft_inst.io.ch0_meta_addr1 := meta.addr1
-  ft_inst.io.ch0_meta_addr2 := meta.addr2
-  ft_inst.io.ch0_meta_addr3 := meta.addr3
-  ft_inst.io.ch0_meta_opcode := 0.U
-  when (state === 0.U) {
-    // IDLE
-    io.ch0_req_ready := true.B
-    when (io.ch0_req_valid) {
-      // New packet
-      when (io.ch0_req_data.ch0_opcode === 0.U) {
-        key := io.ch0_req_data.ch0_meta.tuple.asUInt
-      } .elsewhen (io.ch0_req_data.ch0_opcode === 1.U) {
-        key := fs_table(io.ch0_req_tag).meta.pkt.tuple.asUInt
-        fs_table(io.ch0_req_tag).running := false.B
-        ch0_rep_valid := true.B
-        ch0_rep_tag := io.ch0_req_tag
-      }
-      when (io.ch0_req_data.ch0_opcode === 0.U && 
-        (io.ch0_req_data.ch0_pkt.prot === 0x11.U || 
-          (io.ch0_req_data.ch0_pkt.tcp_flags === 0x10.U && io.ch0_req_data.ch0_pkt.len === 0.U))) {
-        // UDP or ACK packet
-        state := 0.U
-        ch0_rep_valid := true.B
-        ch0_rep_tag := io.ch0_req_tag
-        ch0_rep_data.flag := 0.U
-      } .otherwise {
-        new_pkt := true.B
-        state := 1.U
-      }
-      opcode := io.ch0_req_data.ch0_opcode
-      meta.pkt := io.ch0_req_data.ch0_pkt
-      meta.addr0 := io.ch0_req_data.ch0_meta.addr0
-      meta.addr1 := io.ch0_req_data.ch0_meta.addr1
-      meta.addr2 := io.ch0_req_data.ch0_meta.addr2
-      meta.addr3 := io.ch0_req_data.ch0_meta.addr3
-      tag := io.ch0_req_tag
-    }
-    .elsewhen (ch0_rd_valid) {
-      // last packet returns
-      state := 4.U
-      ch0_rd_ready := true.B
-      ch0_rep_valid := true.B
-      ch0_rep_tag := tag_last
-      ch0_rep_data.ch0_q := ch0_q
-      ch0_rep_data.ch0_bit_map := ch0_bit_map
-      ch0_rep_data.flag := 0.U
-      path_sel := false.B
-      head := fs_table(tag_last).wait_head
-      tail := fs_table(tag_last).wait_tail
-      when (ch0_bit_map =/= 0.U) {
-        // flow entry exists
-        when (meta_last.pkt.seq === ch0_q.seq) {
-          when (ch0_q.slow_cnt === 0.U) {
-            // Fast path
-            ch1_wren := true.B
-            ch1_req_data.ch1_data := ch0_q
-            ch1_req_data_valid := true.B
-            ch1_req_data.ch1_data.seq := meta_last.pkt.seq + meta_last.pkt.len
-            ch1_req_data.ch1_bit_map := ch0_bit_map
-            when ((meta_last.pkt.tcp_flags & 5.U) =/= 0.U) {
-              ch1_req_data.ch1_opcode := 3.U
-              ch1_req_data_valid := false.B
-            } .otherwise {
-              ch1_req_data.ch1_opcode := 2.U
-            }
-          } .otherwise {
-            // Slow path
-            path_sel := true.B
-            ch0_rep_data.flag := 1.U
-          }
-        } .elsewhen (meta_last.pkt.seq > ch0_q.seq) {
-          // Slow path
-          path_sel := true.B
-          ch0_rep_data.flag := 2.U
-        }
-      } .otherwise {
-        // Create new flow entry
-        when ((meta_last.pkt.tcp_flags & 5.U) === 0.U) {
-          ch1_wren := true.B
-        }
-        ch1_req_data_valid := true.B
-        ch1_req_data.ch1_opcode := 1.U
-        ch1_req_data.ch1_bit_map := 16.U
-        ch1_req_data.ch1_data.tuple := meta_last.pkt.tuple
-        ch1_req_data.ch1_data.pointer := 0.U
-        ch1_req_data.ch1_data.pointer2 := 0.U
-        ch1_req_data.ch1_data.ll_valid := 0.U
-        ch1_req_data.ch1_data.slow_cnt := 0.U
-        ch1_req_data.ch1_data.addr0 := meta_last.addr0
-        ch1_req_data.ch1_data.addr1 := meta_last.addr1
-        ch1_req_data.ch1_data.addr2 := meta_last.addr2
-        ch1_req_data.ch1_data.addr3 := meta_last.addr3
-        when (meta_last.pkt.tcp_flags(1) =/= 0.U) {
-          ch1_req_data.ch1_data.seq := meta_last.pkt.seq + 1.U
-          ch1_req_data.ch1_data.last_7_bytes := Fill(56, 1.U)
-        } .otherwise {
-          ch1_req_data.ch1_data.seq := meta_last.pkt.seq + meta_last.pkt.len
-          ch1_req_data.ch1_data.last_7_bytes := meta_last.pkt.last_7_bytes
-        }
-      }
-    }
-  }
-  .elsewhen (state === 1.U) {
-    when (opcode === 0.U) {
-      fs_table(tag).meta := meta
-    }
-
-    head := fs_table(tag).wait_head
-    tail := fs_table(tag).wait_tail
-    isWaiting := fs_table.map(fse => ((fse.meta.pkt.tuple.asUInt === key) && fse.waiting))
-    isRunning := fs_table.map(fse => ((fse.meta.pkt.tuple.asUInt === key) && fse.running))
-    state := 2.U
-  }
-  .elsewhen (state === 2.U) {
-    path_sel := false.B
-    when (ch0_rd_valid) {
-      ch0_rd_ready := true.B
-      ch0_rep_valid := true.B
-      ch0_rep_tag := tag_last
-      ch0_rep_data.ch0_q := ch0_q
-      ch0_rep_data.ch0_bit_map := ch0_bit_map
-      ch0_rep_data.flag := 0.U
-      when (ch0_bit_map =/= 0.U) {
-        when (meta_last.pkt.seq === ch0_q.seq) {
-          when (ch0_q.slow_cnt === 0.U) {
-            ch1_wren := true.B
-            ch1_req_data.ch1_data := ch0_q
-            ch1_req_data_valid := true.B
-            ch1_req_data.ch1_data.seq := meta_last.pkt.seq + meta_last.pkt.len
-            ch1_req_data.ch1_bit_map := ch0_bit_map
-            when ((meta_last.pkt.tcp_flags & 5.U) =/= 0.U) {
-              ch1_req_data.ch1_opcode := 3.U
-              ch1_req_data_valid := false.B
-            } .otherwise {
-              ch1_req_data.ch1_opcode := 2.U
-            }
-          } .otherwise {
-            path_sel := true.B
-            ch0_rep_data.flag := 1.U
-          }
-        } .elsewhen (meta_last.pkt.seq > ch0_q.seq) {
-          path_sel := true.B
-          ch0_rep_data.flag := 2.U
-        }
-      } .otherwise {
-        when ((meta_last.pkt.tcp_flags & 5.U) === 0.U) {
-          ch1_wren := true.B
-        }
-        ch1_req_data_valid := true.B
-        ch1_req_data.ch1_opcode := 1.U
-        ch1_req_data.ch1_bit_map := 16.U
-        ch1_req_data.ch1_data.tuple := meta_last.pkt.tuple
-        ch1_req_data.ch1_data.pointer := 0.U
-        ch1_req_data.ch1_data.pointer2 := 0.U
-        ch1_req_data.ch1_data.ll_valid := 0.U
-        ch1_req_data.ch1_data.slow_cnt := 0.U
-        ch1_req_data.ch1_data.addr0 := meta_last.addr0
-        ch1_req_data.ch1_data.addr1 := meta_last.addr1
-        ch1_req_data.ch1_data.addr2 := meta_last.addr2
-        ch1_req_data.ch1_data.addr3 := meta_last.addr3
-        when (meta_last.pkt.tcp_flags(1) =/= 0.U) {
-          ch1_req_data.ch1_data.seq := meta_last.pkt.seq + 1.U
-          ch1_req_data.ch1_data.last_7_bytes := Fill(56, 1.U)
-        } .otherwise {
-          ch1_req_data.ch1_data.seq := meta_last.pkt.seq + meta_last.pkt.len
-          ch1_req_data.ch1_data.last_7_bytes := meta_last.pkt.last_7_bytes
-        }
-      }
-    }
-
-    when (opcode === 1.U) {
-      when (isWaiting.asUInt =/= 0.U) {
-        // val hotValue = PriorityEncoder(isWaiting.asUInt)
-        // meta := fs_table(hotValue).meta
-        new_pkt := false.B
-        tag := head
-        meta := fs_table(head).meta
-        fs_table(head).wait_tail := tail
-        state := 3.U
-      } .otherwise {
-        state := 4.U
-      }
-    } .otherwise {
-      state := 3.U
-    }
-  }
-  .elsewhen (state === 3.U) {
-    // new packet
-    when ((isRunning.asUInt === 0.U) && (!(path_sel && (meta.pkt.tuple.asUInt === meta_last.pkt.tuple.asUInt)))) {
-      // No conflict
-      ft_inst.io.ch0_rden := true.B
-      fs_table(tag).waiting := false.B
-      when (((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) && (!ft_inst.io.ch0_rd_stall)) {
-        meta_last := meta
-        tag_last := tag
-        new_pkt_last := new_pkt
-        when (new_pkt) {
-          state := 0.U
-        } .otherwise {
-          state := 7.U
-        }
-      }
-    } .elsewhen ((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) {
-      fs_table(tag).waiting := true.B
-      fs_table(tag).wait_head := tag
-      fs_table(tag).wait_tail := tag
-      when (path_sel && (meta.pkt.tuple.asUInt === meta_last.pkt.tuple.asUInt)) {
-        head := tag_last
-        tail := tag_last
-      } .otherwise {
-        val hotValue = PriorityEncoder(isRunning.asUInt)
-        head := hotValue
-        tail := fs_table(hotValue).wait_tail
-      }
-      state := 5.U
-    }
-
-    when (path_sel) {
-      fs_table(tag_last).running := true.B
-      when (new_pkt_last) {
-        fs_table(tag_last).wait_head := tag_last
-        fs_table(tag_last).wait_tail := tag_last
-      }
-    }
-  }
-  .elsewhen (state === 4.U) {
-    // no new packet
-    when (path_sel) {
-      fs_table(tag_last).running := true.B
-      when (new_pkt_last) {
-        fs_table(tag_last).wait_head := tag_last
-        fs_table(tag_last).wait_tail := tag_last
-      }
-      when ((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) {
-        state := 0.U
-      }
-    } .otherwise {
-      when((!new_pkt) && fs_table(head).waiting) {
-        // current thread fast path, activate waiting thread
-        new_pkt := false.B
-        tag := head
-        meta := fs_table(head).meta
-        fs_table(head).wait_tail := tail
-        state := 6.U
-      } .otherwise {
-        // current thread insert new flow or fast path
-        when ((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) {
-          state := 0.U
-        }
-      }
-    }
-
-  }
-  .elsewhen (state === 5.U) {
-    when (fs_table(head).wait_head === head) {
-      fs_table(head).wait_head := tag
-    }
-    fs_table(head).wait_tail := tag
-    fs_table(tail).wait_head := tag
-    fs_table(tail).wait_tail := tag
-    state := 0.U
-  }
-  .elsewhen (state === 6.U) {
-    ft_inst.io.ch0_rden := true.B
-    fs_table(tag).waiting := false.B
-    when (((!ch1_wren) || (!ft_inst.io.ch1_insert_stall)) && (!ft_inst.io.ch0_rd_stall)) {
-      meta_last := meta
-      tag_last := tag
-      new_pkt_last := new_pkt
-      state := 7.U
-    }
-  }
-  .elsewhen (state === 7.U) {
-    when (ch0_rd_valid) {
-      // last packet returns
-      state := 4.U
-      ch0_rd_ready := true.B
-      ch0_rep_valid := true.B
-      ch0_rep_tag := tag_last
-      ch0_rep_data.ch0_q := ch0_q
-      ch0_rep_data.ch0_bit_map := ch0_bit_map
-      ch0_rep_data.flag := 0.U
-      path_sel := false.B
-      head := fs_table(tag_last).wait_head
-      tail := fs_table(tag_last).wait_tail
-      when (ch0_bit_map =/= 0.U) {
-        // flow entry exists
-        when (meta_last.pkt.seq === ch0_q.seq) {
-          when (ch0_q.slow_cnt === 0.U) {
-            // Fast path
-            ch1_wren := true.B
-            ch1_req_data.ch1_data := ch0_q
-            ch1_req_data_valid := true.B
-            ch1_req_data.ch1_data.seq := meta_last.pkt.seq + meta_last.pkt.len
-            ch1_req_data.ch1_bit_map := ch0_bit_map
-            when ((meta_last.pkt.tcp_flags & 5.U) =/= 0.U) {
-              ch1_req_data.ch1_opcode := 3.U
-              ch1_req_data_valid := false.B
-            } .otherwise {
-              ch1_req_data.ch1_opcode := 2.U
-            }
-          } .otherwise {
-            // Slow path
-            path_sel := true.B
-            ch0_rep_data.flag := 1.U
-          }
-        } .otherwise {
-          // Slow path
-          path_sel := true.B
-          ch0_rep_data.flag := 2.U
-        }
-      }
-    }
-  }
-
-
-  //---------------------------- flow table --------------------------------//
-  val ch1_tag_reg = Reg(UInt(tag_width.W))
-
-
+  val ft_inst = Module(new flow_table_wrap(tag_width))
   ft_inst.io.clk := clock
   ft_inst.io.rst := reset
-
-  ft_inst.io.ch1_wren := ch1_wren || io.ch1_req_valid
-  io.ch1_req_ready := (!ch1_wren) && (!ft_inst.io.ch1_insert_stall)
-  io.ch1_rep_tag := ch1_tag_reg
-  io.ch1_rep_valid := RegNext(io.ch1_req_valid && io.ch1_req_ready)
-  io.ch1_rep_data := 0.U
-
-  when (io.ch1_req_valid && io.ch1_req_ready) {
-    ch1_tag_reg := io.ch1_req_tag
-  }
-
-  when (ch1_wren) {
-    ft_inst.io.ch1_opcode := ch1_req_data.ch1_opcode
-    ft_inst.io.ch1_data_valid := ch1_req_data_valid
-    ft_inst.io.ch1_bit_map := ch1_req_data.ch1_bit_map
-    ft_inst.io.ch1_data_tuple_sIP := ch1_req_data.ch1_data.tuple.sIP
-    ft_inst.io.ch1_data_tuple_dIP := ch1_req_data.ch1_data.tuple.dIP
-    ft_inst.io.ch1_data_tuple_sPort := ch1_req_data.ch1_data.tuple.sPort
-    ft_inst.io.ch1_data_tuple_dPort := ch1_req_data.ch1_data.tuple.dPort
-    ft_inst.io.ch1_data_seq := ch1_req_data.ch1_data.seq
-    ft_inst.io.ch1_data_pointer := ch1_req_data.ch1_data.pointer
-    ft_inst.io.ch1_data_ll_valid := ch1_req_data.ch1_data.ll_valid
-    ft_inst.io.ch1_data_slow_cnt := ch1_req_data.ch1_data.slow_cnt
-    ft_inst.io.ch1_data_last_7_bytes := ch1_req_data.ch1_data.last_7_bytes
-    ft_inst.io.ch1_data_addr0 := ch1_req_data.ch1_data.addr0
-    ft_inst.io.ch1_data_addr1 := ch1_req_data.ch1_data.addr1
-    ft_inst.io.ch1_data_addr2 := ch1_req_data.ch1_data.addr2
-    ft_inst.io.ch1_data_addr3 := ch1_req_data.ch1_data.addr3
-    ft_inst.io.ch1_data_pointer2 := ch1_req_data.ch1_data.pointer2
-  } .otherwise {
-    when (io.ch1_req_data.ch1_opcode === 3.U) {
-      ft_inst.io.ch1_data_valid := false.B
-    } .otherwise {
-      ft_inst.io.ch1_data_valid := true.B
-    }
-    ft_inst.io.ch1_opcode := io.ch1_req_data.ch1_opcode
-    ft_inst.io.ch1_bit_map := io.ch1_req_data.ch1_bit_map
-    ft_inst.io.ch1_data_tuple_sIP := io.ch1_req_data.ch1_data.tuple.sIP
-    ft_inst.io.ch1_data_tuple_dIP := io.ch1_req_data.ch1_data.tuple.dIP
-    ft_inst.io.ch1_data_tuple_sPort := io.ch1_req_data.ch1_data.tuple.sPort
-    ft_inst.io.ch1_data_tuple_dPort := io.ch1_req_data.ch1_data.tuple.dPort
-    ft_inst.io.ch1_data_seq := io.ch1_req_data.ch1_data.seq
-    ft_inst.io.ch1_data_pointer := io.ch1_req_data.ch1_data.pointer
-    ft_inst.io.ch1_data_ll_valid := io.ch1_req_data.ch1_data.ll_valid
-    ft_inst.io.ch1_data_slow_cnt := io.ch1_req_data.ch1_data.slow_cnt
-    ft_inst.io.ch1_data_last_7_bytes := io.ch1_req_data.ch1_data.last_7_bytes
-    ft_inst.io.ch1_data_addr0 := io.ch1_req_data.ch1_data.addr0
-    ft_inst.io.ch1_data_addr1 := io.ch1_req_data.ch1_data.addr1
-    ft_inst.io.ch1_data_addr2 := io.ch1_req_data.ch1_data.addr2
-    ft_inst.io.ch1_data_addr3 := io.ch1_req_data.ch1_data.addr3
-    ft_inst.io.ch1_data_pointer2 := io.ch1_req_data.ch1_data.pointer2
-  }
+  ft_inst.io.ch0_req_valid                      := io.ch0_req_valid
+  ft_inst.io.ch0_req_tag                        := io.ch0_req_tag
+  ft_inst.io.ch0_req_data_ch0_opcode            := io.ch0_req_data.ch0_opcode
+  ft_inst.io.ch0_req_data_ch0_pkt_prot          := io.ch0_req_data.ch0_pkt.prot
+  ft_inst.io.ch0_req_data_ch0_pkt_tuple_sIP     := io.ch0_req_data.ch0_pkt.tuple.sIP
+  ft_inst.io.ch0_req_data_ch0_pkt_tuple_dIP     := io.ch0_req_data.ch0_pkt.tuple.dIP
+  ft_inst.io.ch0_req_data_ch0_pkt_tuple_sPort   := io.ch0_req_data.ch0_pkt.tuple.sPort
+  ft_inst.io.ch0_req_data_ch0_pkt_tuple_dPort   := io.ch0_req_data.ch0_pkt.tuple.dPort
+  ft_inst.io.ch0_req_data_ch0_pkt_seq           := io.ch0_req_data.ch0_pkt.seq
+  ft_inst.io.ch0_req_data_ch0_pkt_len           := io.ch0_req_data.ch0_pkt.len
+  ft_inst.io.ch0_req_data_ch0_pkt_pktID         := io.ch0_req_data.ch0_pkt.pktID
+  ft_inst.io.ch0_req_data_ch0_pkt_empty         := io.ch0_req_data.ch0_pkt.empty
+  ft_inst.io.ch0_req_data_ch0_pkt_flits         := io.ch0_req_data.ch0_pkt.flits
+  ft_inst.io.ch0_req_data_ch0_pkt_hdr_len       := io.ch0_req_data.ch0_pkt.hdr_len
+  ft_inst.io.ch0_req_data_ch0_pkt_tcp_flags     := io.ch0_req_data.ch0_pkt.tcp_flags
+  ft_inst.io.ch0_req_data_ch0_pkt_pkt_flags     := io.ch0_req_data.ch0_pkt.pkt_flags
+  ft_inst.io.ch0_req_data_ch0_pkt_pdu_flag      := io.ch0_req_data.ch0_pkt.pdu_flag
+  ft_inst.io.ch0_req_data_ch0_pkt_last_7_bytes  := io.ch0_req_data.ch0_pkt.last_7_bytes
+  io.ch0_req_ready                              := ft_inst.io.ch0_req_ready
+  io.ch0_rep_valid                              := ft_inst.io.ch0_rep_valid
+  io.ch0_rep_tag                                := ft_inst.io.ch0_rep_tag
+  io.ch0_rep_data.flag                          := ft_inst.io.ch0_rep_data_flag
+  io.ch0_rep_data.ch0_bit_map                   := ft_inst.io.ch0_rep_data_ch0_bit_map
+  io.ch0_rep_data.ch0_q.tuple.sIP               := ft_inst.io.ch0_rep_data_ch0_q_tuple_sIP
+  io.ch0_rep_data.ch0_q.tuple.dIP               := ft_inst.io.ch0_rep_data_ch0_q_tuple_dIP
+  io.ch0_rep_data.ch0_q.tuple.sPort             := ft_inst.io.ch0_rep_data_ch0_q_tuple_sPort
+  io.ch0_rep_data.ch0_q.tuple.dPort             := ft_inst.io.ch0_rep_data_ch0_q_tuple_dPort
+  io.ch0_rep_data.ch0_q.seq                     := ft_inst.io.ch0_rep_data_ch0_q_seq
+  io.ch0_rep_data.ch0_q.pointer                 := ft_inst.io.ch0_rep_data_ch0_q_pointer
+  io.ch0_rep_data.ch0_q.ll_valid                := ft_inst.io.ch0_rep_data_ch0_q_ll_valid
+  io.ch0_rep_data.ch0_q.slow_cnt                := ft_inst.io.ch0_rep_data_ch0_q_slow_cnt
+  io.ch0_rep_data.ch0_q.last_7_bytes            := ft_inst.io.ch0_rep_data_ch0_q_last_7_bytes
+  io.ch0_rep_data.ch0_q.addr0                   := ft_inst.io.ch0_rep_data_ch0_q_addr0
+  io.ch0_rep_data.ch0_q.addr1                   := ft_inst.io.ch0_rep_data_ch0_q_addr1
+  io.ch0_rep_data.ch0_q.addr2                   := ft_inst.io.ch0_rep_data_ch0_q_addr2
+  io.ch0_rep_data.ch0_q.addr3                   := ft_inst.io.ch0_rep_data_ch0_q_addr3
+  io.ch0_rep_data.ch0_q.pointer2                := ft_inst.io.ch0_rep_data_ch0_q_pointer2
+  ft_inst.io.ch0_rep_ready                      := io.ch0_rep_ready
+  ft_inst.io.ch1_req_valid                      := io.ch1_req_valid
+  ft_inst.io.ch1_req_tag                        := io.ch1_req_tag
+  ft_inst.io.ch1_req_data_ch1_opcode            := io.ch1_req_data.ch1_opcode
+  ft_inst.io.ch1_req_data_ch1_bit_map           := io.ch1_req_data.ch1_bit_map
+  ft_inst.io.ch1_req_data_ch1_data_tuple_sIP    := io.ch1_req_data.ch1_data.tuple.sIP
+  ft_inst.io.ch1_req_data_ch1_data_tuple_dIP    := io.ch1_req_data.ch1_data.tuple.dIP
+  ft_inst.io.ch1_req_data_ch1_data_tuple_sPort  := io.ch1_req_data.ch1_data.tuple.sPort
+  ft_inst.io.ch1_req_data_ch1_data_tuple_dPort  := io.ch1_req_data.ch1_data.tuple.dPort
+  ft_inst.io.ch1_req_data_ch1_data_seq          := io.ch1_req_data.ch1_data.seq
+  ft_inst.io.ch1_req_data_ch1_data_pointer      := io.ch1_req_data.ch1_data.pointer
+  ft_inst.io.ch1_req_data_ch1_data_ll_valid     := io.ch1_req_data.ch1_data.ll_valid
+  ft_inst.io.ch1_req_data_ch1_data_slow_cnt     := io.ch1_req_data.ch1_data.slow_cnt
+  ft_inst.io.ch1_req_data_ch1_data_last_7_bytes := io.ch1_req_data.ch1_data.last_7_bytes
+  ft_inst.io.ch1_req_data_ch1_data_addr0        := io.ch1_req_data.ch1_data.addr0
+  ft_inst.io.ch1_req_data_ch1_data_addr1        := io.ch1_req_data.ch1_data.addr1
+  ft_inst.io.ch1_req_data_ch1_data_addr2        := io.ch1_req_data.ch1_data.addr2
+  ft_inst.io.ch1_req_data_ch1_data_addr3        := io.ch1_req_data.ch1_data.addr3
+  ft_inst.io.ch1_req_data_ch1_data_pointer2     := io.ch1_req_data.ch1_data.pointer2
+  io.ch1_req_ready                              := ft_inst.io.ch1_req_ready
+  io.ch1_rep_valid                              := ft_inst.io.ch1_rep_valid
+  io.ch1_rep_tag                                := ft_inst.io.ch1_rep_tag
+  io.ch1_rep_data                               := ft_inst.io.ch1_rep_data
+  ft_inst.io.ch1_rep_ready                      := io.ch1_rep_ready
 }
 
-class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, new metadata_t, ArrayBuffer(("dynamicMem", new dyMemInput_t, new llNode_t), ("hash", new tuple_t, new fce_meta_t)), extCompName + "__type__engine__MT__16__") {
+class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, new metadata_t, ArrayBuffer(("dynamicMem", new dyMemInput_t, new llNode_t)), extCompName + "__type__engine__MT__16__") {
   val filename = "./src/main/scala/primate.cfg"
   val fileSource = Source.fromFile(filename)
   val lines = fileSource.getLines.toList
@@ -1329,12 +921,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   // set up function units
   def functionalUnits = io.elements("off")
   def dynamicMemPort = functionalUnits.asInstanceOf[Bundle].elements("dynamicMem").asInstanceOf[gOffBundle[dyMemInput_t, llNode_t]]
-  def hashPort = functionalUnits.asInstanceOf[Bundle].elements("hash").asInstanceOf[gOffBundle[tuple_t, fce_meta_t]]
-  // val lockPort = Module(new lockU(TAGWIDTH, NUM_THREADS))
   val flowTablePort = Module(new flowTable(TAGWIDTH, NUM_THREADS))
-  // def ipv4Lookup1Port = functionalUnits.asInstanceOf[Bundle].elements("ipv4Lookup1").asInstanceOf[gOffBundle[UInt, UInt]]
-  // def ipv4Lookup2Port = functionalUnits.asInstanceOf[Bundle].elements("ipv4Lookup2").asInstanceOf[gOffBundle[UInt, UInt]]
-  // def qosCountPort = functionalUnits.asInstanceOf[Bundle].elements("qosCount").asInstanceOf[gOffBundle[UInt, UInt]]
 
   object ThreadStageEnum extends ChiselEnum {
     val idle   = Value
@@ -1393,11 +980,13 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   val GS_OR          = 5.U
   val GS_GT          = 6.U
   val GS_GE          = 7.U
-  val GS_INPUT       = 8.U
-  val GS_OUTPUT      = 9.U
-  val GS_OUTPUTRET   = 10.U
-  val GS_RET         = 11.U
-  val GS_BFU         = 12.U
+  val GS_EQ          = 8.U
+  val GS_NEQ         = 9.U
+  val GS_INPUT       = 10.U
+  val GS_OUTPUT      = 11.U
+  val GS_OUTPUTRET   = 12.U
+  val GS_RET         = 13.U
+  val GS_BFU         = 14.U
 
   // val reg_block_width = ArrayBuffer(96, 8, 24, 8, 1, 1, 10, 43, 3, 10, 32, 16, 9, 9)
   val regfile = Module(new RegRead(NUM_THREADS, NUM_ALUS, NUM_DST, NUM_REGS, REG_WIDTH, NUM_REGBLOCKS, reg_block_width))
@@ -1657,25 +1246,19 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
 
   val execBundle0 = new Bundle {
     val tag = UInt(NUM_THREADS_LG.W)
-    val bits = (new tuple_t)
+    val bits = (new ftCh0Input_t)
   }
   val execBundle1 = new Bundle {
     val tag = UInt(NUM_THREADS_LG.W)
-    val bits = (new ftCh0Input_t)
-  }
-  val execBundle2 = new Bundle {
-    val tag = UInt(NUM_THREADS_LG.W)
     val bits = (new ftCh1Input_t)
   }
-  val execBundle3 = new Bundle {
+  val execBundle2 = new Bundle {
     val tag = UInt(NUM_THREADS_LG.W)
     val bits = (new dyMemInput_t)
   }
   val fuFifos_0 = Module(new Queue(execBundle0, NUM_THREADS - 1))
   val fuFifos_1 = Module(new Queue(execBundle1, NUM_THREADS - 1))
   val fuFifos_2 = Module(new Queue(execBundle2, NUM_THREADS - 1))
-  val fuFifos_3 = Module(new Queue(execBundle3, NUM_THREADS - 1))
-  // val fuFifos_4 = Module(new Queue(execBundle4, NUM_THREADS - 1))
 
   fuFifos_0.io.enq.valid := false.B
   fuFifos_0.io.enq.bits := DontCare
@@ -1683,10 +1266,6 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   fuFifos_1.io.enq.bits := DontCare
   fuFifos_2.io.enq.valid := false.B
   fuFifos_2.io.enq.bits := DontCare
-  fuFifos_3.io.enq.valid := false.B
-  fuFifos_3.io.enq.bits := DontCare
-  // fuFifos_4.io.enq.valid := false.B
-  // fuFifos_4.io.enq.bits := DontCare
 
   io.out.tag := DontCare
   io.out.bits := DontCare
@@ -1714,6 +1293,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
       // preOpRes(0) := tmp(255, 128)
       preOpRes(0) := input_u
       preOpRes(1) := input_u
+      threadStates(preOpThread).branchFU := true.B
     }
 
     .elsewhen (preOp === GS_BR) {
@@ -1744,6 +1324,14 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
       threadStates(preOpThread).preOpBranch := (preOpRes(0)(31, 0) >= preOpRes(1)(31, 0))
     }
 
+    .elsewhen (preOp === GS_EQ) {
+      threadStates(preOpThread).preOpBranch := (preOpRes(0)(31, 0) === preOpRes(1)(31, 0))
+    }
+
+    .elsewhen (preOp === GS_NEQ) {
+      threadStates(preOpThread).preOpBranch := (preOpRes(0)(31, 0) =/= preOpRes(1)(31, 0))
+    }
+
     .elsewhen (preOp === GS_OUTPUT) {
       threadStates(preOpThread).preOpBranch := true.B
       io.out.tag := threadStates(preOpThread).tag
@@ -1765,39 +1353,32 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
       threadStates(preOpThread).finish := true.B
     }
 
-    .elsewhen (preOp === GS_BFU) {
-      threadStates(preOpThread).branchFU := true.B
-    }
+    // .elsewhen (preOp === GS_BFU) {
+    //   threadStates(preOpThread).branchFU := true.B
+    // }
 
     // FIXME: choose which preOp vals to send to functional units
 
     when (fuValids_vec(0)(0) === true.B) {
       fuFifos_0.io.enq.bits.tag := preOpThread
-      fuFifos_0.io.enq.bits.bits := (preOpRes(1).asTypeOf(new metadata_t)).tuple
+      fuFifos_0.io.enq.bits.bits.ch0_opcode := fuOps_vec(0)(0)
+      fuFifos_0.io.enq.bits.bits.ch0_pkt := preOpRes(0).asTypeOf(new metadata_t)
       fuFifos_0.io.enq.valid := true.B
     }
 
     when (fuValids_vec(0)(1) === true.B) {
       fuFifos_1.io.enq.bits.tag := preOpThread
-      fuFifos_1.io.enq.bits.bits.ch0_opcode := fuOps_vec(0)(1)
-      fuFifos_1.io.enq.bits.bits.ch0_pkt := preOpRes(0).asTypeOf(new metadata_t)
-      fuFifos_1.io.enq.bits.bits.ch0_meta := preOpRes(1).asTypeOf(new fce_meta_t)
+      fuFifos_1.io.enq.bits.bits.ch1_opcode := fuOps_vec(0)(1)
+      fuFifos_1.io.enq.bits.bits.ch1_bit_map := (preOpRes(1).asTypeOf(new ftCh0Output_t)).ch0_bit_map
+      fuFifos_1.io.enq.bits.bits.ch1_data := (preOpRes(1).asTypeOf(new ftCh0Output_t)).ch0_q
       fuFifos_1.io.enq.valid := true.B
     }
 
     when (fuValids_vec(0)(2) === true.B) {
       fuFifos_2.io.enq.bits.tag := preOpThread
-      fuFifos_2.io.enq.bits.bits.ch1_opcode := fuOps_vec(0)(2)
-      fuFifos_2.io.enq.bits.bits.ch1_bit_map := (preOpRes(1).asTypeOf(new ftCh0Output_t)).ch0_bit_map
-      fuFifos_2.io.enq.bits.bits.ch1_data := (preOpRes(1).asTypeOf(new ftCh0Output_t)).ch0_q
+      fuFifos_2.io.enq.bits.bits.opcode := fuOps_vec(0)(2)
+      fuFifos_2.io.enq.bits.bits.node := preOpRes(1).asTypeOf(new llNode_t)
       fuFifos_2.io.enq.valid := true.B
-    }
-
-    when (fuValids_vec(0)(3) === true.B) {
-      fuFifos_3.io.enq.bits.tag := preOpThread
-      fuFifos_3.io.enq.bits.bits.opcode := fuOps_vec(0)(3)
-      fuFifos_3.io.enq.bits.bits.node := preOpRes(1).asTypeOf(new llNode_t)
-      fuFifos_3.io.enq.valid := true.B
     }
 
     threadStages(preOpThread) := ThreadStageEnum.exec
@@ -1813,13 +1394,9 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   fuValids_e := fuValids_vec(0)
   fuValids_e_d0 := fuValids_e
   val fuReqReadys = new Array[Bool](NUM_FUS)
-  // fuReqReadys(0) = lockPort.io.req_ready
-  fuReqReadys(0) = hashPort.req.ready
-  fuReqReadys(1) = flowTablePort.io.ch0_req_ready
-  fuReqReadys(2) = flowTablePort.io.ch1_req_ready
-  fuReqReadys(3) = dynamicMemPort.req.ready
-  // fuReqReadys(1) = ipv4Lookup2Port.req.ready
-  // fuReqReadys(2) = qosCountPort.req.ready
+  fuReqReadys(0) = flowTablePort.io.ch0_req_ready
+  fuReqReadys(1) = flowTablePort.io.ch1_req_ready
+  fuReqReadys(2) = dynamicMemPort.req.ready
 
   // Bypass ALU results
   // val wr_encode = ArrayBuffer(0, 2, 3, 6, 10, 17, 20, 24, 25)
@@ -1836,116 +1413,90 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
   }
 
   when (execThread_d0 =/= NONE_SELECTED) {
-    when (fuValids_e_d0(4) === true.B) {
+    when (fuValids_e_d0(3) === true.B) {
       val destMem_in = Wire(new DestMemT)
       destMem_in.slctFU := 0.U
       destMem_in.dest := scatter(0).io.dout
       destMem_in.wben := scatter(0).io.wren
-      destMems(4).io.wren := true.B
-      destMems(4).io.wraddress := execThread_d0
-      destMems(4).io.data := destMem_in.asUInt
-      threadStates(execThread_d0).execValids(4) := true.B
+      destMems(3).io.wren := true.B
+      destMems(3).io.wraddress := execThread_d0
+      destMems(3).io.data := destMem_in.asUInt
+      threadStates(execThread_d0).execValids(3) := true.B
     }
 
-    when (fuValids_e_d0(5) === true.B) {
+    when (fuValids_e_d0(4) === true.B) {
       val destMem_in = Wire(new DestMemT)
       destMem_in.slctFU := 0.U
       destMem_in.dest := scatter(1).io.dout
       destMem_in.wben := scatter(1).io.wren
-      destMems(5).io.wren := true.B
-      destMems(5).io.wraddress := execThread_d0
-      destMems(5).io.data := destMem_in.asUInt
-      threadStates(execThread_d0).execValids(5) := true.B
+      destMems(4).io.wren := true.B
+      destMems(4).io.wraddress := execThread_d0
+      destMems(4).io.data := destMem_in.asUInt
+      threadStates(execThread_d0).execValids(4) := true.B
     }
   }
 
   // FUs input
   when (fuFifos_0.io.count > 0.U && fuReqReadys(0) === true.B) {
     val deq = fuFifos_0.io.deq
-    hashPort.req.valid := true.B
-    hashPort.req.tag := deq.bits.tag
-    hashPort.req.bits := deq.bits.bits
-    fuFifos_0.io.deq.ready := true.B
-  }
-  .otherwise {
-    hashPort.req.valid := false.B
-    hashPort.req.tag := 0.U(NUM_THREADS_LG.W)
-    hashPort.req.bits := DontCare
-    fuFifos_0.io.deq.ready := false.B
-  }
-
-  when (fuFifos_1.io.count > 0.U && fuReqReadys(1) === true.B) {
-    val deq = fuFifos_1.io.deq
     flowTablePort.io.ch0_req_valid := true.B
     flowTablePort.io.ch0_req_tag := deq.bits.tag
     flowTablePort.io.ch0_req_data := deq.bits.bits
-    fuFifos_1.io.deq.ready := true.B
+    fuFifos_0.io.deq.ready := true.B
   }
   .otherwise {
     flowTablePort.io.ch0_req_valid := false.B
     flowTablePort.io.ch0_req_tag := 0.U(NUM_THREADS_LG.W)
     flowTablePort.io.ch0_req_data := DontCare
-    fuFifos_1.io.deq.ready := false.B
+    fuFifos_0.io.deq.ready := false.B
   }
 
-  when (fuFifos_2.io.count > 0.U && fuReqReadys(2) === true.B) {
-    val deq = fuFifos_2.io.deq
+  when (fuFifos_1.io.count > 0.U && fuReqReadys(1) === true.B) {
+    val deq = fuFifos_1.io.deq
     flowTablePort.io.ch1_req_valid := true.B
     flowTablePort.io.ch1_req_tag := deq.bits.tag
     flowTablePort.io.ch1_req_data := deq.bits.bits
-    fuFifos_2.io.deq.ready := true.B
+    fuFifos_1.io.deq.ready := true.B
   }
   .otherwise {
     flowTablePort.io.ch1_req_valid := false.B
     flowTablePort.io.ch1_req_tag := 0.U(NUM_THREADS_LG.W)
     flowTablePort.io.ch1_req_data := DontCare
-    fuFifos_2.io.deq.ready := false.B
+    fuFifos_1.io.deq.ready := false.B
   }
 
-  when (fuFifos_3.io.count > 0.U && fuReqReadys(3) === true.B) {
-    val deq = fuFifos_3.io.deq
+  when (fuFifos_2.io.count > 0.U && fuReqReadys(2) === true.B) {
+    val deq = fuFifos_2.io.deq
     dynamicMemPort.req.valid := true.B
     dynamicMemPort.req.tag := deq.bits.tag
     dynamicMemPort.req.bits := deq.bits.bits
-    fuFifos_3.io.deq.ready := true.B
+    fuFifos_2.io.deq.ready := true.B
   }
   .otherwise {
     dynamicMemPort.req.valid := false.B
     dynamicMemPort.req.tag := 0.U(NUM_THREADS_LG.W)
     dynamicMemPort.req.bits := DontCare
-    fuFifos_3.io.deq.ready := false.B
+    fuFifos_2.io.deq.ready := false.B
   }
 
   // FUs output
-  hashPort.rep.ready := true.B
-  when (hashPort.rep.valid) {
-    val destMem_in = Wire(new DestMemT)
-    destMem_in.slctFU := 0.U
-    destMem_in.dest := hashPort.rep.bits.asUInt
-    destMem_in.wben := Fill(16, 1.U)
-    destMems(0).io.wren := true.B
-    destMems(0).io.wraddress := hashPort.rep.tag
-    destMems(0).io.data := destMem_in.asUInt
-    threadStates(hashPort.rep.tag).execValids(0) := true.B
-  }
-
   flowTablePort.io.ch0_rep_ready := true.B
   when (flowTablePort.io.ch0_rep_valid) {
     val destMem_in = Wire(new DestMemT)
     destMem_in.slctFU := flowTablePort.io.ch0_rep_data.flag
     destMem_in.dest := flowTablePort.io.ch0_rep_data.asUInt
     destMem_in.wben := Fill(16, 1.U)
-    destMems(1).io.wren := true.B
-    destMems(1).io.wraddress := flowTablePort.io.ch0_rep_tag
-    destMems(1).io.data := destMem_in.asUInt
-    threadStates(flowTablePort.io.ch0_rep_tag).execValids(1) := true.B
+    destMems(0).io.wren := true.B
+    destMems(0).io.wraddress := flowTablePort.io.ch0_rep_tag
+    destMems(0).io.data := destMem_in.asUInt
+    threadStates(flowTablePort.io.ch0_rep_tag).execValids(0) := true.B
   }
 
   flowTablePort.io.ch1_rep_ready := true.B
   when (flowTablePort.io.ch1_rep_valid) {
     // threadStates(flowTablePort.io.ch1_rep_tag).dests(1) := flowTablePort.io.ch1_rep_data.asUInt
     // threadStates(flowTablePort.io.ch1_rep_tag).wbens(2) := Fill(16, 0.U)
-    threadStates(flowTablePort.io.ch1_rep_tag).execValids(2) := true.B
+    threadStates(flowTablePort.io.ch1_rep_tag).execValids(1) := true.B
   }
 
   dynamicMemPort.rep.ready := true.B
@@ -1954,10 +1505,10 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
     destMem_in.slctFU := 0.U
     destMem_in.dest := dynamicMemPort.rep.bits.asUInt
     destMem_in.wben := Fill(16, 1.U)
-    destMems(3).io.wren := true.B
-    destMems(3).io.wraddress := dynamicMemPort.rep.tag
-    destMems(3).io.data := destMem_in.asUInt
-    threadStates(dynamicMemPort.rep.tag).execValids(3) := true.B
+    destMems(2).io.wren := true.B
+    destMems(2).io.wraddress := dynamicMemPort.rep.tag
+    destMems(2).io.data := destMem_in.asUInt
+    threadStates(dynamicMemPort.rep.tag).execValids(2) := true.B
   }
 
   // finish execution
@@ -2027,9 +1578,9 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
       threadStates(branchThread_d0).ip := 0.U
     }
     .elsewhen (threadStates(branchThread_d0).branchFU) {
-      when (slctFU(1) === 0.U) {
+      when (slctFU(0) === 0.U) {
         threadStates(branchThread_d0).ip := threadStates(branchThread_d0).ip + brTarget(0)
-      } .elsewhen (slctFU(1) === 1.U) {
+      } .elsewhen (slctFU(0) === 1.U) {
         threadStates(branchThread_d0).ip := threadStates(branchThread_d0).ip + brTarget(1)
       } .otherwise {
         threadStates(branchThread_d0).ip := threadStates(branchThread_d0).ip + brTarget(2)
@@ -2046,11 +1597,7 @@ class pktReassembly(extCompName: String) extends gComponentLeaf(new metadata_t, 
       threadStages(branchThread_d0) := ThreadStageEnum.idle
     }
     .otherwise {
-      when (threadStates(branchThread_d0).ip > 0.U) {
-        threadStages(branchThread_d0) := ThreadStageEnum.fetch
-      } .otherwise {
-        threadStages(branchThread_d0) := ThreadStageEnum.order_fetch
-      }
+      threadStages(branchThread_d0) := ThreadStageEnum.fetch
     }
   }
   .otherwise {

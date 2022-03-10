@@ -2,7 +2,6 @@
 #pragma OUTPUT metadata_t
 
 #pragma OFFLOAD (dynamicMem, dyMemInput_t, llNode_t)
-#pragma OFFLOAD (hash, tuple_t, fce_meta_t)
 #pragma CONCURRENT_SAFE
 
 int counter;
@@ -21,10 +20,8 @@ GS_COUNT () {
 
 GS_GET_INC_FACTOR () {
   int incF;
-  int hashed;
 
   incF = dynamicMem(Input.seq);
-  hashed = hash(Input.seq);
-  Output.seq = incF + Input.seq + hashed;
+  Output.seq = incF + Input.seq;
   finish();
 }
