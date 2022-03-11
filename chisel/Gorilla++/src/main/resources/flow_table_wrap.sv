@@ -1921,7 +1921,6 @@ always_comb begin
     ch0_meta.opcode = 0;
     ch0_rd_ready = 1'b0;
     stall = 'b1;
-    forward_meta_ready = 'b1;
     fs_table_wen0 = 'd0;
     fs_table_waddr0 = tag;
     fs_table_wdata0.meta = meta;
@@ -2379,30 +2378,35 @@ assign ch3_wren = 'b0;
 assign ch3_opcode = 'b0;
 assign ch3_rel_pkt_cnt = 'b0;
 
+ftCh1Input_t ch1_req_data_r;
+logic ch1_req_valid_r;
+
 always_comb begin
     if (ch1_wren) begin
         ch1_opcode_i = ch1_opcode;
         ch1_bit_map_i = ch1_bit_map;
-        ch1_wren_i = ch1_wren;
         ch1_data_i = ch1_data;
     end else begin
-        ch1_opcode_i = ch1_req_data.ch1_opcode;
-        ch1_bit_map_i = ch1_req_data.ch1_bit_map;
-        ch1_wren_i = ch1_req_valid;
-        ch1_data_i = ch1_req_data.ch1_data;
-        if (ch1_req_data.ch1_opcode == 3) begin
+        ch1_opcode_i = ch1_req_data_r.ch1_opcode;
+        ch1_bit_map_i = ch1_req_data_r.ch1_bit_map;
+        ch1_data_i = ch1_req_data_r.ch1_data;
+        if (ch1_req_data_r.ch1_opcode == 3) begin
             ch1_data_i.valid = 1'b0;
         end else begin
             ch1_data_i.valid = 1'b1;
         end
     end
 end
-assign ch1_wren_i = ch1_wren || ch1_req_valid;
+assign ch1_wren_i = ch1_wren || ch1_req_valid_r;
 assign ch1_req_ready = (!ch1_wren) && (!ch1_insert_stall);
 always_ff @(posedge clk) begin
     ch1_rep_valid <= ch1_req_valid && ch1_req_ready;
-    ch1_rep_tag <= ch1_req_tag;
     ch1_rep_data <= 'd0;
+    if (ch1_req_ready) begin
+        ch1_rep_tag <= ch1_req_tag;
+        ch1_req_data_r <= ch1_req_data;
+        ch1_req_valid_r <= ch1_req_valid;
+    end
 end
 
 flow_table flow_table_inst (
