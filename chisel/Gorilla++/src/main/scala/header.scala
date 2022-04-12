@@ -13,12 +13,17 @@ class porcOut_t extends Bundle {
 val data = UInt((64).W)
 val threadID = UInt(4.W)
 }
+class mspmInWord_t extends Bundle {
+val string = UInt(128.W)
+val length = UInt(4.W)
+val idx = UInt(3.W)
+}
 class mspmIn_t extends Bundle { 
 val opcode = UInt((5).W)
-val word = UInt((128).W)
+val word = new mspmInWord_t
 }
 class mspmOut_t extends Bundle { 
-val match_idx_vec = UInt((16).W)
+val matched = UInt(8.W)
 val match_pos0 = UInt((4).W)
 val match_pos1 = UInt((4).W)
 val match_pos2 = UInt((4).W)
@@ -27,14 +32,6 @@ val match_pos4 = UInt((4).W)
 val match_pos5 = UInt((4).W)
 val match_pos6 = UInt((4).W)
 val match_pos7 = UInt((4).W)
-val match_pos8 = UInt((4).W)
-val match_pos9 = UInt((4).W)
-val match_pos10 = UInt((4).W)
-val match_pos11 = UInt((4).W)
-val match_pos12 = UInt((4).W)
-val match_pos13 = UInt((4).W)
-val match_pos14 = UInt((4).W)
-val match_pos15 = UInt((4).W)
 }
 class asciiIn_t extends Bundle { 
 val opcode = UInt((5).W)

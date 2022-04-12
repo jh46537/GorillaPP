@@ -1431,7 +1431,7 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
     when (fuValids_vec(0)(0) === true.B) {
       fuFifos_0.io.enq.bits.tag := preOpThread
       fuFifos_0.io.enq.bits.bits.opcode := fuOps_vec(0)(0)
-      fuFifos_0.io.enq.bits.bits.word := preOpRes(0)
+      fuFifos_0.io.enq.bits.bits.word := preOpRes(0).asTypeOf(new mspmInWord_t)
       fuFifos_0.io.enq.valid := true.B
     }
 
