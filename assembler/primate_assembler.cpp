@@ -11,9 +11,9 @@
 #define OP_W 4
 #define NUM_ALUOPS_LG 4
 #define NUM_ALUS 2
-#define NUM_SRC_POS 26
+#define NUM_SRC_POS 20
 #define NUM_SRC_POS_LG int(ceil(log2(NUM_SRC_POS)))
-#define NUM_SRC_MODE 14
+#define NUM_SRC_MODE 5
 #define NUM_SRC_MODE_LG int(ceil(log2(NUM_SRC_MODE)))
 #define NUM_FUOPS_LG 2
 #define NUM_FUS 4
@@ -22,7 +22,7 @@
 #define NUM_REGS_LG 4
 #define NUM_BT 3
 #define IP_W 8
-#define IMM_W 8
+#define IMM_W 9
 #define INST_W (NUM_ALUS*(NUM_ALUOPS_LG+3*(NUM_SRC_POS_LG+NUM_SRC_MODE_LG)+2*NUM_REGS_LG)+NUM_FUS*(1+NUM_FUOPS_LG)+NUM_DEST*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W*NUM_BT+OP_W+IMM_W*NUM_ALUS)
 #define NUM_INT ((INST_W+31)/32)
 
@@ -70,52 +70,31 @@ class instruction
     };
 
     const map<string, int> srcType_dict {
-        {"uint1"  , 0},
-        {"uint2"  , 1},
-        {"uint3"  , 2},
-        {"uint5"  , 3},
-        {"uint6"  , 4},
-        {"uint8"  , 5},
-        {"uint9"  , 6},
-        {"uint10" , 7},
-        {"uint12" , 8},
-        {"uint16" , 9},
-        {"uint32" , 10},
-        {"uint56" , 11},
-        {"uint96" , 12},
-        {"uint"   , 13},
-        {"uimm8"  , 14},
-        {"uimm16" , 15}
+        {"uint4"  , 0},
+        {"uint5"  , 1},
+        {"uint9"  , 2},
+        {"uint16" , 3},
+        {"uint128", 4},
+        {"uint"   , 5},
+        {"uimm9"  , 6}
     };
 
     const map<string, int> dstType_dict {
-        {"uint1"  , 0},
-        {"uint2"  , 1},
-        {"uint3"  , 2},
-        {"uint5"  , 3},
-        {"uint6"  , 4},
-        {"uint8"  , 5},
-        {"uint9"  , 6},
-        {"uint10" , 7},
-        {"uint12" , 8},
-        {"uint16" , 9},
-        {"uint32" , 10},
-        {"uint56" , 11},
-        {"uint96" , 12},
-        {"uint"   , 13}
+        {"uint4"  , 0},
+        {"uint5"  , 1},
+        {"uint9"  , 2},
+        {"uint16" , 3},
+        {"uint128", 4},
+        {"uint"   , 5},
+        {"uimm9"  , 6}
     };
 
     const map<string, fuOp_t> fuOp_dict {
-        {"FTLOOKUP", {0, 1}},
-        {"UNLOCK"  , {1, 0}},
-        {"INSERT"  , {1, 0}},
-        {"UPDATE"  , {2, 0}},
-        {"DELETE"  , {3, 0}},
-        {"MALLOC"  , {0, 1}},
-        {"LOOKUP"  , {1, 1}},
-        {"UPDATE0" , {2, 0}},
-        // {"UPDATE1" , {3, 0}},
-        {"RELEASE" , {3, 0}},
+        {"RESET"   , {0, 0}},
+        {"LOAD"    , {1, 0}},
+        {"MATCH"   , {2, 1}},
+        {"ISDIGIT" , {0, 1}},
+        {"EXDIGIT" , {1, 1}},
         {"EN"      , {0, 0}},
         {"WEN"     , {1, 1}}
     };

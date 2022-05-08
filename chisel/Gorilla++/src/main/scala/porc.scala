@@ -228,6 +228,7 @@ class ram_simple2port(num: Int, width: Int) extends
     val q         = Output(UInt(width.W))
   })
 
+  // addResource("/ram_simple2port.v")
   addResource("/ram_simple2port_sim.v")
 
 }
@@ -252,6 +253,7 @@ class ram_qp(num: Int, width: Int) extends
     val clock           = Input(Clock())
   })
 
+  // addResource("/ram_qp.v")
   addResource("/ram_qp_sim.v")
 
 }
@@ -563,6 +565,9 @@ class Scheduler_order(num_threads: Int) extends Module {
 
 class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
   val io = IO(new Bundle {
+    val cfgIn      = Input(UInt(instrWidth.W))
+    val cfgIp      = Input(UInt(ipWidth.W))
+    val cfgValid   = Input(Bool())
     val ip         = Input(UInt(ipWidth.W))
     val instr      = Output(UInt(instrWidth.W))
   })
@@ -571,18 +576,44 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
 
   // var mem_array = Array.fill[UInt](1 << ipWidth)(0.U(instrWidth.W))
   var mem = VecInit(
-    "h00000000b06018c0841741ba00080e837400100a".U,
-    "h0000004000000000000341ba00080e837800100e".U,
-    "h0000008000000000000341ba00080e837800100e".U,
-    "h000000c000000000000341ba00080e837800100e".U,
-    "h0000010000000000000341ba00080e837800100e".U,
-    "h0000008000000000000341ba00080e837800100e".U,
-    "h0000000000000000004741ba00080e837400100c".U,
+    "h000002000000003b0050c52b80010080b400100a".U,
+    "h000000010000000000011a0b400100a0b800100e".U,
+    "h000011000000003b0050c52b80010080b400100a".U,
+    "h000000008000000000011a0b400100a0b800100e".U,
+    "h000022800000003b0050c52b80010080b400100a".U,
+    "h000000014000000000011a0b400100a0b800100e".U,
+    "h000002000000003b0050c52b80010080b400100a".U,
+    "h000000010000000101021a0b400100a0b800100e".U,
+    "h000002000000003b0050c52b80010080b400100a".U,
+    "h000000010000000101021a0b400100a0b800100e".U,
+    "h000001000000003b0050c52b80010080b400100a".U,
+    "h000000008000000101021a0b400100a0b800100e".U,
+    "h000003800000003b0050c52b80010080b400100a".U,
+    "h00000001c000000101021a0b400100a0b800100e".U,
+    "h000003800000003b0050c52b80010080b400100a".U,
+    "h00000001c000000101021a0b400100a0b800100e".U,
+    "h000000000000000502002a0b40010180b400100a".U,
+    "h00000001c000000000000a0b400100a0b800100e".U,
+    "h000000000000000502002a0b40010180b400100a".U,
+    "h000000018000000000000a0b400100a0b800100e".U,
+    "h000000000000000502002a0b40010180b400100a".U,
+    "h00000002c000000000000a0b400100a0b800100e".U,
+    "h000000000000000502002a0b40010180b400100a".U,
+    "h000000018000000000000a0b400100a0b800100e".U,
+    "h000000000000000503042a0b40010180b400100a".U,
+    "h000000040000000000000a0b400100a0b800100e".U,
+    "h000000000000000503042a0b40010180b400100a".U,
+    "h000000040000000000000a0b400100a0b800100e".U,
+    "h000000000000000503042a0b40010180b400100a".U,
+    "h000000000000000000001a0b400101a0b400100c".U,
   )
 
-  // val mem = RegInit(VecInit(mem_array.toSeq))
-  //val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
-  //loadMemoryFromFileInline(mem, "../assembler/npu.bin")
+  // val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
+  // loadMemoryFromFileInline(mem, "../assembler/npu.bin")
+
+  when (io.cfgValid) {
+    mem.write(io.cfgIp, io.cfgIn)
+  }
 
   io.instr := mem(io.ip)
 }
@@ -874,7 +905,7 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
   // val NUM_DST_MODE = 10
   // val MAX_FIELD_WIDTH = 56
   // val IP_WIDTH = 8
-  val INIT_IP = 6
+  val INIT_IP = 29
   val NUM_THREADS_LG = log2Up(NUM_THREADS)
   val NUM_REGS_LG = log2Up(NUM_REGS)
   val NUM_FUOPS_LG = 2
@@ -1066,7 +1097,7 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
     threadStates(0).ip := INIT_IP.U(IP_WIDTH.W)
     vThreadEncoder.io.valid := true.B
     vThreadEncoder.io.tag := 0.U
-    in_valid_d0 := true.B
+    in_valid_d0 := false.B
     sThread_reg := 0.U
     init_state := 1.U
   } .elsewhen (init_state === 1.U) {
@@ -1084,7 +1115,7 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
         io.in.ready := true.B
         vThreadEncoder.io.valid := true.B
         vThreadEncoder.io.tag := sThread
-      } .elsewhen (io.in.valid && !io.in.bits.newThread) {
+      } .elsewhen (io.in.valid && !io.in.bits.newThread && !io.in.bits.newInst) {
         in_valid_d0 := true.B
         io.in.ready := true.B
         vThreadEncoder.io.valid := false.B
@@ -1132,6 +1163,9 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
   /****************** Fetch logic *********************************/
   val fetchUnit = Module(new Fetch(NUM_THREADS, IP_WIDTH, INSTR_WIDTH))
   val instr = Reg(UInt(INSTR_WIDTH.W))
+  fetchUnit.io.cfgIn := io.in.bits.word
+  fetchUnit.io.cfgValid := io.in.valid && io.in.bits.newInst
+  fetchUnit.io.cfgIp := io.in.bits.newIp
   fetchUnit.io.ip := threadStates(vThread).ip
   instr := fetchUnit.io.instr
 
@@ -1319,8 +1353,19 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
   (0 until NUM_THREADS).map(i => inputBufOut(i) := inputBufs(i).io.rdata)
 
   for (i <- 0 until NUM_THREADS) {
-    when (readThread_vec(0) === i.U) {
+    when (readThread_vec(1) === i.U) {
       threadStates(i).seekDone := true.B
+    } .elsewhen (readThread_vec(0) === i.U) {
+      when (preOp_vec(1) === GS_INPUTSEEK) {
+        threadStates(i).seekDone := false.B
+      }
+    } .elsewhen (inputBufs(i).io.rvalid) {
+      threadStates(i).seekDone := true.B
+    }
+  }
+
+  for (i <- 0 until NUM_THREADS) {
+    when (readThread_vec(0) === i.U) {
       when (preOp_vec(1) === GS_INPUT) {
         inputBufs(i).io.arvalid := true.B
         inputBufs(i).io.opcode := 0.U
@@ -1330,10 +1375,7 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
         inputBufs(i).io.arvalid := true.B
         inputBufs(i).io.ardata := alus(0).io.dout
         inputBufs(i).io.opcode := 1.U
-        threadStates(i).seekDone := false.B
       }
-    } .elsewhen (inputBufs(i).io.rvalid) {
-      threadStates(i).seekDone := true.B
     }
   }
 
@@ -1359,7 +1401,7 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
 
       // preOpRes(0) := tmp(255, 128)
       preOpRes(0) := input_u
-      preOpRes(1) := input_u
+      // preOpRes(1) := input_u
       // threadStates(preOpThread).branchFU := true.B
     }
 
@@ -1431,14 +1473,14 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
     when (fuValids_vec(0)(0) === true.B) {
       fuFifos_0.io.enq.bits.tag := preOpThread
       fuFifos_0.io.enq.bits.bits.opcode := fuOps_vec(0)(0)
-      fuFifos_0.io.enq.bits.bits.word := preOpRes(0).asTypeOf(new mspmInWord_t)
+      fuFifos_0.io.enq.bits.bits.word := preOpRes(1).asTypeOf(new mspmInWord_t)
       fuFifos_0.io.enq.valid := true.B
     }
 
     when (fuValids_vec(0)(1) === true.B) {
       fuFifos_1.io.enq.bits.tag := preOpThread
       fuFifos_1.io.enq.bits.bits.opcode := fuOps_vec(0)(1)
-      fuFifos_1.io.enq.bits.bits.string := preOpRes(1)
+      fuFifos_1.io.enq.bits.bits.string := preOpRes(0)
       fuFifos_1.io.enq.valid := true.B
     }
 
