@@ -2,15 +2,16 @@ import chisel3.iotesters.PeekPokeTester
 import org.scalatest._
 import flatspec._
 import matchers.should._
+import scala.io.Source
 
 
 class TopTests(c: Top) extends gTester[Top](c) {
   val inputData = List(0, 11, 21, 31, 41, 51, 61, 71, 81, 91, 101, 111, 121, 131, 141, 1)
   val iDelay = 1
 
-  val filename = "/home/marui/input.txt"
-  val fileSource = Source.fromFile(filename)
-  val lines = fileSource.getLines.toList
+  // val filename = "/home/marui/input.txt"
+  // val fileSource = Source.fromFile(filename)
+  // val lines = fileSource.getLines.toList
 
   //Spin for a while without any test input
   for (time <- 0 until 5) {
@@ -44,64 +45,64 @@ class TopTests(c: Top) extends gTester[Top](c) {
   var allPassed = true
   var cycles = 0
   // val numOfInputs = lines.length
-  val numOfInputs = 8192
+  val numOfInputs = 128
   val numThreads = 8
 
   while(cycles < 250000 && (sourced < numOfInputs || sinked < numOfInputs)) {
     // Read packets from file
-    val Array(prot, sIP, dIP, sPort, dPort, seq, len, pktID, tcp_flags) = lines(sourced).split(" ").map(_.toLong)
-    if (sourced < numOfInputs) {
-      poke(c.io.in.bits.prot, prot.U)
-      poke(c.io.in.bits.tuple.sIP, sIP.U)
-      poke(c.io.in.bits.tuple.dIP, dIP.U)
-      poke(c.io.in.bits.tuple.sPort, sPort.U)
-      poke(c.io.in.bits.tuple.dPort, dPort.U)
-      poke(c.io.in.bits.seq, seq.U)
-      poke(c.io.in.bits.len, len.U)
-      poke(c.io.in.bits.pktID, pktID.U)
-      poke(c.io.in.bits.tcp_flags, tcp_flags.U)
+    // val Array(prot, sIP, dIP, sPort, dPort, seq, len, pktID, tcp_flags) = lines(sourced).split(" ").map(_.toLong)
+    // if (sourced < numOfInputs) {
+    //   poke(c.io.in.bits.prot, prot.U)
+    //   poke(c.io.in.bits.tuple.sIP, sIP.U)
+    //   poke(c.io.in.bits.tuple.dIP, dIP.U)
+    //   poke(c.io.in.bits.tuple.sPort, sPort.U)
+    //   poke(c.io.in.bits.tuple.dPort, dPort.U)
+    //   poke(c.io.in.bits.seq, seq.U)
+    //   poke(c.io.in.bits.len, len.U)
+    //   poke(c.io.in.bits.pktID, pktID.U)
+    //   poke(c.io.in.bits.tcp_flags, tcp_flags.U)
       
-      poke(c.io.in.valid, true.B)
-      poke(c.io.out.ready, true.B)
-    } else {
-      poke(c.io.in.valid, false.B)
-      poke(c.io.out.ready, true.B)
-    }
-
-    // Generate packets
-    // if (sourced < numThreads) {
-    //   poke(c.io.in.bits.prot, 0x6.U)
-    //   poke(c.io.in.bits.tuple.sIP, (sourced % numThreads).U)
-    //   poke(c.io.in.bits.tuple.dIP, (sourced % numThreads).U)
-    //   poke(c.io.in.bits.tuple.sPort, (sourced % numThreads).U)
-    //   poke(c.io.in.bits.tuple.dPort, (sourced % numThreads).U)
-    //   poke(c.io.in.bits.seq, (inputData(sourcedIndex)).U)
-    //   poke(c.io.in.bits.len, 10.U)
-    //   poke(c.io.in.bits.pktID, sourced.U)
-    //   poke(c.io.in.bits.tcp_flags, 2.U)
-      
-    //   poke(c.io.in.valid, true.B)
-    //   poke(c.io.out.ready, true.B)
-    // } else if ((sourced < numOfInputs) && (cycles % iDelay == 0)) {
-    //   poke(c.io.in.bits.prot, 0x6.U)
-    //   poke(c.io.in.bits.tuple.sIP, (sourced % numThreads).U)
-    //   poke(c.io.in.bits.tuple.dIP, (sourced % numThreads).U)
-    //   poke(c.io.in.bits.tuple.sPort, (sourced % numThreads).U)
-    //   poke(c.io.in.bits.tuple.dPort, (sourced % numThreads).U)
-    //   poke(c.io.in.bits.seq, (inputData(sourcedIndex)).U)
-    //   poke(c.io.in.bits.len, 10.U)
-    //   poke(c.io.in.bits.pktID, sourced.U)
-    //   poke(c.io.in.bits.tcp_flags, 0.U)
-
     //   poke(c.io.in.valid, true.B)
     //   poke(c.io.out.ready, true.B)
     // } else {
     //   poke(c.io.in.valid, false.B)
     //   poke(c.io.out.ready, true.B)
     // }
+
+    // Generate packets
+    if (sourced < numThreads) {
+      poke(c.io.in.bits.prot, 0x6.U)
+      poke(c.io.in.bits.tuple.sIP, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.dIP, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.sPort, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.dPort, (sourced % numThreads).U)
+      poke(c.io.in.bits.seq, (inputData(sourcedIndex)).U)
+      poke(c.io.in.bits.len, 10.U)
+      poke(c.io.in.bits.pktID, sourced.U)
+      poke(c.io.in.bits.tcp_flags, 2.U)
+      
+      poke(c.io.in.valid, true.B)
+      poke(c.io.out.ready, true.B)
+    } else if ((sourced < numOfInputs) && (cycles % iDelay == 0)) {
+      poke(c.io.in.bits.prot, 0x6.U)
+      poke(c.io.in.bits.tuple.sIP, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.dIP, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.sPort, (sourced % numThreads).U)
+      poke(c.io.in.bits.tuple.dPort, (sourced % numThreads).U)
+      poke(c.io.in.bits.seq, (inputData(sourcedIndex)).U)
+      poke(c.io.in.bits.len, 10.U)
+      poke(c.io.in.bits.pktID, sourced.U)
+      poke(c.io.in.bits.tcp_flags, 0.U)
+
+      poke(c.io.in.valid, true.B)
+      poke(c.io.out.ready, true.B)
+    } else {
+      poke(c.io.in.valid, false.B)
+      poke(c.io.out.ready, true.B)
+    }
     if (peek(c.io.in.ready) == 1 && (cycles % iDelay == 0) && (sourced < numOfInputs)) {
       sourced += 1
-    //   sourcedIndex = sourced / numThreads
+      sourcedIndex = sourced / numThreads
     //   println("sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
     }
     if (peek(c.io.out.valid) == 1) {

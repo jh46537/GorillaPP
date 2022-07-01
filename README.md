@@ -9,13 +9,15 @@ make
 # Generate source files
 ## Generate sources
 ```bash
+cd <project home>/compiler/engineCompiler/multiThread
+make
 cd <project home>/apps/pktReassembly/build
 make
 ```
 Ignore the errors.
 ## Recover Primate Overlay
 ```bash
-cd <project home>/chisel/src/main/scala/
+cd <project home>/chisel/Gorilla++/src/main/scala/
 git checkout .
 ```
 ## Copy the machine code to Primate Overlay source file
