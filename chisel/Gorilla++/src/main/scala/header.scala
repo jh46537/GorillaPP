@@ -12,7 +12,7 @@ val newIp = UInt(32.W)
 val word = UInt((128).W)
 }
 class porcOut_t extends Bundle { 
-val threadID = UInt(4.W)
+val threadID = UInt(5.W)
 val data = UInt((64).W)
 }
 class mspmInWord_t extends Bundle {
