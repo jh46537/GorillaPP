@@ -648,9 +648,17 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int) extends Module {
 
   // var mem_array = Array.fill[UInt](1 << ipWidth)(0.U(instrWidth.W))
   var mem = VecInit(
-    "h000000130000001300000013000000130000028b7d0001133e800093".U,
-    "h000000130002937b0042935b000000130040100b0020e233002081b3".U,
-    "hfffff06f000000130000005b00000013000000130000001300000037".U,
+    "h000000130000001300000013000000130000008b0000001300000013".U,
+    "h00000013000000130010905b0610812b0100100b0000001304800193".U,
+    "h02311063000000130000001300000013000000130000019300000113".U,
+    "h00011c630000001300000013000000130000008b0000001300000213".U,
+    "h00000013000000130000a2db00000013000000130000001300000013".U,
+    "h0000001300000013000000130000001300000013000000130012f313".U,
+    "h000304630000001300000013001282ab000000130000001300000213".U,
+    "hff1ff3ef0000001300000013000000130002900b005181b300028213".U,
+    "hfedff3ef000000130000001300000013000000130000001300100113".U,
+    "hfe9ff3ef0000001300000013000000130001a00b0000001300000113".U,
+    "hfffff06f000000130000005b00000013000000130000001300000013".U,
   )
 
   // val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
@@ -1085,11 +1093,11 @@ class DecodeBFU extends Module {
     io.b3En := true.B
   }
 
-  when (io.instr(12) === 1.U) {
+  // when (io.instr(12) === 1.U) {
     io.imm := io.instr(31, 20)
-  } .otherwise {
-    io.imm := io.instr(31, 25)
-  }
+  // } .otherwise {
+  //   io.imm := io.instr(31, 25)
+  // }
 
 }
 
@@ -1254,7 +1262,7 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
   // val NUM_DST_MODE = 10
   // val MAX_FIELD_WIDTH = 56
   // val IP_WIDTH = 8
-  val INIT_IP = 8
+  val INIT_IP = 40
   val NUM_THREADS_LG = log2Up(NUM_THREADS)
   val NUM_REGS_LG = log2Up(NUM_REGS)
   val NUM_FUOPS_LG = 2
@@ -1799,26 +1807,6 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
     }
   }
 
-  // Gather/Scatter Unit
-  // BFU(1) is always SCATTER/GATHER unit
-  val scatterOut = Reg(UInt(REG_WIDTH.W))
-  val scatterWben = RegInit(0.U(NUM_REGBLOCKS.W))
-  scatterOut := scatterU.io.dout
-  scatterWben := scatterU.io.wren
-  when (preOpThread_s2 =/= NONE_SELECTED) {
-    val destMem_in = Wire(new DestMemT)
-    when (bfuMicrocodes_out.funct(1)) {
-      destMem_in.res := scatterOut
-      destMem_in.wben := scatterWben
-    } .otherwise {
-      destMem_in.res := gatherU.io.dout
-      destMem_in.wben := Fill(NUM_REGBLOCKS, 1.U)
-    }
-    destMems(NUM_ALUS+1).io.wren := rdWrEn_s2(NUM_ALUS+1)
-    destMems(NUM_ALUS+1).io.wraddress := preOpThread_s2
-    destMems(NUM_ALUS+1).io.data := destMem_in.asUInt
-  }
-
   // Other BFUs
   val execBundle0 = new Bundle {
     val tag = UInt(NUM_THREADS_LG.W)
@@ -1875,6 +1863,28 @@ class porc(extCompName: String) extends gComponentLeaf(new porcIn_t, new porcOut
   val fuReqReadys = new Array[Bool](NUM_BFUS-2)
   fuReqReadys(0) = mspmPort.req.ready
   fuReqReadys(1) = asciiPort.req.ready
+
+  // Gather/Scatter Unit
+  // BFU(1) is always SCATTER/GATHER unit
+  val bfuMicrocodes_exe = Reg(new BFUMicrocodes(NUM_BFUS))
+  bfuMicrocodes_exe := bfuMicrocodes_out
+  val scatterOut = Reg(UInt(REG_WIDTH.W))
+  val scatterWben = RegInit(0.U(NUM_REGBLOCKS.W))
+  scatterOut := scatterU.io.dout
+  scatterWben := scatterU.io.wren
+  when (execThread =/= NONE_SELECTED) {
+    val destMem_in = Wire(new DestMemT)
+    when (bfuMicrocodes_exe.funct(1)) {
+      destMem_in.res := scatterOut
+      destMem_in.wben := scatterWben
+    } .otherwise {
+      destMem_in.res := gatherU.io.dout
+      destMem_in.wben := Fill(NUM_REGBLOCKS, 1.U)
+    }
+    destMems(NUM_ALUS+1).io.wren := rdWrEn_s2(NUM_ALUS+1)
+    destMems(NUM_ALUS+1).io.wraddress := execThread
+    destMems(NUM_ALUS+1).io.data := destMem_in.asUInt
+  }
 
   // FUs input
   when (fuFifos_0.io.count > 0.U && fuReqReadys(0) === true.B) {
