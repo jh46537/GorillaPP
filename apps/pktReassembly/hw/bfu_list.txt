@@ -1,0 +1,9 @@
+flowTable
+{
+	ch0
+	ch1
+}
+dynamicMem
+{
+	io
+}
