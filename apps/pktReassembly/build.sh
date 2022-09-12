@@ -1,11 +1,12 @@
 #!/bin/bash
 
 TARGET=pkt_reassembly_tail
-PRIMATE_DIR=../../../
+CUR_DIR=$(pwd)
+cd ../../../
+PRIMATE_DIR=$(pwd)
 LLVM_DIR=$PRIMATE_DIR/primate-arch-gen
 UARCH_DIR=$PRIMATE_DIR/primate-uarch
 CHISEL_SRC_DIR=$UARCH_DIR/chisel/Gorilla++/src
-CUR_DIR=$(pwd)
 cd $UARCH_DIR/compiler/engineCompiler/multiThread/
 make clean && make
 cd $UARCH_DIR/apps/common/build/
