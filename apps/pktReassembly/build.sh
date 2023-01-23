@@ -15,6 +15,7 @@ cd $CUR_DIR/sw
 $LLVM_DIR/build/bin/clang -emit-llvm -S -O3 "${TARGET}.cpp"
 $LLVM_DIR/build/bin/opt -enable-new-pm=0 -load $LLVM_DIR/build/lib/LLVMPrimate.so -primate < "${TARGET}.ll" > /dev/null
 mv primate.cfg $CHISEL_SRC_DIR/main/scala/
+mv interconnect.cfg $CUR_DIR/hw
 mv header.scala $CHISEL_SRC_DIR/main/scala/
 cp input.txt $UARCH_DIR/chisel/Gorilla++/
 mv primate_assembler.h $UARCH_DIR/apps/scripts/

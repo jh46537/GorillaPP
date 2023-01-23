@@ -496,18 +496,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     alus(i).io.aluOp := aluOp_vec(0)(i)
   }
 
-  val execBundle = new Bundle {
-    val tag = UInt(NUM_THREADS_LG.W)
-    val opcode = UInt(NUM_FUOPS_LG.W)
-    val bits = UInt(REG_WIDTH.W)
-  }
-
-  val fuFifos = Seq.fill(NUM_BFUS)(Module(new Queue(execBundle, NUM_THREADS-1)))
-
-  for (i <- 0 until NUM_BFUS) {
-    fuFifos(i).io.enq.valid := false.B
-    fuFifos(i).io.enq.bits := DontCare
-  }
+  #FIFO_INSTANTIATE#
 
   io.out.tag := DontCare
   io.out.bits := DontCare
@@ -599,19 +588,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     //   threadStates(preOpThread).branchFU := true.B
     // }
 
-    // FIXME: choose which preOp vals to send to functional units
-    for (i <- 0 until NUM_BFUS) {
-      when (fuValids_vec(0)(i) === true.B) {
-        fuFifos(i).io.enq.valid := true.B
-        fuFifos(i).io.enq.bits.tag := preOpThread
-        fuFifos(i).io.enq.bits.opcode := fuOps_vec(0)(i)
-        if (i < NUM_ALUS) {
-          fuFifos(i).io.enq.bits.bits := preOpRes(i)
-        } else {
-          fuFifos(i).io.enq.bits.bits := preOpRes(NUM_ALUS-1)
-        }
-      }
-    }
+    #BFU_INTERCONNECT#
 
     threadStages(preOpThread) := ThreadStageEnum.exec
   }
