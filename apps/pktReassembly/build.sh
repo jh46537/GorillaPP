@@ -13,7 +13,11 @@ cd $UARCH_DIR/apps/common/build/
 make clean && make
 cd $CUR_DIR/sw
 $LLVM_DIR/build/bin/clang -emit-llvm -S -O3 "${TARGET}.cpp"
-$LLVM_DIR/build/bin/opt -enable-new-pm=0 -load $LLVM_DIR/build/lib/LLVMPrimate.so -primate < "${TARGET}.ll" > /dev/null
+$LLVM_DIR/build/bin/opt -enable-new-pm=0 -load $LLVM_DIR/build/lib/LLVMPrimate.so -primate < "${TARGET}.ll" > /tmp/tmp.vliw 2> "${TARGET}.VLIW"
+
+# call post-compiler pass
+$LLVM_DIR/post-proc/VLIW_Reader.py --input-file "${CUR_DIR}/sw/${TARGET}.VLIW"
+
 mv primate.cfg $CHISEL_SRC_DIR/main/scala/
 mv header.scala $CHISEL_SRC_DIR/main/scala/
 cp input.txt $UARCH_DIR/chisel/Gorilla++/
