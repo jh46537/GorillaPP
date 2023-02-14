@@ -12,8 +12,8 @@ module bram_true2port #(
     input rden_b,
     input wren_a,
     input wren_b,
-    output [DWIDTH-1:0] q_a,
-    output [DWIDTH-1:0] q_b
+    output reg [DWIDTH-1:0] q_a,
+    output reg [DWIDTH-1:0] q_b
 );
 
 logic [DWIDTH-1:0] mem [0:DEPTH-1];

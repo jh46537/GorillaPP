@@ -13,7 +13,6 @@
 
 
 // synopsys translate_off
-`timescale 1 ps / 1 ps
 // synopsys translate_on
 module  ram_simple2port #(
     parameter AWIDTH = 9,
