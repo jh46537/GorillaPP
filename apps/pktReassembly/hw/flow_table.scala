@@ -78,32 +78,44 @@ class flow_table_wrap(tag_width: Int) extends
   addResource("/flow_table_wrap.sv")
 }
 
-class flowTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int) extends MultiIOModule {
+class flowTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends MultiIOModule {
   val ch0 = IO(new Bundle {
     val in_valid  = Input(Bool())
     val in_tag    = Input(UInt(tag_width.W))
     val in_opcode = Input(UInt(opcode_width.W))
-    val in_bits   = Input(UInt(reg_width.W))
+    val in_imm    = Input(UInt(12.W))
+    val in_bits   = Input(Vec(1, UInt(reg_width.W)))
     val in_ready  = Output(Bool())
     val out_valid = Output(Bool())
     val out_tag   = Output(UInt(tag_width.W))
-    val out_flag  = Output(UInt(2.W))
+    val out_flag  = Output(UInt(ip_width.W))
     val out_bits  = Output(UInt(reg_width.W))
     val out_ready = Input(Bool())
   })
 
-  val ch1 = IO( new Bundle {
+  val ch1 = IO(new Bundle {
     val in_valid  = Input(Bool())
     val in_tag    = Input(UInt(tag_width.W))
     val in_opcode = Input(UInt(opcode_width.W))
-    val in_bits   = Input(UInt(reg_width.W))
+    val in_imm    = Input(UInt(12.W))
+    val in_bits   = Input(Vec(1, UInt(reg_width.W)))
     val in_ready  = Output(Bool())
     val out_valid = Output(Bool())
     val out_tag   = Output(UInt(tag_width.W))
-    val out_flag  = Output(UInt(2.W))
+    val out_flag  = Output(UInt(ip_width.W))
     val out_bits  = Output(UInt(reg_width.W))
     val out_ready = Input(Bool())
   })
+
+  val io = IO(new Bundle {
+    val mem           = new gMemBundle
+  })
+
+  io.mem.mem_addr := DontCare
+  io.mem.read := false.B
+  io.mem.write := false.B
+  io.mem.writedata := DontCare
+  io.mem.byteenable := DontCare
 
   val ch0_req_valid  = Wire(Bool())
   val ch0_req_tag    = Wire(UInt(tag_width.W))
@@ -128,7 +140,7 @@ class flowTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: 
   ch0_req_valid := ch0.in_valid
   ch0_req_tag := ch0.in_tag
   ch0_req_data.ch0_opcode := ch0.in_opcode
-  ch0_req_data.ch0_pkt := ch0.in_bits.asTypeOf(new metadata_t)
+  ch0_req_data.ch0_pkt := ch0.in_bits(0).asTypeOf(new metadata_t)
   ch0.in_ready := ch0_req_ready
 
   ch0.out_valid := ch0_rep_valid
@@ -140,8 +152,8 @@ class flowTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: 
   ch1_req_valid := ch1.in_valid
   ch1_req_tag := ch1.in_tag
   ch1_req_data.ch1_opcode := ch1.in_opcode
-  ch1_req_data.ch1_bit_map := ch1.in_bits(265, 261)
-  ch1_req_data.ch1_data := ch1.in_bits(260, 0).asTypeOf(new fce_t)
+  ch1_req_data.ch1_bit_map := ch1.in_bits(0)(265, 261)
+  ch1_req_data.ch1_data := ch1.in_bits(0)(260, 0).asTypeOf(new fce_t)
   ch1.in_ready := ch1_req_ready
 
   ch1.out_valid := ch1_rep_valid

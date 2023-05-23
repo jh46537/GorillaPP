@@ -11,7 +11,6 @@
 #define UPDATE 2
 #define DELETE 3
 
-#pragma primate blue Output 1 1
 void Output(output_t *output);
 #pragma primate blue flowTable_ch0 5 1
 int flow_table_read(input_t *meta, fce_t *fte);

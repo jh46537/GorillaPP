@@ -2,21 +2,18 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.Fill
 
-class Gather(imm_width: Int, reg_width: Int, num_blocks: Int, src_pos: Array[Int],
+class Gather(reg_width: Int, num_blocks: Int, src_pos: Array[Int],
    max_out_width: Int, num_modes:Int, src_mode: Array[Int]) extends Module {
   val io = IO(new Bundle {
     val din = Input(UInt(reg_width.W))
     val shift = Input(UInt(log2Up(num_blocks).W))
     val mode = Input(UInt(log2Up(num_modes).W))
-    val imm = Input(UInt(imm_width.W))
-    val sign_out = Output(UInt(1.W))
     val dout = Output(UInt(reg_width.W))
   })
 
   val din_d0 = Reg(UInt(reg_width.W))
   val shift_d0 = Reg(UInt(log2Up(num_blocks).W))
   val mode_d0 = Reg(UInt(log2Up(num_modes).W))
-  val imm_d0 = Reg(UInt(imm_width.W))
 
   val num_muxes : Int = (num_blocks+7)/8
   val reg0 = Reg(Vec(num_muxes, UInt(max_out_width.W)))
@@ -53,35 +50,29 @@ class Gather(imm_width: Int, reg_width: Int, num_blocks: Int, src_pos: Array[Int
   din_d0 := io.din
   shift_d0 := (io.shift >> 3)
   mode_d0 := io.mode
-  imm_d0 := io.imm
 
   val reg1 = Reg(UInt(max_out_width.W))
   val din_d1 = Reg(UInt(reg_width.W))
   val mode_d1 = Reg(UInt(log2Up(num_modes).W))
-  val imm_d1 = Reg(UInt(imm_width.W))
 
   din_d1 := din_d0
   mode_d1 := mode_d0
-  imm_d1 := imm_d0
   val cases = (0 until num_muxes).map( x => x.U -> reg0(x))
   reg1 := MuxLookup(shift_d0, DontCare, cases)
 
   val reg2 = Reg(UInt(max_out_width.W))
   val din_d2 = Reg(UInt(reg_width.W))
   val mode_d2 = Reg(UInt(log2Up(num_modes).W))
-  val imm_d2 = Reg(UInt(imm_width.W))
   din_d2 := din_d1
   mode_d2 := mode_d1
-  imm_d2 := imm_d1
 
   val cases2 = (0 until num_modes).map( x => x.U -> reg1(src_mode(x)-1, 0))
   reg2 := MuxLookup(mode_d1, DontCare, cases2)
-  when (mode_d2 === num_modes.U) {
-    io.dout := Cat(0.U, imm_d2)
-  } .otherwise {
+  if (max_out_width < reg_width) {
     io.dout := Cat(din_d2(reg_width-1, max_out_width), reg2)
+  } else {
+    io.dout := reg2
   }
-  io.sign_out := 0.U
 }
 
 class Scatter(reg_width: Int, lg_num_rdBlocks: Int, lg_num_modes: Int, num_wrBlocks: Int,

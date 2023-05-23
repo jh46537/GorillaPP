@@ -1,6 +1,8 @@
 import chisel3._
 import chisel3.util._
 import chisel3.util.Fill
+import chisel3.util.PriorityEncoder
+import chisel3.experimental.ChiselEnum
 
 class Regfile(num: Int, width: Int, num_blocks: Int, block_widths: Array[Int]) extends Module {
   val io = IO(new Bundle {
@@ -87,8 +89,8 @@ class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: In
           thread_rd(i) := io.thread_rd(log2Up(threadnum)-1, log2Up(num_regfile))
           state_rd(i) := 1.U
         } .otherwise {
-          regfile(i).io.rdAddr1 := DontCare
-          regfile(i).io.rdAddr2 := DontCare
+          regfile(i).io.rdAddr1 := Cat(io.thread_rd(log2Up(threadnum)-1, log2Up(num_regfile)), io.rdAddr1(0))
+          regfile(i).io.rdAddr2 := Cat(io.thread_rd(log2Up(threadnum)-1, log2Up(num_regfile)), io.rdAddr2(0))
         }
       } .otherwise {
         regfile(i).io.rdAddr1 := Cat(thread_rd(i), rdAddr1(i)(state_rd(i)))
@@ -110,28 +112,32 @@ class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: In
     for (i <- 0 until num_rd) {
       thread_rd_vec(i+1) := thread_rd_vec(i)
     }
-    val rdData1 = Wire(Vec(num_rd, UInt(reg_w.W)))
-    val rdData2 = Wire(Vec(num_rd, UInt(reg_w.W)))
+    val rdData1 = Wire(Vec(num_regfile, UInt(reg_w.W)))
+    val rdData2 = Wire(Vec(num_regfile, UInt(reg_w.W)))
     for (i <- 0 until num_regfile) {
       rdData1(i) := regfile(i).io.rdData1
       rdData2(i) := regfile(i).io.rdData2
     }
-    for (i <- 0 until num_rd) {
-      val rdData1_vec = Reg(Vec(num_rd-i, UInt(reg_w.W)))
-      val rdData2_vec = Reg(Vec(num_rd-i, UInt(reg_w.W)))
+    for (i <- 0 until num_rd-1) {
+      val rdData1_vec = Reg(Vec(num_rd-1-i, UInt(reg_w.W)))
+      val rdData2_vec = Reg(Vec(num_rd-1-i, UInt(reg_w.W)))
       val regfile_slct = Wire(UInt(log2Up(num_rd).W))
       regfile_slct := thread_rd_vec(1+i)(log2Up(num_regfile)-1, 0)
       rdData1_vec(0) := rdData1(regfile_slct)
       rdData2_vec(0) := rdData2(regfile_slct)
-      if (i < num_rd-1) {
-        for (j <- 1 until num_rd-i) {
+      if (i < num_rd-2) {
+        for (j <- 1 until num_rd-1-i) {
           rdData1_vec(j) := rdData1_vec(j-1)
           rdData2_vec(j) := rdData2_vec(j-1)
         }
       }
-      io.rdData1(i) := rdData1_vec(num_rd-1-i)
-      io.rdData2(i) := rdData2_vec(num_rd-1-i)
+      io.rdData1(i) := rdData1_vec(num_rd-2-i)
+      io.rdData2(i) := rdData2_vec(num_rd-2-i)
     }
+    val regfile_slct = Wire(UInt(log2Up(num_rd).W))
+    regfile_slct := thread_rd_vec(num_rd)(log2Up(num_regfile)-1, 0)
+    io.rdData1(num_rd-1) := rdData1(regfile_slct)
+    io.rdData2(num_rd-1) := rdData2(regfile_slct)
   } else {
     io.rdData1(0) := regfile(0).io.rdData1
     io.rdData2(0) := regfile(0).io.rdData2
@@ -151,7 +157,7 @@ class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: In
       val wrData1 = Reg(Vec(num_wr, UInt(reg_w.W)))
       val wrData2 = Reg(Vec(num_wr, UInt(reg_w.W)))
       when (state_wr === 0.U) {
-        when (io.wrEn && (io.thread_wr(log2Up(num_regfile)-1, 0) === i.U)) {
+        when (io.thread_wr(log2Up(num_regfile)-1, 0) === i.U) {
           regfile(i).io.wrAddr1 := Cat(io.thread_wr(log2Up(threadnum)-1, log2Up(num_regfile)), io.wrAddr1(state_wr))
           regfile(i).io.wrAddr2 := Cat(io.thread_wr(log2Up(threadnum)-1, log2Up(num_regfile)), io.wrAddr2(state_wr))
           regfile(i).io.wrBen1 := io.wrBen1(state_wr)
@@ -160,16 +166,27 @@ class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: In
           regfile(i).io.wrEn2 := io.wrEn2(state_wr)
           regfile(i).io.wrData1 := io.wrData1(state_wr)
           regfile(i).io.wrData2 := io.wrData2(state_wr)
-          thread_wr := io.thread_wr(log2Up(threadnum)-1, log2Up(num_regfile))
-          wrAddr1 := io.wrAddr1
-          wrAddr2 := io.wrAddr2
-          wrEn1 := io.wrEn1
-          wrEn2 := io.wrEn2
-          wrBen1 := io.wrBen1
-          wrBen2 := io.wrBen2
-          wrData1 := io.wrData1
-          wrData2 := io.wrData2
-          state_wr := 1.U
+          when (io.wrEn) {
+            thread_wr := io.thread_wr(log2Up(threadnum)-1, log2Up(num_regfile))
+            wrAddr1 := io.wrAddr1
+            wrAddr2 := io.wrAddr2
+            wrEn1 := io.wrEn1
+            wrEn2 := io.wrEn2
+            wrBen1 := io.wrBen1
+            wrBen2 := io.wrBen2
+            wrData1 := io.wrData1
+            wrData2 := io.wrData2
+            state_wr := 1.U
+          }
+        } .otherwise {
+          regfile(i).io.wrAddr1 := DontCare
+          regfile(i).io.wrAddr2 := DontCare
+          regfile(i).io.wrBen1 := DontCare
+          regfile(i).io.wrBen2 := DontCare
+          regfile(i).io.wrEn1 := false.B
+          regfile(i).io.wrEn2 := false.B
+          regfile(i).io.wrData1 := DontCare
+          regfile(i).io.wrData2 := DontCare
         }
       } .otherwise {
         regfile(i).io.wrAddr1 := Cat(thread_wr, wrAddr1(state_wr))
@@ -190,7 +207,7 @@ class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: In
   } else {
     if (num_regfile > 1) {
       for (i <- 0 until num_regfile) {
-        when (io.wrEn && (io.thread_wr(log2Up(num_regfile)-1, 0) === i.U)) {
+        when (io.thread_wr(log2Up(num_regfile)-1, 0) === i.U) {
           regfile(i).io.wrAddr1 := Cat(io.thread_wr(log2Up(threadnum)-1, log2Up(num_regfile)), io.wrAddr1(0))
           regfile(i).io.wrAddr2 := Cat(io.thread_wr(log2Up(threadnum)-1, log2Up(num_regfile)), io.wrAddr2(0))
           regfile(i).io.wrBen1 := io.wrBen1(0)

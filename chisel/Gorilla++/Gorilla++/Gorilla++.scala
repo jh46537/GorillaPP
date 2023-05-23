@@ -173,6 +173,7 @@ class gTaggedDistributor[T <: Data](n: Int, data: => T) extends Module with TagT
 class gFIFOIO[T <: Data](data: => T) extends Bundle with TagTrait {
   val ready = Input(Bool())
   val valid = Output(Bool())
+  val last = Output(Bool())
   val bits = Output(data)
   val tag = Output(UInt((TAGWIDTH*2).W))
 
@@ -241,6 +242,7 @@ class gInOutOffBundle[inT <: Data, outT <: Data](
   extends gInOutBundle(inData, outData)
 {
   val off = offBundle
+  val mem = new gMemBundle
 
   override def cloneType = (new gInOutOffBundle(inData, outData, offBundle)).asInstanceOf[this.type]
 }
@@ -254,6 +256,17 @@ class gRWInOutOffBundle[inReadT <: Data, inWriteT <: Data, outReadT <: Data, out
   val off = offBundle
 
   override def cloneType = (new gRWInOutOffBundle(inReadData, inWriteData, outReadData, outWriteData, offBundle)).asInstanceOf[this.type]
+}
+
+class gMemBundle extends Bundle with MemTrait {
+  val mem_addr      = Output(UInt(ADDR_WIDTH.W))
+  val read          = Output(Bool())
+  val write         = Output(Bool())
+  val writedata     = Output(UInt(DATA_WIDTH.W))
+  val byteenable    = Output(UInt((DATA_WIDTH/8).W))
+  val waitrequest   = Input(Bool())
+  val readdatavalid = Input(Bool())
+  val readdata      = Input(UInt(DATA_WIDTH.W))
 }
 
 abstract class gComponentBase()
@@ -1082,6 +1095,11 @@ trait TagTrait {
   val TAGWIDTH = 5
   def tagUpper(x: UInt) = ((x >> (TAGWIDTH).U) & (((1).U << (TAGWIDTH).U) - (1).U))
   def tagLower(x: UInt) = (x & (((1).U << (TAGWIDTH).U) - (1).U))
+}
+
+trait MemTrait {
+  val ADDR_WIDTH = 32
+  val DATA_WIDTH = 512
 }
 
 trait GorillaUtil extends TagTrait {

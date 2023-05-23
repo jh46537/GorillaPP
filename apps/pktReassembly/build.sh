@@ -18,6 +18,7 @@ mv primate.cfg $CHISEL_SRC_DIR/main/scala/
 mv interconnect.cfg $CUR_DIR/hw
 mv header.scala $CHISEL_SRC_DIR/main/scala/
 cp input.txt $UARCH_DIR/chisel/Gorilla++/
+cp memInit.txt $UARCH_DIR/chisel/Gorilla++/
 mv primate_assembler.h $UARCH_DIR/apps/scripts/
 cd $UARCH_DIR/apps/scripts/
 make clean && make

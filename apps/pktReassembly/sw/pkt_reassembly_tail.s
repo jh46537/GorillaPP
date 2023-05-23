@@ -37,34 +37,37 @@
 #
 # 0, 1,  2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13
 # 0, 8, 96, 104, 128, 136, 138, 148, 152, 182, 191, 194, 252, 261
-INPUT;FTA,R0,uint,0,R1,uint,0,uint,0;FTB,R0,uint,0,R1,uint,0,uint,0;FTLOOKUP; ; ;WEN; ;R2;R0;1;6;11;0;0;#             #fast path, lock if slow path, lookup ft
-OUTPUTRET;FTA,R0,uint,0,R1,uint,0,uint,0;FTB,R0,uint,0,R1,uint,0,uint,0; ; ; ; ; ; ; ;0;0;0;0;0;
-OR;AND,R0,uint9,9,R1,uimm,0,uint32,0;AND,R0,uint9,9,R1,uimm,0,uint32,0; ; ; ; ; ; ; ;3;0;0;1;4;
-FT;ADD,R0,uint32,3,R0,uint16,5,uint32,2;FTB,R0,uint,0,R1,uint,0,uint,0; ; ; ;WEN; ;R2; ;0;0;0;0;0;#                   #prepare to update
-RET;FTA,R0,uint,0,R2,uint,0,uint,0;FTB,R0,uint,0,R2,uint,0,uint,0;UNLOCK;UPDATE; ; ; ; ; ;0;0;0;0;0;#                 #update, return
-RET;FTA,R0,uint,0,R2,uint,0,uint,0;FTB,R0,uint,0,R2,uint,0,uint,0;UNLOCK;DELETE; ; ; ; ; ;0;0;0;0;0;#                 #delete, return
-OUTPUT;FTA,R0,uint,0,R3,uint,0,uint,0;FTB,R0,uint,0,R2,uint10,4,uint32,0; ; ;LOOKUP; ; ;R3; ;1;0;0;0;0;#               #start releasing pkt
-NEQ;ADD,R0,uint32,3,R0,uint16,5,uint32,0;FTB,R0,uint,0,R3,uint32,3,uint32,0; ; ; ; ; ; ; ;-4;0;0;0;0;#                #match ll head seq
-FT;FTA,R3,uint,0,R3,uint,0,uint,0;FTB,R0,uint,0,R2,uint10,4,uint32,0; ; ;RELEASE;WEN; ;R0; ;1;0;0;0;0;
-ALUA;SUB,R2,uint10,6,R3,uimm,0,uint10,6;FTB,R2,uint,0,R3,uint9,12,uint10,4; ; ; ;WEN;WEN;R2;R2;-3;0;0;1;0;
-OUTPUT;FTA,R0,uint,0,R1,uint,0,uint,0;FTB,R0,uint,0,R1,uint,0,uint,0; ; ; ; ; ; ; ;-8;0;0;0;0;
-ALUA;GT,R0,uint32,3,R2,uint32,2,uint32,0;FTB,R0,uint32,0,R2,uint32,0,uint32,0; ; ; ; ; ; ; ;2;0;0;0;0;#               #start inserting pkt, goto insert if true
-BR;FTA,R0,uimm,0,R1,uint,0,uint3,10;FTB,R0,uint,0,R1,uint,0,uint,0; ; ; ;WEN; ;R0; ;18;0;0;1;0;#                     #drop, goto output
-FT;FTB,R0,uint,0,R2,uint10,6,uint10,0;FTA,R0,uint,0,R2,uint,0,uint,0; ; ;MALLOC;WEN; ;R4;R6;0;0;0;0;0;#              #insert new pkt
-ALUA;NEQ,R2,uint10,6,R0,uimm,0,uint,0;FTA,R2,uint9,12,R0,uint,0,uint9,0; ; ;LOOKUP; ;WEN;R3;R5;2;0;0;0;0;#          #check empty, look up tail
-BR;FTA,R4,uint9,0,R0,uint,0,uint10,4;FTA,R4,uint9,0,R0,uint,0,uint9,12; ; ; ;WEN;WEN;R2;R2;12;0;0;0;0;#                #goto update ft
-GE;FTA,R0,uint32,3,R3,uint,0,uint32,0;ADD,R3,uint32,3,R3,uint16,5,uint32,0; ; ; ; ; ; ; ;6;0;0;0;0;#                  #if true, go to insert tail
-FT;FTA,R2,uint,0,R0,uint,0,uint,0;FTA,R2,uint10,4,R0,uint,0,uint9,0; ; ;LOOKUP; ;WEN;R3;R5;0;0;0;0;0;
-GT;ADD,R0,uint32,3,R0,uint16,5,uint32,0;FTB,R0,uint,0,R3,uint32,3,uint32,0; ; ; ; ; ; ; ;2;0;0;0;0;#                  #check head seq
-BR;FTA,R4,uint9,0,R5,uint,0,uint10,4;CAT,R4,uint9,0,R5,uint9,0,uint,0; ; ;UPDATE0;WEN; ;R2; ;8;0;0;0;0;#               #goto update ft
-GT;ADD,R3,uint32,3,R3,uint16,5,uint32,0;FTB,R3,uint,0,R0,uint32,3,uint32,0; ; ; ; ; ; ; ;-8;0;0;0;0;#                 #goto drop if true
-ALUA;SUB,R6,uint10,0,R3,uimm,0,uint10,0;FTB,R6,uint,0,R3,uint9,12,uint,0; ; ;LOOKUP;WEN; ;R7;R6;2;0;0;1;0;
-BR;FTB,R5,uint,0,R4,uint,0,uint9,12;CAT,R5,uint9,0,R4,uint9,0,uint,0; ; ;UPDATE0;WEN; ;R2; ;5;0;0;0;0;#               #insert to tail
-GT;ADD,R0,uint32,3,R0,uint16,5,uint32,0;FTB,R0,uint,0,R7,uint32,3,uint32,0; ; ; ; ; ; ; ;3;0;0;0;0;#                  #compare next seq
-FT;FTA,R4,uint,0,R3,uint,0,uint,0;CAT,R4,uint9,0,R3,uint9,12,uint,0; ; ;UPDATE0; ; ; ; ;0;0;0;0;0;#                   #insert
-BR;FTA,R5,uint,0,R4,uint,0,uint,0;CAT,R5,uint9,0,R4,uint9,0,uint,0; ; ;UPDATE0; ; ; ; ;2;0;0;0;0;#                    #goto update ft
-BR;FTA,R3,uint9,12,R7,uint,0,uint9,0;FTB,R3,uint,0,R7,uint,0,uint,0; ; ; ;WEN;WEN;R5;R3;-6;0;0;0;0;
-FT;ADD,R2,uint10,6,R0,uimm,0,uint10,6;FTA,R2,uint,0,R0,uint,0,uint,0; ; ; ;WEN; ;R2; ;0;0;0;1;0;#                  #increment slow_cnt
-RET;FTA,R0,uint,0,R0,uint,0,uint,0;FTA,R2,uint,0,R0,uint,0,uint,0;UNLOCK;UPDATE; ; ; ; ; ;0;0;0;0;0;#                 #update ft and return
-OUTPUTRET;FTA,R0,uint,0,R0,uint,0,uint,0;FTB,R0,uint,0,R0,uint,0,uint,0; ; ; ; ; ; ; ;1;0;0;0;0;#                     #output, ret
-OUTPUTRET;FTA,R0,uint,0,R0,uint,0,uint,0;FTB,R0,uint,0,R0,uint,0,uint,0;UNLOCK; ; ; ; ; ; ;1;0;0;0;0;#                #output, ret, unlock
+#          0 1 2 3  4  5  6  7  8  9  10  11
+# SRC_MODE=3 5 8 9 10 16 30 32 58 96 104 104
+#ALU0;ALU1;ALU2;FT0;FT1;DYMEM;IOUNIT;BRANCH;
+ADDi,R0,0,11,R1,0,11,0;NOP;NOP;FTLOOKUP,R2,X0,0;NOP;NOP;NOP;JR,X3,0;#
+NOP;ADDi,R0,0,11,R1,0,11,0;NOP;NOP;NOP;NOP;OUTPUT,R0,X1,0;END;#
+ANDi,R0,0,11,R1,9,3,1;ANDi,R0,0,11,R1,9,3,4;NOP;NOP;NOP;NOP;BNE,X0,X1,3;#
+ADD,R2,2,7,R1,3,7,R1,5,5;NOP;NOP;NOP;NOP;NOP;NOP;NOP;#
+ADDi,R0,0,11,R1,0,11,0;ADDi,R0,0,11,R2,0,11,0;NOP;UNLOCK;UPDATE;NOP;NOP;END;#
+ADDi,R0,0,11,R1,0,11,0;ADDi,R0,0,11,R2,0,11,0;NOP;UNLOCK;DELETE;NOP;NOP;END;#
+ADDi,R0,0,11,R2,4,4,0;ADDi,R0,0,11,R1,0,11,0;NOP;NOP;NOP;LOOKUP,R3,X0,0;OUTPUT,R0,X1,0;NOP;#
+ADD,R0,0,11,R1,3,7,R1,5,5;ADDi,R0,0,11,R3,3,7,0;NOP;NOP;NOP;NOP;NOP;BNE,X0,X1,-5;#
+ADDi,R0,0,11,R2,4,4,0;ADDi,R1,0,11,R3,0,11,0;NOP;NOP;NOP;RELEASE,R0,X0,0;NOP;NOP;#
+ADDi,R2,6,4,R2,6,4,-1;ADDi,R2,4,4,R3,12,3,0;ADDi,R0,0,11,R0,0,11,0;NOP;NOP;NOP;NOP;BNE,X0,X2,-3;#
+NOP;ADDi,R0,0,11,R1,0,11,0;NOP;NOP;NOP;NOP;OUTPUT,R0,X1,0;J,-8;#
+ADDi,R0,0,11,R2,2,7,0;ADDi,R0,0,11,R1,3,7,0;NOP;NOP;NOP;NOP;NOP;BLT,X0,X1,2;#
+ADDi,R1,10,0,R0,0,11,1;NOP;NOP;NOP;NOP;NOP;NOP;J,18;#
+ADDi,R0,0,11,R1,0,11,0;ADDi,R6,0,11,R2,6,4,0;NOP;NOP;NOP;MALLOC,R4,X0,0;NOP;NOP;#
+ADDi,R0,0,11,R2,12,3,0;ADDi,R0,0,11,R2,6,4,0;ADDi,R0,0,11,R0,0,11,0;NOP;NOP;LOOKUP,R3,X0,0;NOP;BNE,X1,X2,2;#
+ADDi,R2,4,4,R4,0,3,0;ADDi,R2,12,3,R4,0,3,0;NOP;NOP;NOP;NOP;NOP;J,12;#
+ADDi,R0,0,11,R1,3,7,0;ADD,R0,0,11,R3,3,7,R3,5,5;NOP;NOP;NOP;NOP;NOP;BGE,X0,X1,6;#
+ADDi,R5,0,11,R2,4,4,0;NOP;NOP;NOP;NOP;LOOKUP,R3,X0,0;NOP;NOP;#
+ADDi,R0,0,11,R3,3,7,0;ADD,R0,0,11,R1,3,7,R1,5,5;NOP;NOP;NOP;NOP;NOP;BLT,X0,X1,2;#
+CAT,R0,0,11,R4,0,3,R5,0,3;ADDi,R2,4,4,R4,0,3,0;NOP;NOP;NOP;UPDATE0,R0,X0,0;NOP;J,8;#
+ADDi,R0,0,11,R1,3,7,0;ADD,R0,0,11,R3,3,7,R3,5,5;NOP;NOP;NOP;NOP;NOP;BLT,X0,X1,-8;#
+ADDi,R0,0,11,R3,12,3,0;ADDi,R6,0,11,R6,0,4,-1;ADDi,R0,0,11,R0,0,11,0;NOP;NOP;LOOKUP,R7,X0,0;NOP;BNE,X0,X2,2;#
+CAT,R0,0,11,R5,0,3,R4,0,3;ADDi,R2,12,3,R4,0,3,0;NOP;NOP;NOP;UPDATE0,R0,X0,0;NOP;J,5;#
+ADDi,R0,0,11,R7,3,7,0;ADD,R0,0,11,R1,3,7,R1,5,5;NOP;NOP;NOP;NOP;NOP;BLT,X0,X1,3;#
+CAT,R0,0,11,R4,0,3,R3,12,3;NOP;NOP;NOP;NOP;UPDATE0,R0,X0,0;NOP;NOP;#
+CAT,R0,0,11,R5,0,3,R4,0,3;NOP;NOP;NOP;NOP;UPDATE0,R0,X0,0;NOP;J,2;#
+ADDi,R5,0,11,R3,12,3,0;ADDi,R3,0,11,R7,0,11,0;NOP;NOP;NOP;NOP;NOP;J,-6;#
+ADDi,R2,6,4,R2,6,4,1;NOP;NOP;NOP;NOP;NOP;NOP;NOP;#
+ADDi,R0,0,11,R1,0,11,0;ADDi,R0,0,11,R2,0,11,0;NOP;UNLOCK;UPDATE;NOP;NOP;END;#
+NOP;ADDi,R0,0,11,R1,0,11,0;NOP;NOP;NOP;NOP;OUTPUT,R0,X1,0;END;#
+ADDi,R0,0,11,R1,0,11,0;ADDi,R0,0,11,R1,0,11,0;NOP;UNLOCK;NOP;NOP;OUTPUT,R0,X1,0;END;#

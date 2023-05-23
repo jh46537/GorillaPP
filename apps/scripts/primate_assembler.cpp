@@ -2,310 +2,538 @@
 #include <iomanip>
 #include <fstream>
 #include <string>
-#include <map>
-#include <vector>
 #include <sstream>
 #include <stdio.h>
 #include <cmath>
-#include "primate_assembler.h"
 
-#define OP_W 4
-#define NUM_ALUOPS_LG 4
-#define NUM_FUOPS_LG 2
-#define NUM_DEST 2
-#define NUM_BT 3
-#define INST_W (NUM_ALUS*(NUM_ALUOPS_LG+3*(NUM_SRC_POS_LG+NUM_SRC_MODE_LG)+2*NUM_REGS_LG)+NUM_FUS*(1+NUM_FUOPS_LG)+NUM_DEST*NUM_REGS_LG+NUM_DEST*(1+NUM_FUS_LG)+IP_W*NUM_BT+OP_W+IMM_W*NUM_ALUS)
+#define NUM_ALUS 3
+#define NUM_REGS_LG 4
+#define NUM_SRC_POS 14
+#define NUM_SRC_POS_LG int(ceil(log2(NUM_SRC_POS)))
+#define NUM_SRC_MODE 12
+#define NUM_SRC_MODE_LG int(ceil(log2(NUM_SRC_MODE)))
+#define NUM_DST_POS_LG int(ceil(log2(NUM_SRC_POS)))
+#define NUM_DST_MODES_LG int(ceil(log2(NUM_SRC_MODE)))
+#define NUM_FUS 4
+#define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
+#define IP_W 32
+#define ALU_SRC_W (NUM_REGS_LG + NUM_SRC_POS_LG + NUM_SRC_MODE_LG)
+#define ALU_IMM_W (ALU_SRC_W > 12 ? ALU_SRC_W : 12)
+// #define ALU_INST_W (7 + NUM_REGS_LG + NUM_DST_POS_LG + NUM_DST_MODES_LG + (3 + ALU_SRC_W + ALU_IMM_W))
+#define ALU_INST_W 64
+#define INST_W (32*(NUM_FUS + 1) + NUM_ALUS*ALU_INST_W)
+#define NUM_INST (NUM_ALUS+NUM_FUS+1)
 #define NUM_INT ((INST_W+31)/32)
 
 using namespace std;
 
-struct fuOp_t {
-    int opcode;
-    int wren;
+struct aluOp_t {
+    unsigned long long opcode;
+    unsigned long long rd, rd_pos, rd_mode;
+    unsigned long long funct;
+    unsigned long long rs1, rs1_pos, rs1_mode;
+    unsigned long long rs2, rs2_pos, rs2_mode;
+
+    unsigned long long imm;
+    aluOp_t() : opcode(0), rd(0), rd_pos(0), rd_mode(0), funct(0), rs1(0), rs1_pos(0), rs1_mode(0),
+     rs2(0), rs2_pos(0), rs2_mode(0), imm(0) {};
+    unsigned long long assemble() {
+        int RS1_START_POS = 10+NUM_REGS_LG+NUM_DST_POS_LG+NUM_DST_MODES_LG;
+        int RS2_START_POS = RS1_START_POS+NUM_REGS_LG+NUM_SRC_POS_LG+NUM_SRC_MODE_LG;
+        int IMM_START_POS = RS2_START_POS+NUM_REGS_LG+NUM_SRC_POS_LG+NUM_SRC_MODE_LG;
+        unsigned long long res = opcode + (rd << 7) + (rd_pos << (7+NUM_REGS_LG)) + (rd_mode << (7+NUM_REGS_LG+NUM_DST_POS_LG))
+         + (funct << (7+NUM_REGS_LG+NUM_DST_POS_LG+NUM_DST_MODES_LG)) + (rs1 << RS1_START_POS) + (rs1_pos << (RS1_START_POS+NUM_REGS_LG))
+         + (rs1_mode << (RS1_START_POS+NUM_REGS_LG+NUM_SRC_POS_LG)) + (rs2 << RS2_START_POS) + (rs2_pos << (RS2_START_POS+NUM_REGS_LG))
+         + (rs2_mode << (RS2_START_POS+NUM_REGS_LG+NUM_SRC_POS_LG)) + (imm << IMM_START_POS);
+        return res;
+    }
+};
+
+struct bfuOp_t {
+    unsigned opcode;
+    unsigned rd;
+    unsigned funct;
+    unsigned rs1;
+    unsigned rs2;
+    unsigned imm;
+    bfuOp_t() : opcode(0), rd(0), funct(0), rs1(0), rs2(0), imm(0) {};
+    unsigned assemble() {
+        unsigned res = opcode + (rd << 7) + (funct << 12) + (rs1 << 15) + (rs2 << 20) + (imm << 25);
+        return res;
+    }
 };
 
 class instruction
 {
-    const map<string, int> preOp_dict {
-        {"FT"        , 0},
-        {"BR"        , 1},
-        {"ALUA"      , 2},
-        {"ALUB"      , 3},
-        {"AND"       , 4},
-        {"OR"        , 5},
-        {"GT"        , 6},
-        {"GE"        , 7},
-        {"EQ"        , 8},
-        {"NEQ"       , 9},
-        {"INPUT"     , 10},
-        {"OUTPUT"    , 11},
-        {"OUTPUTRET" , 12},
-        {"RET"       , 13}
-    };
-
-    const map<string, int> aluOp_dict {
-        {"FTA"    , 0},
-        {"FTB"    , 1},
-        {"ADD"    , 2},
-        {"SUB"    , 3},
-        {"EQ"     , 4},
-        {"NEQ"    , 5},
-        {"LT"     , 6},
-        {"LTE"    , 7},
-        {"GT"     , 8},
-        {"GTE"    , 9},
-        {"AND"    ,10},
-        {"OR"     ,11},
-        {"CAT"    ,12}
-    };
-
-    const map<string, fuOp_t> fuOp_dict {
-        {"FTLOOKUP", {0, 1}},
-        {"UNLOCK"  , {1, 0}},
-        {"INSERT"  , {1, 0}},
-        {"UPDATE"  , {2, 0}},
-        {"DELETE"  , {3, 0}},
-        {"MALLOC"  , {0, 1}},
-        {"LOOKUP"  , {1, 1}},
-        {"UPDATE0" , {2, 0}},
-        // {"UPDATE1" , {3, 0}},
-        {"RELEASE" , {3, 0}},
-        {"EN"      , {0, 0}},
-        {"WEN"     , {1, 1}}
-    };
-
-    bool comment;
-    int preOp;
-    int aluOp[NUM_ALUS];
-    int srcId[NUM_ALUS][2];
-    int srcShiftR[NUM_ALUS][2];
-    int srcMode[NUM_ALUS][2];
-    int dstShiftL[NUM_ALUS];
-    int dstMode[NUM_ALUS];
-    int fuOp[NUM_FUS];
-    int fuValids[NUM_FUS];
-    int destEn[NUM_DEST];
-    int destId[NUM_DEST];
-    int destLane[NUM_DEST];
-    int brTarget[NUM_BT];
-    int imm[NUM_ALUS];
+    bool isComment;
+    aluOp_t subInstALU[NUM_ALUS];
+    bfuOp_t subInstBFU[NUM_FUS+1];
 
 public:
+    aluOp_t subInstructionALU(string asm_line);
+    bfuOp_t subInstructionBFU(string asm_line);
     instruction(string asm_line);
     void assemble(ofstream &bin_file);
     ~instruction() {};
     
 };
 
-instruction::instruction(string asm_line) {
-    comment = false;
-    preOp = 0;
-    for (int i = 0; i < NUM_FUS; i++) {
-        fuValids[i] = 0;
-        fuOp[i] = 0;
-    }
-    for (int i = 0; i < NUM_DEST; i++) {
-        destEn[i] = 0;
-        destId[i] = 0;
-        destLane[i] = 0;
-    }
-    for (int i = 0; i < NUM_ALUS; i++) {
-        for (int j = 0; j < 2; j++) {
-            srcId[i][j] = 0;
-            srcShiftR[i][j] = 0;
-            srcMode[i][j] = 0;
+bfuOp_t instruction::subInstructionBFU(string asm_line) {
+    bfuOp_t inst;
+    stringstream alu_stream(asm_line);
+    string opcode;
+    getline(alu_stream, opcode, ',');
+    // No operand
+    if (opcode == "NOP") {
+        inst.opcode = 0x13;
+        inst.rd = 0;
+        inst.funct = 0;
+        inst.rs1 = 0;
+        inst.rs2 = 0;
+        inst.imm = 0;
+    } else if (opcode == "END") {
+        inst.opcode = 0x6f;
+        inst.rd = 0;
+        inst.funct = 7;
+        inst.rs1 = 0x1F;
+        inst.rs2 = 0x1F;
+        inst.imm = 0x7F;
+    } else if (opcode == "PARSE_DONE") {
+        inst.opcode = 0xb;
+        inst.rd = 0;
+        inst.funct = 4;
+        inst.rs1 = 0;
+        inst.rs2 = 0;
+        inst.imm = 0;
+    } else if (opcode == "DEPARSE_DONE") {
+        inst.opcode = 0x6b;
+        inst.rd = 0;
+        inst.funct = 2;
+        inst.rs1 = 0;
+        inst.rs2 = 0;
+        inst.imm = 0;
+    } else if (opcode == "UNLOCK" || opcode == "UPDATE" || opcode == "DELETE") {
+        inst.opcode = 0x5b;
+        inst.rd = 0;
+        inst.rs1 = 0;
+        inst.rs2 = 0;
+        inst.imm = 0;
+        if (opcode == "UNLOCK") {
+            inst.funct = 1;
+        } else if (opcode == "UPDATE") {
+            inst.funct = 2;
+        } else if (opcode == "DELETE") {
+            inst.funct = 3;
         }
-        aluOp[i] = 0;
-        dstShiftL[i] = 0;
-        dstMode[i] = 0;
-        imm[i] = 0;
+    } else {
+        // 1 or more operands
+        string op1;
+        getline(alu_stream, op1, ',');
+        if (opcode == "J") {
+            int op1u = stoi(op1);
+            inst.opcode = 0x6f;
+            inst.rd = 0;
+            inst.funct = (op1u >> 12) & 7;
+            inst.rs1 = (op1u >> 15) & 0x1f;
+            inst.rs2 = (op1u & 0x1e) | ((op1u >> 11) & 1);
+            inst.imm = ((op1u >> 5) & 0x3f) | ((op1u >> 20) << 6);
+        } else {
+            // 2 or more operands
+            string op2;
+            getline(alu_stream, op2, ',');
+            int op1u = stoi(op1.substr(1));
+            if (opcode == "JAL") {
+                int op2u = stoi(op2);
+                inst.opcode = 0x6f;
+                inst.rd = op1u;
+                inst.funct = (op2u >> 12) & 7;
+                inst.rs1 = (op2u >> 15) & 0x1f;
+                inst.rs2 = (op2u & 0x1e) | ((op2u >> 11) & 1);
+                inst.imm = ((op2u >> 5) & 0x3f) | ((op2u >> 20) << 6);
+            } else if (opcode == "JR") {
+                int op2u = stoi(op2);
+                inst.opcode = 0x67;
+                inst.rd = 0;
+                inst.funct = 0;
+                inst.rs1 = op1u;
+                inst.rs2 = op2u & 0x1f;
+                inst.imm = (op2u >> 5) & 0x3f;
+            } else {
+                // 3 or more operands
+                string op3;
+                getline(alu_stream, op3, ',');
+                int op2u = stoi(op2.substr(1));
+                if (opcode == "BEQ" || opcode == "BNE" || opcode == "BLT" ||
+                    opcode == "BLTu" || opcode == "BGE" || opcode == "BGEu") {
+                    int op3u = stoi(op3);
+                    inst.opcode = 0x63;
+                    inst.rd = ((op3u >> 11) & 1) | (op3u & 0x1e);
+                    inst.rs1 = op1u;
+                    inst.rs2 = op2u;
+                    inst.imm = ((op3u >> 5) & 0x3f) | ((op3u & 0x1000) >> 6);
+                    if (opcode == "BEQ") {
+                        inst.funct = 0;
+                    } else if (opcode == "BNE") {
+                        inst.funct = 1;
+                    } else if (opcode == "BLT") {
+                        inst.funct = 4;
+                    } else if (opcode == "BLTu") {
+                        inst.funct = 6;
+                    } else if (opcode == "BGE") {
+                        inst.funct = 5;
+                    } else if (opcode == "BGEu") {
+                        inst.funct = 7;
+                    }
+                } else if (opcode == "LW") {
+                    int op3u = stoi(op3);
+                    inst.opcode = 3;
+                    inst.rd = op1u;
+                    inst.funct = 2;
+                    inst.rs1 = op2u;
+                    inst.rs2 = op3u & 0x1f;
+                    inst.imm = (op3u >> 5) & 0x7f;
+                } else if (opcode == "SW") {
+                    int op3u = stoi(op3);
+                    inst.opcode = 0x23;
+                    inst.rd = op3u & 0x1f;
+                    inst.funct = 2;
+                    inst.rs1 = op2u;
+                    inst.rs2 = op1u;
+                    inst.imm = (op3u >> 5) & 0x7f;
+                } else if (opcode == "MATCH" || opcode == "LOAD" || opcode == "RESET" || opcode == "PASS"
+                    || opcode == "FTLOOKUP" || opcode == "MALLOC" || opcode == "LOOKUP" || opcode == "UPDATE0" || opcode == "RELEASE") {
+                    int op3u = stoi(op3);
+                    inst.opcode = 0x5b;
+                    inst.rd = op1u;
+                    inst.rs1 = op2u;
+                    inst.rs2 = op3u & 0x1f;
+                    inst.imm = (op3u >> 5) & 0x7f;
+                    if (opcode == "RESET") {
+                        inst.funct = 0;
+                    } else if (opcode == "LOAD") {
+                        inst.funct = 1;
+                    } else if (opcode == "MATCH") {
+                        inst.funct = 2;
+                    } else if (opcode == "PASS") {
+                        inst.funct = 3;
+                    } else if (opcode == "FTLOOKUP") {
+                        inst.funct = 0;
+                    } else if (opcode == "MALLOC") {
+                        inst.funct = 0;
+                    } else if (opcode == "LOOKUP") {
+                        inst.funct = 1;
+                    } else if (opcode == "UPDATE0") {
+                        inst.funct = 2;
+                    } else if (opcode == "RELEASE") {
+                        inst.funct = 3;
+                    }
+                } else if (opcode == "EXTRACTi" || opcode == "EXTRACTi_DONE") {
+                    int op3u = stoi(op3);
+                    inst.opcode = 0xb;
+                    inst.rd = op1u;
+                    if (opcode == "EXTRACTi") {
+                        inst.funct = 3;
+                    } else if (opcode == "EXTRACTi_DONE") {
+                        inst.funct = 7;
+                    }
+                    inst.rs1 = op2u;
+                    inst.rs2 = op3u & 0x1f;
+                    inst.imm = (op3u >> 5) & 0x3f;
+                } else if (opcode == "EMIT" || opcode == "OUTPUT_META" || opcode == "EMIT_DONE" || opcode == "OUTPUT") {
+                    int op3u = stoi(op3);
+                    inst.opcode = 0x6b;
+                    inst.rd = op1u;
+                    if (opcode == "EMIT") {
+                        inst.funct = 1;
+                    } else if (opcode == "EMIT_DONE") {
+                        inst.funct = 3;
+                    } else if (opcode == "OUTPUT_META") {
+                        inst.funct = 0;
+                    }
+                    inst.rs1 = op2u;
+                    inst.rs2 = op3u & 0x1f;
+                    inst.imm = (op3u >> 5) & 0x3f;
+                } else {
+                    // 4 or more operands
+                    cout << "invalid opcode" << endl;
+                    exit(1);
+                }
+            }
+        }
     }
-    for (int i = 0; i < NUM_BT; i++) {
-        brTarget[i] = 0;
+    return inst;
+}
+
+aluOp_t instruction::subInstructionALU(string asm_line) {
+    aluOp_t inst;
+    stringstream alu_stream(asm_line);
+    string opcode;
+    getline(alu_stream, opcode, ',');
+    // No operand
+    if (opcode == "NOP") {
+        inst.opcode = 0x13;
+        inst.rd = 0;
+        inst.funct = 0;
+        inst.rs1 = 0;
+        inst.rs2 = 0;
+        inst.imm = 0;
+    } else {
+        // 1 or more operands
+        string op1, op2, op3;
+        getline(alu_stream, op1, ',');
+        getline(alu_stream, op2, ',');
+        getline(alu_stream, op3, ',');
+        int op1u = stoi(op1.substr(1));
+        int op2u = stoi(op2);
+        int op3u = stoi(op3);
+        // 2 or more operands
+        string op4;
+        getline(alu_stream, op4, ',');
+        if (opcode == "LUi") {
+            int op4u = stoi(op4);
+            inst.opcode = 0x37;
+            inst.rd = op1u;
+            inst.rd_pos = op2u;
+            inst.rd_mode = op3u;
+            inst.funct = (op4u >> 12) & 7;
+            int RS1_START_POS = 15;
+            inst.rs1 = (op4u >> RS1_START_POS) & ((1 << NUM_REGS_LG) - 1);
+            inst.rs1_pos = (op4u >> (RS1_START_POS+NUM_REGS_LG)) & ((1 << NUM_SRC_POS_LG) - 1);
+            inst.rs1_mode = (op4u >> (RS1_START_POS+NUM_REGS_LG+NUM_SRC_POS_LG)) & ((1 << NUM_SRC_MODE_LG) - 1);
+            int RS2_START_POS = RS1_START_POS + NUM_REGS_LG + NUM_SRC_POS_LG + NUM_SRC_MODE_LG;
+            inst.rs2 = (op4u >> RS2_START_POS) & ((1 << NUM_REGS_LG) - 1);
+            inst.rs2_pos = (op4u >> (RS2_START_POS+NUM_REGS_LG)) & ((1 << NUM_SRC_POS_LG) - 1);
+            inst.rs2_mode = (op4u >> (RS2_START_POS+NUM_REGS_LG+NUM_SRC_POS_LG)) & ((1 << NUM_SRC_MODE_LG) - 1);
+            int IMM_START_POS = RS2_START_POS + NUM_REGS_LG + NUM_SRC_POS_LG + NUM_SRC_MODE_LG;
+            if (IMM_START_POS <= 32) {
+                inst.imm = op4u >> IMM_START_POS;
+            }
+        } else {
+            // 6 or more operands
+            string op5, op6;
+            getline(alu_stream, op5, ',');
+            getline(alu_stream, op6, ',');
+            int op4u = stoi(op4.substr(1));
+            int op5u = stoi(op5);
+            int op6u = stoi(op6);
+            if (opcode == "NOT") {
+                inst.opcode = 0x13;
+                inst.rd = op1u;
+                inst.rd_pos = op2u;
+                inst.rd_mode = op3u;
+                inst.funct = 4;
+                inst.rs1 = op4u;
+                inst.rs1_pos = op5u;
+                inst.rs1_mode = op6u;
+                inst.rs2 = (1 << NUM_REGS_LG) - 1;
+                inst.rs2_pos = (1 << NUM_SRC_POS_LG) - 1;
+                inst.rs2_mode = (1 << NUM_SRC_MODE_LG) - 1;
+                inst.imm = (1 << ALU_IMM_W) - 1;
+            } else if (opcode == "SNEZ") {
+                inst.opcode = 0x33;
+                inst.rd = op1u;
+                inst.rd_pos = op2u;
+                inst.rd_mode = op3u;
+                inst.funct = 3;
+                inst.rs1 = 0;
+                inst.rs1_pos = 0;
+                inst.rs1_mode = 0;
+                inst.rs2 = op4u;
+                inst.rs2_pos = op5u;
+                inst.rs2_mode = op6u;
+                inst.imm = 0;
+            } else {
+                // 7 or more operands
+                string op7;
+                getline(alu_stream, op7, ',');
+                if (opcode == "ADDi" || opcode == "SLTi" || opcode == "SLTiu" || opcode == "ANDi" ||
+                    opcode == "ORi" || opcode == "XORi") {
+                    int op7u = stoi(op7);
+                    inst.opcode = 0x13;
+                    inst.rd = op1u;
+                    inst.rd_pos = op2u;
+                    inst.rd_mode = op3u;
+                    inst.rs1 = op4u;
+                    inst.rs1_pos = op5u;
+                    inst.rs1_mode = op6u;
+                    inst.rs2 = op7u & ((1 << NUM_REGS_LG) - 1);
+                    inst.rs2_pos = (op7u >> NUM_REGS_LG) & ((1 << NUM_SRC_POS_LG) - 1);
+                    inst.rs2_mode = (op7u >> (NUM_REGS_LG + NUM_SRC_POS_LG)) & ((1 << NUM_SRC_MODE_LG) - 1);
+                    int IMM_START_POS = NUM_REGS_LG + NUM_DST_POS_LG + NUM_DST_MODES_LG;
+                    inst.imm = op7u >> IMM_START_POS;
+                    if (opcode == "ADDi") {
+                        inst.funct = 0;
+                    } else if (opcode == "SLTi") {
+                        inst.funct = 2;
+                    } else if (opcode == "SLTiu") {
+                        inst.funct = 3;
+                    } else if (opcode == "ANDi") {
+                        inst.funct = 7;
+                    } else if (opcode == "ORi") {
+                        inst.funct = 6;
+                    } else if (opcode == "XORi") {
+                        inst.funct = 4;
+                    }
+                } else {
+                    // 9 or more operands
+                    string op8, op9;
+                    getline(alu_stream, op8, ',');
+                    getline(alu_stream, op9, ',');
+                    if (opcode == "SLLi" || opcode == "SRLi" || opcode == "SRAi") {
+                        int op7u = stoi(op7);
+                        inst.opcode = 0x13;
+                        inst.rd = op1u;
+                        inst.rd_pos = op2u;
+                        inst.rd_mode = op3u;
+                        inst.rs1 = op4u;
+                        inst.rs1_pos = op5u;
+                        inst.rs1_mode = op6u;
+                        inst.rs2 = op7u & ((1 << NUM_REGS_LG) - 1);
+                        inst.rs2_pos = (op7u >> NUM_REGS_LG) & ((1 << NUM_SRC_POS_LG) - 1);
+                        inst.rs2_mode = (op7u >> (NUM_REGS_LG + NUM_SRC_POS_LG)) & ((1 << NUM_SRC_MODE_LG) - 1);
+                        if (opcode == "SLLi") {
+                            inst.funct = 1;
+                            inst.imm = 0;
+                        } else if (opcode == "SRLi") {
+                            inst.funct = 5;
+                            inst.imm = 0;
+                        } else if (opcode == "SRAi") {
+                            inst.funct = 5;
+                            inst.imm = 0x20;
+                        }
+                    } else if (opcode == "ADD" || opcode == "SLT" || opcode == "SLTu" || opcode == "AND" ||
+                        opcode == "OR" || opcode == "XOR" || opcode == "SLL" || opcode == "SRL") {
+                        int op7u = stoi(op7.substr(1));
+                        int op8u = stoi(op8);
+                        int op9u = stoi(op9);
+                        inst.opcode = 0x33;
+                        inst.rd = op1u;
+                        inst.rd_pos = op2u;
+                        inst.rd_mode = op3u;
+                        inst.rs1 = op4u;
+                        inst.rs1_pos = op5u;
+                        inst.rs1_mode = op6u;
+                        inst.rs2 = op7u;
+                        inst.rs2_pos = op8u;
+                        inst.rs2_mode = op9u;
+                        inst.imm = 0;
+                        if (opcode == "ADD") {
+                            inst.funct = 0;
+                        } else if (opcode == "SLT") {
+                            inst.funct = 2;
+                        } else if (opcode == "SLTu") {
+                            inst.funct = 3;
+                        } else if (opcode == "AND") {
+                            inst.funct = 7;
+                        } else if (opcode == "OR") {
+                            inst.funct = 6;
+                        } else if (opcode == "XOR") {
+                            inst.funct = 4;
+                        } else if (opcode == "SLL") {
+                            inst.funct = 1;
+                        } else if (opcode == "SRL") {
+                            inst.funct = 5;
+                        }
+                    } else if (opcode == "SUB") {
+                        int op7u = stoi(op7.substr(1));
+                        int op8u = stoi(op8);
+                        int op9u = stoi(op9);
+                        inst.opcode = 0x33;
+                        inst.rd = op1u;
+                        inst.rd_pos = op2u;
+                        inst.rd_mode = op3u;
+                        inst.rs1 = op4u;
+                        inst.rs1_pos = op5u;
+                        inst.rs1_mode = op6u;
+                        inst.rs2 = op7u;
+                        inst.rs2_pos = op8u;
+                        inst.rs2_mode = op9u;
+                        inst.funct = 0;
+                        inst.imm = 0x20;
+                    } else if (opcode == "SRA") {
+                        int op7u = stoi(op7.substr(1));
+                        int op8u = stoi(op8);
+                        int op9u = stoi(op9);
+                        inst.opcode = 0x33;
+                        inst.rd = op1u;
+                        inst.rd_pos = op2u;
+                        inst.rd_mode = op3u;
+                        inst.rs1 = op4u;
+                        inst.rs1_pos = op5u;
+                        inst.rs1_mode = op6u;
+                        inst.rs2 = op7u;
+                        inst.rs2_pos = op8u;
+                        inst.rs2_mode = op9u;
+                        inst.funct = 5;
+                        inst.imm = 0x20;
+                    } else if (opcode == "CAT") {
+                        int op7u = stoi(op7.substr(1));
+                        int op8u = stoi(op8);
+                        int op9u = stoi(op9);
+                        inst.opcode = 0x33;
+                        inst.rd = op1u;
+                        inst.rd_pos = op2u;
+                        inst.rd_mode = op3u;
+                        inst.rs1 = op4u;
+                        inst.rs1_pos = op5u;
+                        inst.rs1_mode = op6u;
+                        inst.rs2 = op7u;
+                        inst.rs2_pos = op8u;
+                        inst.rs2_mode = op9u;
+                        inst.funct = 4;
+                        inst.imm = 1;  
+                    } else {
+                        cout << "invalid opcode" << endl;
+                        exit(1);
+                    }
+                }
+            }
+        }
     }
+    return inst;
+}
+
+instruction::instruction(string asm_line) {
+    isComment = false;
     
     //parse asm
     stringstream s_stream(asm_line);
     int i = 0;
-    int ii = 0;
-    int j = 0;
-    int k = 0;
-    int l = 0;
-    int m = 0;
-    int n = 0;
     while(s_stream.good()) {
-        string operand;
-        getline(s_stream, operand, ';');
-        if (operand[0] == '#') {
-            if (i == 0) comment = true;
+        string inst;
+        getline(s_stream, inst, ';');
+        if (inst[0] == '#') {
+            if (i == 0) isComment = true;
+            cout << "\n";
             return;
         }
-        if (i == 0) {
-            //pre-op
-            if (preOp_dict.find(operand) != preOp_dict.end()) {
-                preOp = preOp_dict.at(operand);
-            } else {
-                cout << preOp << ", Undefined preOp\n";
-            }
-        } else if (i <= NUM_ALUS) {
-            //alu-isnt
-            stringstream alu_stream(operand);
-            string alu_operand;
-            getline(alu_stream, alu_operand, ',');
-            if (aluOp_dict.find(alu_operand) != aluOp_dict.end()) {
-                aluOp[ii] = aluOp_dict.at(alu_operand);
-            } else {
-                cout << alu_operand << ", Undefined aluOp\n";
-            }
-            for (int ij = 0; ij < 2; ij++) {
-                // src select
-                getline(alu_stream, alu_operand, ',');
-                srcId[ii][ij] = stoi(alu_operand.substr(1));
-                // src type
-                getline(alu_stream, alu_operand, ',');
-                if (srcType_dict.find(alu_operand) != srcType_dict.end()) {
-                    srcMode[ii][ij] = srcType_dict.at(alu_operand);
-                } else {
-                    cout << alu_operand << ", Undefined src type\n";
-                }
-                // src shiftR
-                getline(alu_stream, alu_operand, ',');
-                srcShiftR[ii][ij] = stoi(alu_operand);
-            }
-            // dst type
-            getline(alu_stream, alu_operand, ',');
-            if (srcType_dict.find(alu_operand) != srcType_dict.end()) {
-                dstMode[ii] = srcType_dict.at(alu_operand);
-            } else {
-                cout << alu_operand << ", Undefined dst type\n";
-            }
-            // dst shiftL
-            getline(alu_stream, alu_operand, ',');
-            dstShiftL[ii] = stoi(alu_operand);
-            ii++;
-        } else if (i <= NUM_ALUS+NUM_FUS) {
-            //FUs
-            if (operand != " ") {
-                fuValids[l] = 1;
-                if (fuOp_dict.find(operand) != fuOp_dict.end()) {
-                    fuOp[l] = fuOp_dict.at(operand).opcode;
-                    if (fuOp_dict.at(operand).wren) {
-                        if (j < NUM_DEST) {
-                            destLane[j] = l;
-                            j++;
-                        } else {
-                            cout << "Error: Out of RegFile write BW\n";
-                            return;
-                        }
-                    }
-                } else {
-                    cout << operand << ", Undefined FUOp\n";
-                }
-            }
-            l++;
-        } else if (i <= NUM_ALUS+NUM_FUS+NUM_DEST) {
-            //dstA
-            if (operand != " ") {
-                destId[m] = stoi(operand.substr(1));
-                destEn[m] = 1;
-                m++;
-            }
-        } else if (i <= NUM_ALUS+NUM_FUS+NUM_DEST+NUM_BT) {
-            //brTarget
-            if (operand != " ") {
-                brTarget[n] = stoi(operand);
-                n++;
-            }
-        } else if (i <= NUM_ALUS+NUM_FUS+NUM_DEST+NUM_BT+NUM_ALUS) {
-            //immediate
-            if (operand != " ") {
-                imm[k] = stoi(operand, nullptr, 0);
-                k++;
-            }
+        cout << inst << "; ";
+        if (i < NUM_ALUS) {
+            subInstALU[i] = subInstructionALU(inst);
+        } else if (i < NUM_INST) {
+            subInstBFU[i - NUM_ALUS] = subInstructionBFU(inst);
+        } else {
+            cout << "Found more than expected sub-instructions" << endl;
+            exit(1);
         }
         i++;
     }
-}
-
-void insert(unsigned* inst, int &idx, int &shift_w, unsigned operand, int width) {
-    inst[idx] += (operand << shift_w);
-    if (shift_w+width > 32) {
-        inst[idx+1] += (operand >> (32 - shift_w));
-        shift_w = shift_w + width - 32;
-        idx++;
-    } else if (shift_w + width == 32) {
-        shift_w = 0;
-        idx++;
-    } else {
-        shift_w += width;
-    }
+    cout << "\n";
 }
 
 void instruction::assemble(ofstream &bin_file) {
-    const int size = NUM_INT;
-    unsigned inst[size] = {0};
-    int shift_w = 0;
+    unsigned inst[NUM_INT];
     int i = 0;
     int j = 0;
-    if (comment) return;
-    // preOps
-    unsigned preOp_u = unsigned(preOp) & ((1 << OP_W) - 1);
-    insert(inst, j, shift_w, preOp_u, OP_W);
-    // aluInsts
+    if (isComment) return;
+
     for (i = 0; i < NUM_ALUS; i++) {
-        unsigned aluOp_u = unsigned(aluOp[i]) & ((1 << NUM_ALUOPS_LG) - 1);
-        insert(inst, j, shift_w, aluOp_u, NUM_ALUOPS_LG);
-        for (int k = 0; k < 2; k++) {
-            unsigned srcId_u = unsigned(srcId[i][k]) & ((1 << NUM_REGS_LG) - 1);
-            insert(inst, j, shift_w, srcId_u, NUM_REGS_LG);
-        }
-        for (int k = 0; k < 2; k++) {
-            unsigned srcShiftR_u = unsigned(srcShiftR[i][k]) & ((1 << NUM_SRC_POS_LG) - 1);
-            insert(inst, j, shift_w, srcShiftR_u, NUM_SRC_POS_LG);
-        }
-        for (int k = 0; k < 2; k++) {
-            unsigned srcMode_u = unsigned(srcMode[i][k]) & ((1 << NUM_SRC_MODE_LG) - 1);
-            insert(inst, j, shift_w, srcMode_u, NUM_SRC_MODE_LG);
-        }
-        unsigned dstShiftL_u = unsigned(dstShiftL[i]) & ((1 << NUM_SRC_POS_LG) - 1);
-        insert(inst, j, shift_w, dstShiftL_u, NUM_SRC_POS_LG);
-        unsigned dstMode_u = unsigned(dstMode[i]) & ((1 << NUM_SRC_MODE_LG) - 1);
-        insert(inst, j, shift_w, dstMode_u, NUM_SRC_MODE_LG);
+        unsigned long long res = subInstALU[i].assemble();
+        inst[2*i] = res & 0xffffffff;
+        inst[2*i+1] = (res >> 32);
     }
-    // fuValids
-    for (i = 0; i < NUM_FUS; i++) {
-        unsigned tmp = unsigned(fuValids[i]) & 1;
-        insert(inst, j, shift_w, tmp, 1);
-    }
-    // fuOps
-    for (i = 0; i < NUM_FUS; i++) {
-        unsigned tmp = unsigned(fuOp[i]) & ((1 << NUM_FUOPS_LG) - 1);
-        insert(inst, j, shift_w, tmp, NUM_FUOPS_LG);
-    }
-    // destId
-    for (i = 0; i < NUM_DEST; i++) {
-        unsigned destId_u = unsigned(destId[i]) & ((1 << NUM_REGS_LG) - 1);
-        insert(inst, j, shift_w, destId_u, NUM_REGS_LG);
-    }
-    // destEn
-    for (i = 0; i < NUM_DEST; i++) {
-        unsigned tmp = unsigned(destEn[i]) & 1;
-        insert(inst, j, shift_w, tmp, 1);
-    }
-    // destLane
-    for (i = 0; i < NUM_DEST; i++) {
-        unsigned destLane_u = unsigned(destLane[i]) & ((1 << NUM_FUS_LG) - 1);
-        insert(inst, j, shift_w, destLane_u, NUM_FUS_LG);
-    }
-    // brTarget
-    for (i = 0; i < NUM_BT; i++) {
-        unsigned brTarget_u = unsigned(brTarget[i]) & ((1 << IP_W) - 1);
-        insert(inst, j, shift_w, brTarget_u, IP_W);
-    }
-    // immediate
-    for (i = 0; i < NUM_ALUS; i++) {
-        unsigned imm_u = unsigned(imm[i]) & ((1 << IMM_W) - 1);
-        insert(inst, j, shift_w, imm_u, IMM_W);
+    for (i = 2*NUM_ALUS; i < NUM_INT; i++, j++) {
+        inst[i] = subInstBFU[j].assemble();
     }
 
     // Output

@@ -7,14 +7,20 @@ import scala.io.Source
 
 class TopTests(c: Top) extends gTester[Top](c) {
   val iDelay = 1
+  val memDelay = 40  
 
   val filename = "input.txt"
   val fileSource = Source.fromFile(filename)
   val lines = fileSource.getLines.toList
 
+  val memFile = "memInit.txt"
+  val memSource = Source.fromFile(memFile)
+  val mem = memSource.getLines.toList
+
   //Spin for a while without any test input
   for (time <- 0 until 5) {
     poke(c.io.in.valid, false.B)
+    poke(c.io.in.last, true.B)
     poke(c.io.pcIn.valid, false.B)
     poke(c.io.pcIn.bits.pcType, Pcounters.pcReset)
     poke(c.io.pcIn.bits.moduleId, (0).U)
@@ -43,31 +49,69 @@ class TopTests(c: Top) extends gTester[Top](c) {
   var allPassed = true
   var cycles = 0
   // val numOfInputs = lines.length
-  val numOfInputs = 128
-  val numOfOutputs = 128
+  val numOfInputs = 512
+  val numOfOutputs = 512
   val numThreads = 16
+  var memReqBuf_time = new Array[Int](1024)
+  var memReqBuf_addr = new Array[Int](1024)
+  var memReqPtr = 0
+  var memRspPtr = 0
 
   while(cycles < 250000 && (sourced < numOfInputs || sinked < numOfOutputs)) {
     // Read packets from file
-    val line = BigInt(lines(sourced))
+    val line = lines(sourcedIndex).split(" ")
+    val data = BigInt(line(2), 16)
+    val empty = BigInt(line(1), 16)
+    val last = BigInt(line(0))
     if (sourced < numOfInputs) {
-      poke(c.io.in.bits.data, line.U)
-      
+      poke(c.io.in.bits.data, data.U)
+      poke(c.io.in.bits.empty, empty.U)
+      poke(c.io.in.last, last.U.asBool)
       poke(c.io.in.valid, true.B)
       poke(c.io.out.ready, true.B)
     } else {
       poke(c.io.in.valid, false.B)
+      poke(c.io.in.last, true.B)
       poke(c.io.out.ready, true.B)
+    }
+
+    // Memory
+    poke(c.io.mem.waitrequest, false.B)
+    if (peek(c.io.mem.read) == 1) {
+      memReqBuf_time(memReqPtr) = cycles + memDelay
+      memReqBuf_addr(memReqPtr) = peek(c.io.mem.mem_addr).toInt
+      if (memReqPtr == 1023) {
+        memReqPtr = 0
+      } else {
+        memReqPtr = memReqPtr + 1
+      }
+    }
+    if (cycles == memReqBuf_time(memRspPtr) && (cycles != 0)) {
+      println("mem response: cycles: " + cycles + ", time: " + memReqBuf_time(memRspPtr) + ", ptr: " + memRspPtr)
+      val memReqAddr = memReqBuf_addr(memRspPtr) >> 6
+      val mem_res = BigInt(mem(memReqAddr), 16)
+      poke(c.io.mem.readdatavalid, true.B)
+      poke(c.io.mem.readdata, mem_res.U)
+      if (memRspPtr == 1023) {
+        memRspPtr = 0
+      } else {
+        memRspPtr = memRspPtr + 1
+      }
+    } else {
+      poke(c.io.mem.readdatavalid, false.B)
     }
 
     // Generate packets
 
-    if (peek(c.io.in.ready) == 1 && (cycles % iDelay == 0) && (sourced < numOfInputs)) {
-      sourced += 1
-      sourcedIndex = sourced / numThreads
+    if (peek(c.io.in.ready) == 1 && (sourced < numOfInputs)) {
+      sourcedIndex += 1
     //   println("sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
     }
-    if (peek(c.io.out.valid) == 1) {
+    if (peek(c.io.in.ready) == 1 && peek(c.io.in.last) == 1 && (sourced < numOfInputs)) {
+      sourced += 1
+    //   println("sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
+    }
+    if (peek(c.io.out.valid) == 1 && peek(c.io.out.last) == 1) {
     //   //When multi-threading or replication is used order of outputs are not preserved.
     //   //Otherwise, we can check the values
     //   //allPassed = allPassed && (peek(c.io.out.bits) == (inputData(sinkedIndex) + 2))
@@ -87,6 +131,7 @@ class TopTests(c: Top) extends gTester[Top](c) {
     cycles += 1
   }
   poke(c.io.in.valid, false.B)
+  poke(c.io.in.last, true.B)
   step(1)
 
   val UsePCReport = true

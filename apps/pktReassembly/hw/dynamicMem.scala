@@ -4,22 +4,23 @@ import chisel3.util._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
-class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int) extends Module {
+class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
   val io = IO(new Bundle{
     val in_valid  = Input(Bool())
     val in_tag    = Input(UInt(tag_width.W))
     val in_opcode = Input(UInt(opcode_width.W))
-    val in_bits   = Input(UInt(reg_width.W))
+    val in_imm    = Input(UInt(12.W))
+    val in_bits   = Input(Vec(1, UInt(reg_width.W)))
     val in_ready  = Output(Bool())
     val out_valid = Output(Bool())
     val out_tag   = Output(UInt(tag_width.W))
-    val out_flag  = Output(UInt(2.W))
+    val out_flag  = Output(UInt(ip_width.W))
     val out_bits  = Output(UInt(reg_width.W))
     val out_ready = Input(Bool())
   })
   val in_bits = Wire(new dyMemInput_t)
   val out_bits = Wire(new llNode_t)
-  in_bits := io.in_bits.asTypeOf(new dyMemInput_t)
+  in_bits := io.in_bits(0).asTypeOf(new dyMemInput_t)
   io.out_bits := out_bits.asUInt
   io.out_flag := 0.U
   /*******************Decode, allocate new ptr*****************/

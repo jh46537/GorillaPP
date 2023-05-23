@@ -83,7 +83,7 @@ typedef struct packed {
 } ftCh0Input_t;
 
 typedef struct packed { 
-    logic [1:0] flag;
+    logic [3:0] flag;
     logic [4:0] ch0_bit_map;
     fce_t ch0_q;
 } ftCh0Output_t;
@@ -1847,7 +1847,7 @@ always_ff @(posedge clk) begin
     if (forward_meta_ready) begin
         if (ch0_req_valid && f_pkt) begin
             forward_meta_valid <= 1'b1;
-            forward_meta_flag <= 'b0;
+            forward_meta_flag <= 'b1;
             forward_meta_tag <= ch0_req_tag;
         end else begin
             forward_meta_valid <= 1'b0;
@@ -2178,7 +2178,7 @@ always @(posedge clk) begin
             // Check in string matcher if it has payload.
             out_meta_data.ch0_q <= ch0_q;
             out_meta_data.ch0_bit_map <= ch0_bit_map;
-            out_meta_data.flag <= 'd0;
+            out_meta_data.flag <= 'd1;
             if (ch0_bit_map != 0) begin
                 ch1_data.valid <= 1;
                 ch1_opcode <= FT_UPDATE;
@@ -2198,14 +2198,14 @@ always @(posedge clk) begin
 
                         ch1_data.slow_cnt <= ch0_q.slow_cnt + 1;
                         path_sel <= 'd1;
-                        out_meta_data.flag <= 'd1;
+                        out_meta_data.flag <= 'd6;
                     end
                     // Inorder packets, with no OOO node in
                     // the LL. Update seq. Most common case.
                     else begin
                         ch1_data.seq   <= meta_last.seq + meta_last.len;
                         path_sel <= 'd0;
-                        out_meta_data.flag <= 'd0;
+                        out_meta_data.flag <= 'd1;
                         // Delete the fce, forward the pkt
                         if (meta_last.tcp_flags[TCP_FIN] | meta_last.tcp_flags[TCP_RST]) begin
                             `ifdef DEBUG
@@ -2231,13 +2231,13 @@ always @(posedge clk) begin
                     ch1_data.slow_cnt <= ch0_q.slow_cnt + 1;
                     ch1_data.seq <= ch0_q.seq;
                     path_sel <= 'd1;
-                    out_meta_data.flag <= 'd2;
+                    out_meta_data.flag <= 'd11;
                 end
                 // The incoming seq is smaller than expected (overlapping bytes).
                 // Current policy drops these packet, without changing the FCE.
                 else begin
                     path_sel <= 'd0;
-                    out_meta_data.flag <= 'd0;
+                    out_meta_data.flag <= 'd1;
 
                     `ifdef DEBUG
                     $display("Overlap : pkt %d, seq %x, length %d, expect %x",
@@ -2260,7 +2260,7 @@ always @(posedge clk) begin
                 ch1_data.addr2      <= key_last[35:24];
                 ch1_data.addr3      <= key_last[47:36];
                 path_sel <= 'd0;
-                out_meta_data.flag <= 'd0;
+                out_meta_data.flag <= 'd1;
 
                 // SYN's expected seq is special
                 if (meta_last.tcp_flags[TCP_SYN]) begin
