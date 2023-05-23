@@ -51,9 +51,7 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
   when (threadState === 0.U) {
     when (io.in_valid && io.in_ready && (sThread =/= (num_threads.U))) {
       io.new_thread := true.B
-      when (!io.in_last) {
-        threadState := 1.U
-      }
+      threadState := 1.U
     }
   } .otherwise {
     when (io.ar_valid && (io.ar_opcode(2) === 1.U)) {

@@ -14,7 +14,7 @@
 #define NUM_SRC_MODE_LG int(ceil(log2(NUM_SRC_MODE)))
 #define NUM_DST_POS_LG int(ceil(log2(NUM_SRC_POS)))
 #define NUM_DST_MODES_LG int(ceil(log2(NUM_SRC_MODE)))
-#define NUM_FUS 2
+#define NUM_FUS 3
 #define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
 #define IP_W 32
 #define ALU_SRC_W (NUM_REGS_LG + NUM_SRC_POS_LG + NUM_SRC_MODE_LG)
