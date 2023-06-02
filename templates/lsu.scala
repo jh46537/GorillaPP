@@ -16,6 +16,9 @@ class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threa
     val out_flag      = Output(UInt(ip_width.W))
     val out_bits      = Output(UInt(reg_width.W))
     val out_ready     = Input(Bool())
+
+    val mem           = new gMemBundle
+
   })
 
   val MEM_SIZE = 512
@@ -31,14 +34,25 @@ class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threa
   val wr_data = Reg(UInt(reg_width.W))
   val valid_out = RegInit(false.B)
   val readmeta = RegInit(false.B)
+  val tag_out = Reg(UInt(tag_width.W))
 
-  io.in_ready := true.B
+  io.mem.mem_addr   := DontCare
+  io.mem.read       := false.B
+  io.mem.write      := false.B
+  io.mem.writedata  := DontCare
+  io.mem.byteenable := DontCare
+
+  io.in_ready := io.out_ready
   io.out_flag := 0.U
-  valid_r := io.in_valid
-  tag_r := io.in_tag
   base_addr := io.in_bits(0)(31, 0).asSInt
   disp := io.in_imm.asSInt
-  when (io.in_valid) {
+
+  when (io.out_ready) {
+    valid_r := io.in_valid
+    tag_r := io.in_tag
+  }
+
+  when (io.in_valid && io.out_ready) {
     mem_wr := io.in_opcode(4)
     wr_data := io.in_bits(1)
     val addr = base_addr + disp
@@ -50,24 +64,29 @@ class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threa
     }
   }
 
-  val tag_out = RegNext(tag_r)
   val rd_data = Wire(UInt(reg_width.W))
-  valid_out := false.B
   rd_data := DontCare
   io.out_bits := DontCare
-  when (valid_r) {
-    val rdwrPort = mem(mem_addr)
-    when (mem_wr) {
-      rdwrPort := wr_data
-    } .otherwise {
-      rd_data := rdwrPort
+  when (io.out_ready) {
+    valid_out := false.B
+    when (valid_r) {
+      val rdwrPort = mem(mem_addr)
+      when (mem_wr) {
+        rdwrPort := wr_data
+      } .otherwise {
+        when (io.out_ready) {
+          rd_data := rdwrPort
+        }
+      }
+      tag_out := tag_r
+      valid_out := true.B
     }
-    when (readmeta) {
-      io.out_bits := tag_out
-    } .otherwise {
-      io.out_bits := rd_data
-    }
-    valid_out := true.B
+  }
+
+  when (readmeta) {
+    io.out_bits := tag_out
+  } .otherwise {
+    io.out_bits := rd_data
   }
 
   io.out_valid := valid_out

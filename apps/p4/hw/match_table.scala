@@ -8,7 +8,7 @@ class matchTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
     val in_tag        = Input(UInt(tag_width.W))
     val in_opcode     = Input(UInt(opcode_width.W))
     val in_imm        = Input(UInt(12.W))
-    val in_bits       = Input(Vec(1, UInt(reg_width.W)))
+    val in_bits       = Input(Vec(2, UInt(reg_width.W)))
     val in_ready      = Output(Bool())
     val out_valid     = Output(Bool())
     val out_tag       = Output(UInt(tag_width.W))
@@ -35,18 +35,22 @@ class matchTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
   val hashU = Module(new hashUnit(KEY_WIDTH, ADDR_WIDTH-NUM_TABLES_LG-6))
 
   // Stage 0: hash
+  val stall = Wire(Bool())
   val valid_s0 = RegInit(false.B)
   val tag_s0 = Reg(UInt(tag_width.W))
   val key_s0 = Reg(UInt(KEY_WIDTH.W))
   val tableID_s0 = Reg(UInt(NUM_TABLES_LG.W))
-  valid_s0 := io.in_valid
-  tag_s0 := io.in_tag
-  key_s0 := io.in_bits(0)(47, 0)
-  tableID_s0 := io.in_imm(NUM_TABLES_LG-1, 0)
-  io.in_ready := true.B
+
+  io.in_ready := !stall
   hashU.io.data_in_valid := false.B
-  hashU.io.stall := false.B
+  hashU.io.stall := stall
   hashU.io.data_in := io.in_bits(0)(47, 0)
+  when (!stall) {
+    valid_s0 := io.in_valid
+    tag_s0 := io.in_tag
+    key_s0 := io.in_bits(0)(47, 0)
+    tableID_s0 := io.in_imm(NUM_TABLES_LG-1, 0)
+  }
 
   // Stage 1: access cache
   val valid_s1 = RegInit(false.B)
@@ -60,14 +64,18 @@ class matchTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
   cache.io.read := false.B
   cache.io.index_rd := DontCare
   cache.io.tag_rd := DontCare
-  valid_s1 := valid_s0
-  valid_s2 := valid_s1
-  tag_s1 := tag_s0
-  tag_s2 := tag_s1
-  key_s1 := key_s0
-  key_s2 := key_s1
-  hasehd_s1 := Cat(tableID_s0, hashU.io.hashed)
-  hasehd_s2 := hasehd_s1
+
+  when (!stall) {
+    valid_s1 := valid_s0
+    valid_s2 := valid_s1
+    tag_s1 := tag_s0
+    tag_s2 := tag_s1
+    key_s1 := key_s0
+    key_s2 := key_s1
+    hasehd_s1 := Cat(tableID_s0, hashU.io.hashed)
+    hasehd_s2 := hasehd_s1
+  }
+
   when (valid_s0) {
     cache.io.read := true.B
     cache.io.index_rd := Cat(tableID_s0, hashU.io.hashed)
@@ -93,11 +101,10 @@ class matchTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
     val addr = UInt((ADDR_WIDTH-6).W)
   }
 
-  val valid_s3 = RegInit(false.B)
-  val tag_s3 = Reg(UInt(tag_width.W))
   val memReqFifo = Module(new Queue(UInt((ADDR_WIDTH-6).W), num_threads))
   val memRspFifo = Module(new Queue(memRspFifo_t, num_threads))
   val metaFifo = Module(new Queue(metaFifo_t, num_threads))
+  val hit_r = RegInit(false.B)
 
   io.out_valid := false.B
   io.out_tag := DontCare
@@ -107,13 +114,21 @@ class matchTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
   memReqFifo.io.enq.bits := DontCare
   metaFifo.io.enq.valid := false.B
   metaFifo.io.enq.bits := DontCare
+  stall := false.B
   when (valid_s2) {
-    when (cache.io.hit) {
-      io.out_valid := true.B
-      io.out_flag := Mux((cache.io.readdata(9) === 0.U), PC0.U, PC1.U)
-      io.out_bits := cache.io.readdata(8, 0)
-      io.out_tag := tag_s2
+    when (cache.io.hit || hit_r) {
+      stall := !io.out_ready
+      when (io.out_ready) {
+        io.out_valid := true.B
+        io.out_flag := Mux((cache.io.readdata(9) === 0.U), PC0.U, PC1.U)
+        io.out_bits := cache.io.readdata(8, 0)
+        io.out_tag := tag_s2
+        hit_r := false.B
+      } .otherwise {
+        hit_r := true.B
+      }
     } .otherwise {
+      stall := false.B
       memReqFifo.io.enq.bits := hasehd_s2
       memReqFifo.io.enq.valid := true.B
       metaFifo.io.enq.bits.tag := tag_s2
@@ -219,7 +234,7 @@ class matchTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
   cache.io.writedata := memRspFifo.io.deq.bits.data.value
   cache.io.index_wr := memRspFifo.io.deq.bits.addr
   cache.io.tag_wr := memRspFifo.io.deq.bits.data.tag
-  when (!(valid_s2 && cache.io.hit) && memRspFifo.io.deq.valid) {
+  when (!(valid_s2 && cache.io.hit) && memRspFifo.io.deq.valid && io.out_ready) {
     cache.io.write := true.B
     memRspFifo.io.deq.ready := true.B
     io.out_valid := true.B

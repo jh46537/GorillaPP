@@ -157,7 +157,7 @@ class GatherScatterUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_t
   when (io.in_valid) {
     valid_vec(0) := true.B
     tag_vec(0) := io.in_tag
-    opcode_vec(0) := io.opcode(0)
+    opcode_vec(0) := io.in_opcode(0)
   }
 
   for (i <- 1 until DELAY-1) {
@@ -173,7 +173,7 @@ class GatherScatterUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_t
     wren_vec(i) := wren_vec(i-1)
   }
 
-  when (opcode_vec(DELAY-1) == 0.U) {
+  when (opcode_vec(DELAY-1) === 0.U) {
     io.out_bits := gather.io.dout
     io.out_wben := Fill(num_regblocks, 1.U)
   } .otherwise {

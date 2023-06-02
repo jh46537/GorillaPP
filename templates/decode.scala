@@ -45,18 +45,37 @@ class DecodeBranch extends Module {
   }
 }
 
-class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {
+class DecodeEIU(num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {
   val io = IO(new Bundle {
-    val instr     = Input(UInt(alu_inst_w.W))
-    val rs1       = Output(UInt(num_regs_lg.W))
-    val rs1_pos   = Output(UInt(num_src_pos_lg.W))
-    val rs1_mode  = Output(UInt(num_src_modes_lg.W))
-    val rs2       = Output(UInt(num_regs_lg.W))
-    val rs2_pos   = Output(UInt(num_src_pos_lg.W))
-    val rs2_mode  = Output(UInt(num_src_modes_lg.W))
-    val rd        = Output(UInt(num_regs_lg.W))
+    val instr     = Input(UInt(32.W))
+    val rs        = Output(UInt(5.W))
+    val rs_pos    = Output(UInt(num_src_pos_lg.W))
+    val rs_mode   = Output(UInt(num_src_modes_lg.W))
+    val rd        = Output(UInt(5.W))
     val rd_pos    = Output(UInt(num_dst_pos_lg.W))
     val rd_mode   = Output(UInt(num_dst_modes_lg.W))
+    val rdWrEn    = Output(Bool())
+  })
+
+  io.rs := io.instr(19, 15)
+  io.rs_pos := io.instr(20+num_src_pos_lg-1, 20)
+  io.rs_mode := io.instr(20+num_src_pos_lg+num_src_modes_lg-1, 20+num_src_pos_lg)
+  io.rd := io.instr(11, 7)
+  io.rd_pos := io.instr(20+num_dst_pos_lg-1, 20)
+  io.rd_mode := io.instr(20+num_dst_pos_lg+num_dst_modes_lg-1, 20+num_dst_pos_lg)
+
+  io.rdWrEn := false.B
+  when ((io.instr(12) === 1.U) && (io.rd =/= 0.U)) {
+    io.rdWrEn := true.B
+  }
+}
+
+class DecodeALUBFU extends Module {
+  val io = IO(new Bundle {
+    val instr     = Input(UInt(32.W))
+    val rs1       = Output(UInt(5.W))
+    val rs2       = Output(UInt(5.W))
+    val rd        = Output(UInt(5.W))
     val rdWrEn    = Output(Bool())
     val addEn     = Output(Bool())
     val subEn     = Output(Bool())
@@ -78,16 +97,9 @@ class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_
     val remEn     = Output(Bool())
     val rs1Signed = Output(Bool())
     val rs2Signed = Output(Bool())
+    val bfu_valid  = Output(Bool())
+    val bfu_opcode = Output(UInt(6.W))
   })
-
-  val RD_LOW = 7
-  val RD_HIGH = RD_LOW + num_regs_lg + num_dst_pos_lg + num_dst_modes_lg - 1
-  val FUNCT3_LOW = RD_HIGH + 1
-  val FUNCT3_HIGH = FUNCT3_LOW + 2
-  val RS1_LOW = FUNCT3_HIGH + 1
-  val RS1_HIGH = RS1_LOW + num_regs_lg + num_src_pos_lg + num_src_modes_lg - 1
-  val RS2_LOW = RS1_HIGH + 1
-  val RS2_HIGH = RS2_LOW + num_regs_lg + num_src_pos_lg + num_src_modes_lg - 1
 
   val opcode = Wire(UInt(7.W))
   val funct3 = Wire(UInt(3.W))
@@ -95,16 +107,11 @@ class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_
   val imm5 = Wire(SInt(5.W))
   val imm32 = Wire(UInt(32.W))
   opcode := io.instr(6, 0)
-  funct3 := io.instr(FUNCT3_HIGH, FUNCT3_LOW)
-  io.rd := io.instr(RD_LOW+num_regs_lg-1, RD_LOW)
-  io.rd_pos := io.instr(RD_LOW+num_regs_lg+num_dst_pos_lg-1, RD_LOW+num_regs_lg)
-  io.rd_mode := io.instr(RD_HIGH, RD_LOW+num_regs_lg+num_dst_pos_lg)
-  io.rs1 := io.instr(RS1_LOW+num_regs_lg-1, RS1_LOW)
-  io.rs1_pos := io.instr(RS1_LOW+num_regs_lg+num_src_pos_lg-1, RS1_LOW+num_regs_lg)
-  io.rs1_mode := io.instr(RS1_HIGH, RS1_LOW+num_regs_lg+num_src_pos_lg)
-  io.rs2 := io.instr(RS2_LOW+num_regs_lg-1, RS2_LOW)
-  io.rs2_pos := io.instr(RS2_LOW+num_regs_lg+num_src_pos_lg-1, RS2_LOW+num_regs_lg)
-  io.rs2_mode := io.instr(RS2_HIGH, RS2_LOW+num_regs_lg+num_src_pos_lg)
+  funct3 := io.instr(14, 12)
+  io.rd := io.instr(11, 7)
+  io.rs1 := io.instr(19, 15)
+  io.rs2 := io.instr(24, 20)
+  io.bfu_opcode := Cat(io.instr(6, 4), io.instr(14, 12))
   io.rdWrEn := true.B
   io.addEn  := false.B
   io.subEn  := false.B
@@ -126,13 +133,28 @@ class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_
   io.rs1Signed := true.B
   io.rs2Signed := true.B
   io.imm := 0.S
-  imm12 := io.instr(RS2_LOW+11, RS2_LOW).asSInt
-  imm5 := io.instr(RS2_LOW+4, RS2_LOW).asSInt
-  imm32 := Cat(io.instr(FUNCT3_LOW+19, FUNCT3_LOW), 0.U(12.W))
+  imm12 := io.instr(31, 20).asSInt
+  imm5 := io.instr(24, 20).asSInt
+  imm32 := Cat(io.instr(31, 12), 0.U(12.W))
 
-  // when (opcode === 0x13.U && io.instr(FUNCT3_HIGH, RD_LOW) === 0.U) {
-  when (io.instr(RD_LOW+num_regs_lg-1, RD_LOW) === 0.U) {
+  when (opcode === 0x13.U && io.instr(14, 7) === 0.U) {
     io.rdWrEn := false.B
+  } .elsewhen (opcode(3, 0) === 0xb.U) {
+    when (io.rd === 0.U) {
+      io.rdWrEn := false.B
+    }
+  } .elsewhen (opcode === 0x23.U) {
+    io.rdWrEn := false.B
+  }
+
+  when (opcode(3, 0) === 0xb.U) {
+    io.bfu_valid := true.B
+  } .elsewhen (opcode === 3.U) {
+    io.bfu_valid := true.B
+  } .elsewhen (opcode === 0x23.U) {
+    io.bfu_valid := true.B
+  } .otherwise {
+    io.bfu_valid := false.B
   }
 
   when (opcode === 0x13.U) {
@@ -141,7 +163,6 @@ class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_
 
   when (opcode === 0x37.U) {
     io.luiEn := true.B
-    io.immSel := true.B
   }
 
   when (opcode === 0x13.U) {
@@ -152,12 +173,18 @@ class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_
     }
   } .elsewhen (opcode === 0x37.U) {
     io.imm := imm32.asSInt
+  } .elsewhen (opcode === 0x3.U) {
+    io.imm := imm12
+  } .elsewhen (opcode === 0x23.U) {
+    io.imm := Cat(io.instr(31, 25), io.instr(11, 7)).asSInt
+  } .elsewhen (opcode(3, 0) === 0xb.U) {
+    io.imm := imm12
   }
 
-  when (opcode === 0x13.U || ((opcode === 0x33.U) && (io.instr(RS2_HIGH+1) === 0.U))) {
+  when (opcode === 0x13.U || ((opcode === 0x33.U) && (io.instr(25) === 0.U))) {
     switch (funct3) {
       is (0.U) {
-        when ((opcode === 0x33.U) && io.instr(RS2_HIGH+5) === 1.U) {
+        when ((opcode === 0x33.U) && io.instr(30) === 1.U) {
           io.subEn := true.B
         } .otherwise {
           io.addEn := true.B
@@ -177,7 +204,7 @@ class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_
       }
       is (5.U) {
         io.srEn := true.B
-        when (io.instr(RS2_HIGH+5) === 1.U) {
+        when (io.instr(30) === 1.U) {
           io.srMode := true.B
         } .otherwise {
           io.srMode := false.B
@@ -192,7 +219,7 @@ class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_
     }
   }
 
-  when ((opcode === 0x33.U) && (io.instr(RS2_HIGH+1) === 1.U)) {
+  when ((opcode === 0x33.U) && (io.instr(25) === 1.U)) {
     switch (funct3) {
       is (0.U) {
         io.mulEn := true.B
@@ -231,7 +258,6 @@ class DecodeALU(alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_
       }
     }
   }
-
 }
 
 class DecodeBFU extends Module {
@@ -274,10 +300,13 @@ class DecodeBFU extends Module {
 }
 
 class ALUMicrocodes(num_alus: Int, num_src_pos_lg: Int, num_src_modes_lg: Int) extends Bundle {
+  val bfu_valid = Vec(num_alus, Bool())
+  val opcode    = Vec(num_alus, UInt(6.W))
   val rs1_pos   = Vec(num_alus, UInt(num_src_pos_lg.W))
   val rs1_mode  = Vec(num_alus, UInt(num_src_modes_lg.W))
   val rs2_pos   = Vec(num_alus, UInt(num_src_pos_lg.W))
   val rs2_mode  = Vec(num_alus, UInt(num_src_modes_lg.W))
+  val rd        = Vec(num_alus, UInt(5.W))
   val addEn     = Vec(num_alus, Bool())
   val subEn     = Vec(num_alus, Bool())
   val sltEn     = Vec(num_alus, Bool())
@@ -296,53 +325,59 @@ class ALUMicrocodes(num_alus: Int, num_src_pos_lg: Int, num_src_modes_lg: Int) e
   override def cloneType = (new ALUMicrocodes(num_alus, num_src_pos_lg, num_src_modes_lg).asInstanceOf[this.type])
 }
 
-class BRMicrocodes(num_alus: Int, num_bfus: Int) extends Bundle {
+class BRMicrocodes(num_alus: Int, num_fus: Int) extends Bundle {
   val brValid   = Bool()
   val brMode    = UInt(4.W)
-  val rs1       = UInt(log2Up(num_alus+num_bfus).W)
-  val rs2       = UInt(log2Up(num_alus+num_bfus).W)
+  val rs1       = UInt(log2Up(num_alus*3+num_fus).W)
+  val rs2       = UInt(log2Up(num_alus*3+num_fus).W)
   val pcOffset  = SInt(21.W)
 
-  override def cloneType = (new BRMicrocodes(num_alus, num_bfus).asInstanceOf[this.type])
+  override def cloneType = (new BRMicrocodes(num_alus, num_fus).asInstanceOf[this.type])
 }
 
-class BFUMicrocodes(num_alus: Int, num_bfus: Int) extends Bundle {
+class BFUMicrocodes(num_bfus: Int) extends Bundle {
   val opcode    = Vec(num_bfus, UInt(6.W))
   val rs        = Vec(num_bfus, Vec(2, UInt(5.W)))
   val rd        = Vec(num_bfus, UInt(5.W))
   val bimm      = Vec(num_bfus, UInt(12.W))
 
-  override def cloneType = (new BFUMicrocodes(num_alus, num_bfus).asInstanceOf[this.type])
+  override def cloneType = (new BFUMicrocodes(num_bfus).asInstanceOf[this.type])
 }
 
-class Decode(num_alus: Int, num_bfus: Int, alu_inst_w: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {
+class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {
   val io = IO(new Bundle {
-    val instr     = Input(UInt((num_alus*alu_inst_w+(num_bfus+1)*32).W))
+    val instr     = Input(UInt(((num_alus*3+num_fus+1)*32).W))
 
-    val rs1       = Output(Vec(num_alus, UInt(num_regs_lg.W)))
-    val rs2       = Output(Vec(num_alus, UInt(num_regs_lg.W)))
-    val rd        = Output(Vec((num_alus+num_bfus+1), UInt(num_regs_lg.W)))
+    val rs1       = Output(Vec(num_fus, UInt(5.W)))
+    val rs2       = Output(Vec(num_fus, UInt(5.W)))
+    val rd        = Output(Vec(num_fus, UInt(5.W)))
     val rd_pos    = Output(Vec(num_alus, UInt(num_dst_pos_lg.W)))
     val rd_mode   = Output(Vec(num_alus, UInt(num_dst_modes_lg.W)))
-    val rdWrEn    = Output(Vec((num_alus+num_bfus+1), Bool()))
+    val rdWrEn    = Output(Vec(num_fus, Bool()))
 
     val bfuValids = Output(Vec(num_bfus, Bool()))
-    val brUcodes  = Output(new BRMicrocodes(num_alus, num_bfus))
+    val brUcodes  = Output(new BRMicrocodes(num_alus, num_fus))
     val aluUcodes = Output(new ALUMicrocodes(num_alus, num_src_pos_lg, num_src_modes_lg))
-    val bfuUcodes = Output(new BFUMicrocodes(num_alus, num_bfus))
+    val bfuUcodes = Output(new BFUMicrocodes(num_fus-num_alus))
   })
   // num_alus cannot exceed num_regs, or index will be truncated
   // assert(num_alus + num_bfus <= 32)
 
   val branchDecoder = Module(new DecodeBranch)
-  val aluDecoders = Seq.fill(num_alus)(Module(new DecodeALU(alu_inst_w, num_regs_lg, num_src_pos_lg, num_src_modes_lg, num_dst_pos_lg, num_dst_modes_lg)))
-  val bfuDecoders = Seq.fill(num_bfus)(Module(new DecodeBFU))
+  val eiuDecoders = Seq.fill(3*num_alus)(Module(new DecodeEIU(num_src_pos_lg, num_src_modes_lg, num_dst_pos_lg, num_dst_modes_lg)))
+  val aluDecoders = Seq.fill(num_alus)(Module(new DecodeALUBFU))
+  val bfuDecoders = Seq.fill(num_fus-num_alus)(Module(new DecodeBFU))
 
-  val ALUINST_LOW = 0
-  val ALUINST_HIGH = ALUINST_LOW + num_alus*alu_inst_w - 1
-  val BFUINST_LOW = ALUINST_HIGH + 1
-  val BFUINST_HIGH = BFUINST_LOW + num_bfus*32 - 1
-  val BRINST_LOW = BFUINST_HIGH + 1
+  val ALU_PKT_WIDTH = 4*32
+  val EXTRACT0_LOW = 0
+  val EXTRACT0_HIGH = EXTRACT0_LOW + 31
+  val EXTRACT1_LOW = EXTRACT0_HIGH + 1
+  val EXTRACT1_HIGH = EXTRACT1_LOW + 31
+  val ALU_LOW = EXTRACT1_HIGH + 1
+  val ALU_HIGH = ALU_LOW + 31
+  val INSERT_LOW = ALU_HIGH + 1
+  val INSERT_HIGH = INSERT_LOW + 31
+  val BRINST_LOW = num_fus*32 + num_alus*3*32
   val BRINST_HIGH = BRINST_LOW + 31
 
   branchDecoder.io.instr := io.instr(BRINST_HIGH, BRINST_LOW)
@@ -351,21 +386,34 @@ class Decode(num_alus: Int, num_bfus: Int, alu_inst_w: Int, num_regs_lg: Int, nu
   io.brUcodes.pcOffset := branchDecoder.io.pcOffset
   io.brUcodes.rs1 := branchDecoder.io.rs1
   io.brUcodes.rs2 := branchDecoder.io.rs2
-  io.rd(num_alus+num_bfus) := branchDecoder.io.rd
-  io.rdWrEn(num_alus+num_bfus) := branchDecoder.io.rdWrEn
 
   for (i <- 0 until num_alus) {
-    aluDecoders(i).io.instr := io.instr(ALUINST_LOW+(i+1)*alu_inst_w-1, ALUINST_LOW+i*alu_inst_w)
-    io.rs1(i)                 := aluDecoders(i).io.rs1
-    io.rs2(i)                 := aluDecoders(i).io.rs2
-    io.rd(i)                  := aluDecoders(i).io.rd
-    io.rd_pos(i)              := aluDecoders(i).io.rd_pos
-    io.rd_mode(i)             := aluDecoders(i).io.rd_mode
-    io.rdWrEn(i)              := aluDecoders(i).io.rdWrEn
-    io.aluUcodes.rs1_pos(i)   := aluDecoders(i).io.rs1_pos
-    io.aluUcodes.rs1_mode(i)  := aluDecoders(i).io.rs1_mode
-    io.aluUcodes.rs2_pos(i)   := aluDecoders(i).io.rs2_pos
-    io.aluUcodes.rs2_mode(i)  := aluDecoders(i).io.rs2_mode
+    eiuDecoders(3*i).io.instr := io.instr(i*ALU_PKT_WIDTH+EXTRACT0_HIGH, i*ALU_PKT_WIDTH+EXTRACT0_LOW)
+    eiuDecoders(3*i+1).io.instr := io.instr(i*ALU_PKT_WIDTH+EXTRACT1_HIGH, i*ALU_PKT_WIDTH+EXTRACT1_LOW)
+    aluDecoders(i).io.instr := io.instr(i*ALU_PKT_WIDTH+ALU_HIGH, i*ALU_PKT_WIDTH+ALU_LOW)
+    eiuDecoders(3*i+2).io.instr := io.instr(i*ALU_PKT_WIDTH+INSERT_HIGH, i*ALU_PKT_WIDTH+INSERT_LOW)
+  }
+
+  if (num_alus < num_bfus) {
+    for (i <- 0 until (num_bfus-num_alus)) {
+      bfuDecoders(i).io.instr := io.instr(num_alus*ALU_PKT_WIDTH+i*32+31, num_alus*ALU_PKT_WIDTH+i*32)
+    }
+  }
+
+  for (i <- 0 until num_alus) {
+    io.rs1(i)                 := eiuDecoders(i*3).io.rs
+    io.rs2(i)                 := eiuDecoders(i*3+1).io.rs
+    io.rd(i)                  := eiuDecoders(i*3+2).io.rd
+    io.rd_pos(i)              := eiuDecoders(i*3+2).io.rd_pos
+    io.rd_mode(i)             := eiuDecoders(i*3+2).io.rd_mode
+    io.rdWrEn(i)              := eiuDecoders(i*3+2).io.rdWrEn
+    io.aluUcodes.bfu_valid(i) := aluDecoders(i).io.bfu_valid
+    io.aluUcodes.opcode(i)    := aluDecoders(i).io.bfu_opcode
+    io.aluUcodes.rs1_pos(i)   := eiuDecoders(i*3).io.rs_pos
+    io.aluUcodes.rs1_mode(i)  := eiuDecoders(i*3).io.rs_mode
+    io.aluUcodes.rs2_pos(i)   := eiuDecoders(i*3+1).io.rs_pos
+    io.aluUcodes.rs2_mode(i)  := eiuDecoders(i*3+1).io.rs_mode
+    io.aluUcodes.rd(i)        := eiuDecoders(i*3+2).io.rd
     io.aluUcodes.addEn(i)     := aluDecoders(i).io.addEn
     io.aluUcodes.subEn(i)     := aluDecoders(i).io.subEn
     io.aluUcodes.sltEn(i)     := aluDecoders(i).io.sltEn
@@ -388,14 +436,25 @@ class Decode(num_alus: Int, num_bfus: Int, alu_inst_w: Int, num_regs_lg: Int, nu
     // io.rs2Signed(i) := aluDecoders(i).io.rs2Signed
   }
 
-  for (i <- 0 until num_bfus) {
-    bfuDecoders(i).io.instr := io.instr(BFUINST_LOW+(i+1)*32-1, BFUINST_LOW+i*32)
-    io.rd(num_alus+i)         := bfuDecoders(i).io.rd
-    io.rdWrEn(num_alus+i)     := bfuDecoders(i).io.rdWrEn
-    io.bfuValids(i)           := bfuDecoders(i).io.valid
-    io.bfuUcodes.opcode(i)    := bfuDecoders(i).io.opcode
-    io.bfuUcodes.rs(i)        := bfuDecoders(i).io.rs
-    io.bfuUcodes.rd(i)        := bfuDecoders(i).io.rd
-    io.bfuUcodes.bimm(i)      := bfuDecoders(i).io.imm
+  if (num_alus < num_bfus) {
+    for (i <- 0 until num_alus) {
+      io.bfuValids(i) := aluDecoders(i).io.bfu_valid
+    }
+    for (i <- 0 until num_bfus-num_alus) {
+      io.bfuValids(i+num_alus)  := bfuDecoders(i).io.valid
+      io.rs1(i+num_alus)        := bfuDecoders(i).io.rs(0)
+      io.rs2(i+num_alus)        := bfuDecoders(i).io.rs(1)
+      io.rd(i+num_alus)         := bfuDecoders(i).io.rd
+      io.rdWrEn(i+num_alus)     := bfuDecoders(i).io.rdWrEn
+      io.bfuUcodes.opcode(i)    := bfuDecoders(i).io.opcode
+      io.bfuUcodes.rs(i)        := bfuDecoders(i).io.rs
+      io.bfuUcodes.rd(i)        := bfuDecoders(i).io.rd
+      io.bfuUcodes.bimm(i)      := bfuDecoders(i).io.imm
+    }
+  } else {
+    for (i <- 0 until num_bfus) {
+      io.bfuValids(i) := aluDecoders(i).io.bfu_valid
+    }
   }
+
 }
