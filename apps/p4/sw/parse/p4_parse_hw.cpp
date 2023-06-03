@@ -3,7 +3,7 @@
 // #pragma primate blue Output 1 1
 // void Output(standard_metadata_t &standard_metadata);
 void Output(ethernet_t &eth, ptp_l_t &ptp_l, ptp_h_t &ptp_h, header_0_t &header_0, header_1_t &header_1, header_2_t &header_2, header_3_t &header_3, standard_metadata_t &standard_metadata);
-#pragma primate blue Input 1 1
+// #pragma primate blue Input 1 1
 void Input(const int &length, // input
 	ethernet_t &eth, ptp_l_t &ptp_l, ptp_h_t &ptp_h, header_0_t &header_0, header_1_t &header_1, header_2_t &header_2, header_3_t &header_3); // outputs
 #pragma primate blue Match_table0 1 1

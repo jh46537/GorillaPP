@@ -56,6 +56,18 @@ typedef struct
 
 typedef struct
 {
+    uint16_t field_0;
+    _ExtInt(48) field_1_field_3;
+} header_2_t;
+
+typedef struct
+{
+    uint16_t field_0;
+    _ExtInt(48) field_1_field_3;
+} header_3_t;
+
+typedef struct
+{
     egressSpec_t egress_spec;
     uint16_t mcast_grp;
 } standard_metadata_t;

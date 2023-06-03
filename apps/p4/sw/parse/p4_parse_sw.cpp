@@ -1,20 +1,20 @@
 #include "p4_parse_simple.h"
 
 // #pragma primate blue Output 1 1
-void Output_meta(standard_metadata_t &standard_metadata);
-void Output(ethernet_t &eth);
-void Output(ptp_l_t &ptp_l);
-void Output(ptp_h_t &ptp_h);
-void Output(header_0_t &header_0);
-void Output(header_1_t &header_1);
-void Output_done();
-void Input_eth(const int &length, ethernet_t &eth);
+void Output_meta(standard_metadata_t &standard_metadata); //outputMeta inst
+void Output(const int &length, ethernet_t &eth); //outputEmiti inst
+void Output(const int &length, ptp_l_t &ptp_l);
+void Output(const int &length, ptp_h_t &ptp_h);
+void Output(const int &length, header_0_t &header_0);
+void Output(const int &length, header_1_t &header_1);
+void Output_done(); // outputDone inst
+void Input_eth(const int &length, ethernet_t &eth); // inputExtracti inst
 void Input_ptpl(const int &length, ptp_l_t &ptp);
 void Input_ptph(const int &length, ptp_h_t &ptp);
 void Input_h0(const int &length, header_0_t &header_0);
 void Input_h1(const int &length, header_1_t &header_1);
-void Input_done();
-#pragma primate blue Match_table0 1 1
+void Input_done(); // inputDone inst
+#pragma primate blue matchTable 1 1
 int forward_exact(macAddr_t &dstAddr, egressSpec_t &port);
 
 void p4_parse() {
