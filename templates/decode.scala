@@ -163,6 +163,7 @@ class DecodeALUBFU extends Module {
 
   when (opcode === 0x37.U) {
     io.luiEn := true.B
+    io.immSel := true.B
   }
 
   when (opcode === 0x13.U) {

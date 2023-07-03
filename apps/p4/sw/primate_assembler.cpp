@@ -316,7 +316,7 @@ aluOp_t instruction::subInstruction(string asm_line) {
                             inst.funct = 1;
                         }
                         int imm_u = (op3u & ((1 << (NUM_SRC_POS_LG))-1)) + ((op4u & ((1 << (NUM_SRC_MODE_LG))-1)) << (NUM_SRC_POS_LG));
-                        cout << imm_u << endl;
+                        // cout << imm_u << endl;
                         inst.rs2 = imm_u & 0x1f;
                         inst.imm = (imm_u >> 5) & 0x7f;
                     } else {
@@ -387,6 +387,7 @@ int main(int argc, char const *argv[])
 
     string asm_line;
     while (getline(asm_file, asm_line)) {
+        cout << asm_line << endl;
         instruction inst(asm_line);
         inst.assemble(bin_file);
     }

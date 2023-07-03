@@ -62,6 +62,7 @@ class matchTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
   val hasehd_s1 = Reg(UInt((ADDR_WIDTH-6).W))
   val hasehd_s2 = Reg(UInt((ADDR_WIDTH-6).W))
   cache.io.read := false.B
+  cache.io.stall := stall
   cache.io.index_rd := DontCare
   cache.io.tag_rd := DontCare
 
@@ -234,7 +235,7 @@ class matchTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
   cache.io.writedata := memRspFifo.io.deq.bits.data.value
   cache.io.index_wr := memRspFifo.io.deq.bits.addr
   cache.io.tag_wr := memRspFifo.io.deq.bits.data.tag
-  when (!(valid_s2 && cache.io.hit) && memRspFifo.io.deq.valid && io.out_ready) {
+  when (!(valid_s2 && (cache.io.hit || hit_r)) && memRspFifo.io.deq.valid && io.out_ready) {
     cache.io.write := true.B
     memRspFifo.io.deq.ready := true.B
     io.out_valid := true.B

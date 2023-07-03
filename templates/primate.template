@@ -168,7 +168,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   }
 
   class DestMemT extends Bundle {
-    val dstPC      = UInt(IP_WIDTH.W)
+    val dstPC      = UInt(32.W)
     val wben       = UInt(NUM_REGBLOCKS.W)
     val dest       = UInt(REG_WIDTH.W)
   }
@@ -508,6 +508,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
 
   /****************** Function unit execution *********************************/
   val execThread = RegInit(NONE_SELECTED)
+  val execThread_d0 = RegNext(execThread)
   execThread := preOpThread
 
   // FUs input
@@ -566,8 +567,8 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
 
   #BFU_INPUT#
 
-  when (execThread =/= NONE_SELECTED) {
-    threadStages(execThread) := ThreadStageEnum.exec
+  when (execThread_d0 =/= NONE_SELECTED) {
+    threadStages(execThread_d0) := ThreadStageEnum.exec
   }
 
   // FUs output
@@ -637,7 +638,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val rdWrEn_wb = RegInit(VecInit(Seq.fill(NUM_FUS)(false.B)))
   val rd_wb = Reg(Vec(NUM_FUS, UInt(NUM_REGS_LG.W)))
   val brUcodes_wb = Wire(new BRMicrocodes(NUM_ALUS, NUM_FUS))
-  val dstPCs = Wire(Vec(NUM_FUS+3*NUM_ALUS, UInt((IP_WIDTH+2).W)))
+  val dstPCs = Wire(Vec(NUM_FUS+3*NUM_ALUS, UInt(32.W)))
 
   dstPCs := DontCare
   if (NUM_ALUS < NUM_FUS) {
@@ -688,7 +689,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val threadValid_s1 = RegNext(threadValid)
   val threadValid_s2 = RegNext(threadValid_s1)
 
-  val caseFU = (0 until NUM_FUS).map(i => (i.U -> dstPCs(i)))
+  val caseFU = (0 until (NUM_FUS+3*NUM_ALUS)).map(i => (i.U -> dstPCs(i)))
   val branchU_rs1 = Wire(UInt(32.W))
   val branchU_rs2 = Wire(UInt(32.W))
   branchU_rs1 := MuxLookup(threadMem_out.brUcodes.rs1, DontCare, caseFU)

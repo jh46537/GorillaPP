@@ -13,6 +13,7 @@ class cache(num_entries: Int, tag_width: Int, value_width: Int, associativity: I
   val io = IO(new Bundle {
     val index_rd   = Input(UInt(log2Up(num_entries).W))
     val tag_rd     = Input(UInt(tag_width.W))
+    val stall      = Input(Bool())
     val read       = Input(Bool())
     val write      = Input(Bool())
     val index_wr   = Input(UInt(log2Up(num_entries).W))
@@ -34,18 +35,25 @@ class cache(num_entries: Int, tag_width: Int, value_width: Int, associativity: I
   val matched_val = Wire(UInt(value_width.W))
   val hit_r = RegInit(false.B)
   val readdata_r = Reg(UInt(value_width.W))
-  val read_r = RegNext(io.read)
-  val tag_rd_r = RegNext(io.tag_rd)
+  val read_r = RegInit(false.B)
+  val tag_rd_r = Reg(UInt(tag_width.W))
   val readdata = Wire(Vec(associativity, new cache_t(tag_width, value_width)))
-  Range(0, associativity, 1).map(i => (readdata(i) := mems(i)(io.index_rd)))
+  Range(0, associativity, 1).map(i => (readdata(i) := mems(i).read(io.index_rd, (!io.stall))))
   Range(0, associativity, 1).map(i => (match_vec(i) := (tag_rd_r === readdata(i).tag) && readdata(i).valid))
   val cases = (0 until associativity).map(i => match_vec(i) -> readdata(i).value)
   matched_val := MuxCase(DontCare, cases)
 
-  hit_r := false.B
-  when (read_r) {
-    hit_r := match_vec.asUInt.orR
-    readdata_r := matched_val
+  when (!io.stall) {
+    read_r := io.read
+    tag_rd_r := io.tag_rd
+  }
+
+  when (!io.stall) {
+    hit_r := false.B
+    when (read_r) {
+      hit_r := match_vec.asUInt.orR
+      readdata_r := matched_val
+    }
   }
 
   // Write logic
