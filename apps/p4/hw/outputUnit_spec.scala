@@ -159,7 +159,7 @@ class outputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_thread
       out_buf := Cat(0.U, io.rd_rsp.rdData2(159, 0), io.rd_rsp.rdData1(111, 0))
       out_last := false.B
       out_empty := 50.U
-      when (out_hdr_mode < 2.U) {
+      when (hdrModeMem(io.pkt_buf_data.tag) < 2.U) {
         out_valid := true.B
         outRspState := 11.U
       } .otherwise {

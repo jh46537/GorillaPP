@@ -114,11 +114,11 @@ class outputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_thread
       out_tag := io.pkt_buf_data.tag
       out_buf := Cat(0.U, io.rd_rsp.rdData2(159, 0), io.rd_rsp.rdData1(111, 0))
       out_last := false.B
-      when (out_hdr_mode === 0.U) {
+      when (hdrModeMem(io.pkt_buf_data.tag) === 0.U) {
         out_valid := true.B
         out_empty := 50.U
         outRspState := 11.U
-      } .elsewhen (out_hdr_mode === 1.U) {
+      } .elsewhen (hdrModeMem(io.pkt_buf_data.tag) === 1.U) {
         out_valid := true.B
         out_empty := 30.U
         outRspState := 11.U

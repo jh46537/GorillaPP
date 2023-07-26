@@ -40,20 +40,13 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
   // opcode(1) = 0: not shift, 1: shift
   // opcode(2) = 0: parse not done, 1: parse done
   // opcode(3) = 0: select imm, 1: select reg
-
-  class coreFifo_t extends Bundle {
-    val data = UInt(512.W)
-    val empty = UInt(6.W)
-    val last = Bool()
-  }
-
-  val PKT_BUF_DEPTH = 512
+  // opcode(4) = 0: select generalized unit, 1: select specialized unit
 
   val inputCore = Module(new inputUnit_core(reg_width, num_regs_lg, opcode_width, num_threads))
-  val coreFifo = Module(new Queue(new coreFifo_t, 4))
+  val inputSpec = Module(new inputUnit_spec(reg_width, num_regs_lg, opcode_width, num_threads, ip_width))
+  val coreFifo = Module(new Queue(new pkt_buf_t(num_threads), 4))
   val threadState = RegInit(0.U(1.W))
   val parseState = RegInit(0.U(3.W))
-  val opcode = Reg(UInt(opcode_width.W))
   val sThreadEncoder = Module(new RREncode(num_threads))
   val sThread = sThreadEncoder.io.chosen
 
@@ -72,16 +65,8 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
     }
   }
 
-  val wen = RegInit(VecInit(Seq.fill(2)(false.B)))
-  val wrData = Reg(Vec(2, UInt(reg_width.W)))
-  val wrAddr = Reg(Vec(2, UInt(num_regs_lg.W)))
-  val out_valid = RegInit(false.B)
-  val out_flag = Reg(UInt(ip_width.W))
-  val out_tag = Reg(UInt(log2Up(num_threads).W))
-  val in_data_buf = Reg(UInt(512.W))
-  val pkt_data_buf = Reg(UInt(512.W))
-  val pkt_empty = Reg(UInt(7.W))
-  val last_buf = Reg(Bool())
+  val ar_tag = Reg(UInt(log2Up(num_threads).W))
+  val isLast = Reg(Bool())
   val parseDone = RegInit(false.B)
 
   inputCore.io.in_valid := coreFifo.io.deq.valid
@@ -102,207 +87,154 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
   io.pkt_buf_valid := inputCore.io.pkt_buf_valid
   inputCore.io.pkt_buf_ready := io.pkt_buf_ready
 
+  inputSpec.io.in_valid := io.in_valid
+  inputSpec.io.in_tag := io.in_tag
+  inputSpec.io.in_data :=  io.in_data
+  inputSpec.io.in_empty := io.in_empty
+  inputSpec.io.in_last := io.in_last
+  inputSpec.io.ar_valid := false.B
+  inputSpec.io.ar_tag := io.ar_tag
+  inputSpec.io.ar_opcode:= io.ar_opcode
+  inputSpec.io.ar_rd := io.ar_rd
+  inputSpec.io.ar_bits := io.ar_bits
+  inputSpec.io.ar_imm := io.ar_imm
+  inputSpec.io.out_ready := io.out_ready
+  inputSpec.io.pkt_buf_ready := coreFifo.io.enq.ready
+
   io.ar_ready := false.B
   io.in_ready := false.B
-  out_flag := 0.U
+  io.out_valid := false.B
+  io.out_tag := DontCare
+  io.out_flag := 0.U
+  io.out_wen(0) := false.B
+  io.out_wen(1) := false.B
+  io.out_addr := DontCare
+  io.out_data := DontCare
   coreFifo.io.enq.valid := false.B
   coreFifo.io.enq.bits := DontCare
   when (parseState === 0.U) {
     // IDLE
-    io.ar_ready := io.in_valid
-    io.in_ready := io.ar_valid
-    when (io.out_ready) {
-      wen(0) := false.B
-      wen(1) := false.B
-      out_valid := false.B
-    }
-    when (io.in_valid && io.ar_valid) {
-      in_data_buf := io.in_data
-      last_buf := io.in_last
-      parseDone := io.ar_opcode(2)
-      when (io.in_data(111, 96) === 0x88f7.U) {
-        // parse ethernet
-        wen(0) := true.B
-        wen(1) := true.B
-        wrAddr(0) := 1.U
-        wrAddr(1) := 2.U
-        wrData(0) := io.in_data(111, 0)
-        wrData(1) := io.in_data(271, 112)
-        out_valid := false.B
-        out_tag := io.ar_tag
-        parseState := 1.U
-      } .otherwise {
-        wen(0) := true.B
-        wen(1) := true.B
-        wrAddr(0) := 1.U
-        wrAddr(1) := 8.U
-        wrData(0) := io.in_data(111, 0)
-        wrData(1) := 1.U
-        out_valid := io.in_last
-        out_tag := io.ar_tag
-        pkt_data_buf := io.in_data(511, 112)
-        pkt_empty := 14.U
-        parseState := 4.U
-      }
+    isLast := false.B
+    parseDone := false.B
+    // when (io.ar_opcode(4) === 1.U) {
+      io.ar_ready := inputSpec.io.ar_ready
+    // } .otherwise {
+      // io.ar_ready := inputCore.io.ar_ready
+    // }
+    when (io.ar_valid) {
+      ar_tag := io.ar_tag
+      // when (io.ar_opcode(4) === 1.U) {
+        inputSpec.io.ar_valid := true.B
+        when (inputSpec.io.ar_ready) {
+          parseState := 1.U
+        }
+      // } .otherwise {
+      //   inputCore.io.ar_valid := true.B
+      //   inputCore.io.ar_tag := io.ar_tag
+      //   inputCore.io.ar_opcode := io.ar_opcode
+      //   when (inputCore.io.ar_ready) {
+      //     parseState := 3.U
+      //   }
+      // }
     }
   } .elsewhen (parseState === 1.U) {
-    // parse ptp
-    when (io.out_ready) {
-      wen(0) := false.B
-      wen(1) := false.B
-      when (in_data_buf(159, 152) === 1.U) {
-        out_valid := false.B
-        io.in_ready := true.B
-        when (io.in_valid) {
-          in_data_buf := io.in_data
-          last_buf := io.in_last
-          wen(0) := true.B
-          wen(1) := true.B
-          wrAddr(0) := 3.U
-          wrAddr(1) := 4.U
-          wrData(0) := in_data_buf(463, 272)
-          wrData(1) := Cat(io.in_data(15, 0), in_data_buf(511, 464))
-          when (in_data_buf(479, 464) =/= 0.U) {
-            parseState := 2.U
-          } .otherwise {
-            parseState := 3.U
-          }
-        }
+    io.out_tag  := inputSpec.io.out_tag
+    io.out_flag := inputSpec.io.out_flag
+    io.out_wen  := inputSpec.io.out_wen
+    io.out_addr := inputSpec.io.out_addr
+    io.out_data := inputSpec.io.out_data
+    io.in_ready := inputSpec.io.in_ready
+    coreFifo.io.enq.valid := inputSpec.io.pkt_buf_valid
+    coreFifo.io.enq.bits := inputSpec.io.pkt_buf_data
+    when (inputSpec.io.out_valid) {
+      when (inputSpec.io.out_flag === 0.U) {
+        // Parse done
+        io.out_valid := false.B
+        isLast := inputSpec.io.pkt_buf_data.last
+        parseState := 2.U
       } .otherwise {
-        wen(0) := true.B
-        wen(1) := true.B
-        wrAddr(0) := 3.U
-        wrAddr(1) := 8.U
-        wrData(0) := in_data_buf(463, 272)
-        wrData(1) := 2.U
-        out_valid := last_buf
-        pkt_data_buf := in_data_buf(511, 464)
-        pkt_empty := 58.U
-        parseState := 4.U
+        io.out_valid := true.B
+        parseState := 3.U
       }
     }
   } .elsewhen (parseState === 2.U) {
-    // output header_0
-    when (io.out_ready) {
-      wen(0) := true.B
-      wen(1) := false.B
-      wrAddr(0) := 8.U
-      wrData(0) := 3.U
-      out_valid := last_buf
-      pkt_data_buf := in_data_buf(511, 16)
-      pkt_empty := 2.U
-      parseState := 4.U
-    }
-  } .elsewhen (parseState === 3.U) {
-    // output header_1
-    when (io.out_ready) {
-      wen(0) := true.B
-      wen(1) := true.B
-      wrAddr(0) := 5.U
-      wrAddr(1) := 8.U
-      wrData(0) := in_data_buf(79, 16)
-      wrData(1) := 4.U
-      out_valid := last_buf
-      pkt_data_buf := in_data_buf(511, 80)
-      pkt_empty := 10.U
-      parseState := 4.U
-    }
-  } .elsewhen (parseState === 4.U) {
-    // drain buf
-    when (io.out_ready) {
-      out_valid := false.B
-      wen(0) := false.B
-      wen(1) := false.B
-      when (coreFifo.io.enq.ready) {
-        val coreFifo_in = Wire(new coreFifo_t)
-        coreFifo_in.data := pkt_data_buf
-        coreFifo_in.last := last_buf
-        coreFifo_in.empty := pkt_empty
-        coreFifo.io.enq.bits := coreFifo_in
-        coreFifo.io.enq.valid := true.B
-        inputCore.io.ar_valid := true.B
-        inputCore.io.ar_tag := out_tag
-        inputCore.io.ar_opcode := 4.U
-        when (inputCore.io.ar_ready) {
-          parseState := 5.U
-        }
+    inputCore.io.ar_valid := true.B
+    inputCore.io.ar_tag := ar_tag
+    inputCore.io.ar_opcode := 4.U
+    parseDone := true.B
+    when (inputCore.io.ar_ready) {
+      when (isLast) {
+        parseState := 5.U
+      } .otherwise {
+        parseState := 3.U
       }
     }
-  } .elsewhen (parseState === 5.U) {
-    // drain packet
+  } .elsewhen (parseState === 3.U) {
+    // Use the inputCore and stream in the packet
     inputCore.io.ar_valid := io.ar_valid
     inputCore.io.ar_tag := io.ar_tag
     inputCore.io.ar_opcode := io.ar_opcode
     io.ar_ready := inputCore.io.ar_ready
-    out_valid := inputCore.io.out_valid
-    out_tag := inputCore.io.out_tag
-    wen(0) := inputCore.io.out_wen
-    wrAddr(0) := inputCore.io.out_addr
-    wrData(0) := inputCore.io.out_data
-    wen(1) := false.B
-    wrAddr(1) := DontCare
-    wrData(1) := DontCare
+    when (io.ar_valid && inputCore.io.ar_ready) {
+      parseDone := io.ar_opcode(2)
+    }
+
+    io.out_valid := inputCore.io.out_valid
+    io.out_tag := inputCore.io.out_tag
+    io.out_wen(0) := inputCore.io.out_wen
+    io.out_addr(0) := inputCore.io.out_addr
+    io.out_data(0) := inputCore.io.out_data
+    io.out_wen(1) := false.B
+
+    io.in_ready := coreFifo.io.enq.ready
     when (io.in_valid) {
-      val coreFifo_in = Wire(new coreFifo_t)
+      val coreFifo_in = Wire(new pkt_buf_t(num_threads))
       coreFifo_in.data := io.in_data
-      coreFifo_in.last := io.in_last
+      coreFifo_in.tag := io.in_tag
       coreFifo_in.empty := io.in_empty
+      coreFifo_in.last := io.in_last
       coreFifo.io.enq.bits := coreFifo_in
       coreFifo.io.enq.valid := true.B
       when (coreFifo.io.enq.ready) {
-        io.in_ready := true.B
         when (io.in_last) {
           when (parseDone) {
-            parseState := 7.U
+            parseState := 5.U
           } .otherwise {
-            parseState := 6.U
+            parseState := 4.U
           }
         }
       }
     }
-  } .elsewhen (parseState === 6.U) {
+  } .elsewhen (parseState === 4.U) {
+    // Use the inputCore and wait for processing the current packet
     inputCore.io.ar_valid := io.ar_valid
     inputCore.io.ar_tag := io.ar_tag
     inputCore.io.ar_opcode := io.ar_opcode
     io.ar_ready := inputCore.io.ar_ready
-    out_valid := inputCore.io.out_valid
-    out_tag := inputCore.io.out_tag
-    wen(0) := inputCore.io.out_wen
-    wrAddr(0) := inputCore.io.out_addr
-    wrData(0) := inputCore.io.out_data
-    wen(1) := false.B
-    wrAddr(1) := DontCare
-    wrData(1) := DontCare
-    when (io.ar_valid && (io.ar_opcode(2) === 1.U)) {
-      parseState := 7.U
+    when (io.ar_valid && inputCore.io.ar_ready) {
+      parseDone := io.ar_opcode(2)
     }
-  } .elsewhen (parseState === 7.U) {
-    inputCore.io.ar_valid := io.ar_valid
-    inputCore.io.ar_tag := io.ar_tag
-    inputCore.io.ar_opcode := io.ar_opcode
-    io.ar_ready := inputCore.io.ar_ready
-    out_valid := inputCore.io.out_valid
-    out_tag := inputCore.io.out_tag
-    wen(0) := inputCore.io.out_wen
-    wrAddr(0) := inputCore.io.out_addr
-    wrData(0) := inputCore.io.out_data
-    wen(1) := false.B
-    wrAddr(1) := DontCare
-    wrData(1) := DontCare
+
+    io.out_valid := inputCore.io.out_valid
+    io.out_tag := inputCore.io.out_tag
+    io.out_wen(0) := inputCore.io.out_wen
+    io.out_addr(0) := inputCore.io.out_addr
+    io.out_data(0) := inputCore.io.out_data
+    io.out_wen(1) := false.B
+    when (inputCore.io.out_valid && parseDone) {
+      parseState := 5.U
+    }
+  } .elsewhen (parseState === 5.U) {
+    // Wait for the inputCore
+    io.out_valid := inputCore.io.out_valid
+    io.out_tag := inputCore.io.out_tag
+    io.out_wen(0) := inputCore.io.out_wen
+    io.out_addr(0) := inputCore.io.out_addr
+    io.out_data(0) := inputCore.io.out_data
+    io.out_wen(1) := false.B
     when (inputCore.io.out_valid) {
       parseState := 0.U
     }
   }
-
-  io.out_valid := out_valid
-  io.out_wen := wen
-  io.out_tag := out_tag
-  io.out_addr := wrAddr
-  io.out_flag := out_flag
-  io.out_data := wrData
-
-  io.pkt_buf_data := inputCore.io.pkt_buf_data
-  io.pkt_buf_valid := inputCore.io.pkt_buf_valid
-  inputCore.io.pkt_buf_ready := io.pkt_buf_ready
 
 }
