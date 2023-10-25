@@ -1,4 +1,4 @@
-#include "parse.h"
+#include "primate.h"
 
 int main() {
     primate_io top_intf;
@@ -6,7 +6,7 @@ int main() {
     int NUM_PKT = 512;
 
     for (int i = 0; i < NUM_PKT; i++) {
-        parse_main(top_intf);
+        primate_main(top_intf);
     }
 
     return 0;

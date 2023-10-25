@@ -11,10 +11,10 @@
 # INCLUDE_DIRS = -I. -I$(SYSTEMC)/include -I../include
 
 # header files used. for dependency checking
-HEADERS = parse.h common.h bfs.h
+HEADERS = primate.h common.h bfs.h
 
 # source files used. for dependency checking
-SOURCES= common.cpp parse.cpp bfs.cpp main.cpp
+SOURCES= common.cpp primate.cpp bfs.cpp main.cpp
 
 DEPENDENCIES = \
 	Makefile \
