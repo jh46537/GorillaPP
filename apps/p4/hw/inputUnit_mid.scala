@@ -147,7 +147,7 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
     coreFifo.io.enq.valid := inputSpec.io.pkt_buf_valid
     coreFifo.io.enq.bits := inputSpec.io.pkt_buf_data
     when (inputSpec.io.out_valid) {
-      when (inputSpec.io.out_flag === 0.U) {
+      when (!inputSpec.io.out_early) {
         // Parse done
         io.out_valid := false.B
         isLast := inputSpec.io.pkt_buf_data.last
