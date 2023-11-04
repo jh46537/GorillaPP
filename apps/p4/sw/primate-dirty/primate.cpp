@@ -1,59 +1,59 @@
 #include "primate.h"
 
-void primate_main() {
-    int hdr_count;
-    ethernet_t eth;
-    ptp_l_t ptp_l;
-    ptp_h_t ptp_h;
-    ipv4_t ipv4;
-    tcp_t tcp;
-    udp_t udp;
-    header_t header_0;
-    header_t header_1;
-    header_t header_2;
-    header_t header_3;
-    header_t header_4;
-    header_t header_5;
-    header_t header_6;
-    header_t header_7;
-    standard_metadata_t standard_metadata;
-    int hdr_count;
+int main() {
+  int hdr_count;
+  ethernet_t eth;
+  ptp_l_t ptp_l;
+  ptp_h_t ptp_h;
+  ipv4_t ipv4;
+  tcp_t tcp;
+  udp_t udp;
+  header_t header_0;
+  header_t header_1;
+  header_t header_2;
+  header_t header_3;
+  header_t header_4;
+  header_t header_5;
+  header_t header_6;
+  header_t header_7;
+  standard_metadata_t standard_metadata = 1;
 
     // standard_metadata.egress_spec = 0; 
-    insert(standard_metadata, SM_T_EGRESS_SPEC, 0);
+    standard_metadata = Insert(standard_metadata, SM_T_EGRESS_SPEC, 0);
     // standard_metadata.mcast_grp = 0; 
-    insert(standard_metadata, SM_T_MCAST_GRP, 0);
+    standard_metadata = Insert(standard_metadata, SM_T_MCAST_GRP, 0);
 
-    insert(hdr_count, SCALAR_TYPE, 0);
+    // bleh
+    hdr_count = 0;
     eth = Input_header(14); // eth = input(14)
-    if (extract(eth, SM_T_ETHERTYPE) == 0x88f7) {
+    if (Extract(eth, SM_T_ETHERTYPE) == 0x88f7) {
         ptp_l = Input_header(20); // PTP_L_T
         ptp_h = Input_header(24); // PTP_H_T
         hdr_count = 1;
-        if (extract(ptp_l, PTP_L_T_RESERVED2) == 1) {
+        if (Extract(ptp_l, PTP_L_T_RESERVED2) == 1) {
             header_0 = Input_header(8);
-            insert(hdr_count, SCALAR_TYPE, 2);
-            if (extract(header_0, HEADER_T_FIELD_0) != 0) {
+            hdr_count = 2;
+            if (Extract(header_0, HEADER_T_FIELD_0) != 0) {
                 header_1 = Input_header(8);
-                insert(hdr_count, SCALAR_TYPE, 3);
-                if (extract(header_1, HEADER_T_FIELD_0) != 0) {
+                hdr_count = 3;
+                if (Extract(header_1, HEADER_T_FIELD_0) != 0) {
                     header_2 = Input_header(8);
-                    insert(hdr_count, SCALAR_TYPE, 4);
-                    if (extract(header_2, HEADER_T_FIELD_0) != 0) {
+                    hdr_count = 4;
+                    if (Extract(header_2, HEADER_T_FIELD_0) != 0) {
                         header_3 = Input_header(8);
-                        insert(hdr_count, SCALAR_TYPE, 5);
-                        if (extract(header_3, HEADER_T_FIELD_0) != 0) {
+                        hdr_count = 5;
+                        if (Extract(header_3, HEADER_T_FIELD_0) != 0) {
                             header_4 = Input_header(8);
-                            insert(hdr_count, SCALAR_TYPE, 6);
-                            if (extract(header_4, HEADER_T_FIELD_0) != 0) {
+                            hdr_count = 6;
+                            if (Extract(header_4, HEADER_T_FIELD_0) != 0) {
                                 header_5 = Input_header(8);
-                                insert(hdr_count, SCALAR_TYPE, 7);
-                                if (extract(header_5, HEADER_T_FIELD_0) != 0) {
+                                hdr_count = 7;
+                                if (Extract(header_5, HEADER_T_FIELD_0) != 0) {
                                     header_6 = Input_header(8);
-                                    insert(hdr_count, SCALAR_TYPE, 8);
-                                    if (extract(header_6, HEADER_T_FIELD_0) != 0) {
+                                    hdr_count = 8;
+                                    if (Extract(header_6, HEADER_T_FIELD_0) != 0) {
                                         header_7 = Input_header(8);
-                                        insert(hdr_count, SCALAR_TYPE, 9);
+                                        hdr_count = 9;
                                     }
                                 }
                             }
@@ -62,29 +62,29 @@ void primate_main() {
                 }
             }
         }
-    } else if (extract(eth, SM_T_ETHERTYPE) == 0x800) {
+    } else if (Extract(eth, SM_T_ETHERTYPE) == 0x800) {
         // struct ipv4_t
         ipv4 = Input_header(20);
-        insert(hdr_count, SCALAR_TYPE, 10);
-        if (extract(ipv4, IPV4_T_PROTOCOL) == 6) {
+        hdr_count = 10;
+        if (Extract(ipv4, IPV4_T_PROTOCOL) == 6) {
             tcp = Input_header(20);
-            insert(hdr_count, SCALAR_TYPE, 11);
-        } else if (extract(ipv4, IPV4_T_PROTOCOL) == 0x11) {
+            hdr_count = 11;
+        } else if (Extract(ipv4, IPV4_T_PROTOCOL) == 0x11) {
             udp = Input_header(8);
-            insert(hdr_count, SCALAR_TYPE, 12);
+            hdr_count = 12;
         }
     }
     Input_done();
 
     // Ingress
     bundle_t bundle;
-    bundle = forward_exact(extract(eth, ETH_T_DSTADDR));
-    switch (extract(bundle, BUNDLE_T_TARGET)) {
+    bundle = forward_exact(Extract(eth, ETH_T_DSTADDR));
+    switch (Extract(bundle, BUNDLE_T_TARGET)) {
     case 0:
-        insert(standard_metadata, SM_T_EGRESS_SPEC, extract(bundle, BUNDLE_T_PORT));
+        standard_metadata = Insert(standard_metadata, SM_T_EGRESS_SPEC, Extract(bundle, BUNDLE_T_PORT));
         break;
     case 1:
-        insert(standard_metadata, SM_T_EGRESS_SPEC, 0x1ff);
+        standard_metadata = Insert(standard_metadata, SM_T_EGRESS_SPEC, 0x1ff);
         break;
     }
 
