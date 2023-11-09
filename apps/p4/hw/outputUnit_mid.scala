@@ -51,13 +51,12 @@ class outputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_thread
   outputCore.io.ar_imm        := io.ar_imm
   outputCore.io.pkt_buf_data  := io.pkt_buf_data
   outputCore.io.pkt_buf_valid := io.pkt_buf_valid
-  io.pkt_buf_ready            := outputCore.io.pkt_buf_ready
   outputCore.io.rd_req_ready  := io.rd_req_ready
   outputCore.io.rd_rsp_valid  := false.B
   outputCore.io.rd_rsp        := io.rd_rsp
 
 
-  outputSpec.io.out_ready     := io.out_ready
+  outputSpec.io.out_ready     := false.B
   outputSpec.io.ar_valid      := false.B
   outputSpec.io.ar_tag        := io.ar_tag
   outputSpec.io.ar_opcode     := io.ar_opcode
@@ -72,27 +71,22 @@ class outputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_thread
 
   val arState = RegInit(0.U(4.W))
   val outState = RegInit(0.U(4.W))
-  val outputCoreReq = Wire(Bool())
-  val drainPktBuf = Wire(Bool())
   val tag_r = Reg(UInt(log2Up(num_threads).W))
   val coreFifo = Module(new Queue(UInt(log2Up(num_threads).W), num_threads))
 
   coreFifo.io.enq.valid := outputCore.io.r_valid
   coreFifo.io.enq.bits := outputCore.io.r_tag
 
-  io.ar_ready := true.B
-  outputCoreReq := false.B
-  when (io.ar_valid && (!io.ar_opcode(2))) {
-    outputCore.io.ar_valid := true.B
-    outputCoreReq := true.B
+  when (io.ar_opcode(2)) {
+    io.ar_ready := outputSpec.io.ar_ready
   } .otherwise {
-    when (io.ar_valid) {
+    io.ar_ready := true.B
+  }
+  when (io.ar_valid) {
+    when (io.ar_opcode(2)) {
       outputSpec.io.ar_valid := true.B
-    }
-    when (drainPktBuf) {
+    } .otherwise {
       outputCore.io.ar_valid := true.B
-      outputCore.io.ar_tag := tag_r
-      outputCore.io.ar_opcode := 2.U
     }
   }
 
@@ -109,13 +103,14 @@ class outputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_thread
   io.out_data := DontCare
   io.out_empty := DontCare
   io.out_last := false.B
-  drainPktBuf := false.B
+  io.pkt_buf_ready := outputCore.io.pkt_buf_ready
   when (outState === 0.U) {
     // Specialized output unit
     io.rd_req_valid := outputSpec.io.rd_req_valid
     io.rd_req := outputSpec.io.rd_req
     outputSpec.io.rd_rsp_valid := io.rd_rsp_valid
     io.rd_rsp_ready := outputSpec.io.rd_rsp_ready
+    outputSpec.io.out_ready := io.out_ready
     io.out_valid := outputSpec.io.out_valid
     io.out_tag := outputSpec.io.out_tag
     io.out_data := outputSpec.io.out_data
@@ -123,24 +118,34 @@ class outputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_thread
     io.out_last := outputSpec.io.out_last
     tag_r := outputSpec.io.r_tag
     when (outputSpec.io.r_valid) {
+      coreFifo.io.deq.ready := false.B
+      io.r_valid := true.B
+      io.r_flag := outputSpec.io.r_flag
+      io.r_tag := outputSpec.io.r_tag
       when (outputSpec.io.r_early) {
-        coreFifo.io.deq.ready := false.B
-        io.r_valid := true.B
-        io.r_flag := outputSpec.io.r_flag
-        io.r_tag := outputSpec.io.r_tag
-        outState := 3.U
-      } .otherwise {
         outState := 2.U
+      } .otherwise {
+        outState := 1.U
       }
     }
-  } .elsewhen (outState === 2.U) {
-    // Output pkt buffer
-    drainPktBuf := true.B
-    when (!outputCoreReq) {
-      outState := 3.U
+  } .elsewhen (outState === 1.U) {
+    // drain the pkt fifo
+    io.rd_req_valid := outputSpec.io.rd_req_valid
+    io.rd_req := outputSpec.io.rd_req
+    outputSpec.io.rd_rsp_valid := io.rd_rsp_valid
+    io.rd_rsp_ready := outputSpec.io.rd_rsp_ready
+    io.out_valid := io.pkt_buf_valid
+    io.out_tag := io.pkt_buf_data.tag
+    io.out_data := io.pkt_buf_data.data
+    io.out_empty := io.pkt_buf_data.empty
+    io.out_last := io.pkt_buf_data.last
+    io.pkt_buf_ready := io.out_ready
+    when (io.pkt_buf_data.last) {
+      outState := 0.U
     }
-  } .elsewhen (outState === 3.U) {
+  } .elsewhen (outState === 2.U) {
     // Generalized output unit
+    io.pkt_buf_ready := outputCore.io.pkt_buf_ready
     io.rd_req_valid := outputCore.io.rd_req_valid
     io.rd_req := outputCore.io.rd_req
     outputCore.io.rd_rsp_valid := io.rd_rsp_valid

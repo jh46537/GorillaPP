@@ -43,6 +43,7 @@ class ftCh0Output_t extends Bundle {
 val flag = UInt((4).W)
 val ch0_bit_map = UInt((5).W)
 val ch0_q = new fce_t
+val ch0_pkt = new metadata_t
 }
 class ftCh1Input_t extends Bundle { 
 val ch1_opcode = UInt((3).W)

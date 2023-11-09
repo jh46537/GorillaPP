@@ -254,8 +254,27 @@ class inputUnit_spec(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_th
       pktFifo_in.empty := pkt_empty
       io.pkt_buf_data := pktFifo_in
       when (io.pkt_buf_ready) {
-        out_valid := true.B
-        parseState := 0.U
+        when (last_buf) {
+          parseState := 0.U
+        } .otherwise {
+          parseState := 12.U
+        }
+      }
+    }
+  } .elsewhen (parseState === 12.U) {
+    // drain packet
+    when (io.in_valid) {
+      io.pkt_buf_valid := true.B
+      io.pkt_buf_data.data := io.in_data
+      io.pkt_buf_data.empty := io.in_empty
+      io.pkt_buf_data.last := io.in_last
+      io.pkt_buf_data.tag := out_tag
+      when (io.pkt_buf_ready) {
+        io.in_ready := true.B
+        when (io.in_last) {
+          out_valid := true.B
+          parseState := 0.U
+        }
       }
     }
   }

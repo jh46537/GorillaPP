@@ -64,7 +64,6 @@ class outputUnit_spec(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_t
     hdrModeMem(io.ar_tag) := io.ar_bits(7, 0)
   }
 
-
   io.rd_req_valid := false.B
   io.rd_req := DontCare
   io.rd_req.tag := io.pkt_buf_data.tag
@@ -220,6 +219,7 @@ class outputUnit_spec(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_t
     when (io.out_ready || !out_valid) {
       out_valid := false.B
       io.r_valid := true.B
+      io.r_tag := out_tag
       outRspState := 0.U
     }
   }

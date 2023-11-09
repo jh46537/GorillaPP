@@ -6,12 +6,12 @@
 #include <stdio.h>
 #include <cmath>
 
-#define NUM_ALUS 2
-#define NUM_SRC_POS 9
+#define NUM_ALUS 3
+#define NUM_SRC_POS 14
 #define NUM_SRC_POS_LG int(ceil(log2(NUM_SRC_POS)))
-#define NUM_SRC_MODE 7
+#define NUM_SRC_MODE 12
 #define NUM_SRC_MODE_LG int(ceil(log2(NUM_SRC_MODE)))
-#define NUM_FUS 3
+#define NUM_FUS 4
 #define NUM_FUS_LG int(ceil(log2(NUM_FUS)))
 #define IP_W 32
 #define NUM_INT (NUM_ALUS*3+NUM_FUS+1)
@@ -258,23 +258,25 @@ aluOp_t instruction::subInstruction(string asm_line) {
                     } else if (opcode == "BGEu") {
                         inst.funct = 7;
                     }
-                } else if (opcode == "MATCH" || opcode == "LOAD" || opcode == "RESET" || opcode == "PASS") {
+                } else if (opcode == "MATCH" || opcode == "LOAD" || opcode == "RESET" || 
+                    opcode == "PASS" || opcode == "UPDATE" || opcode == "DELETE" ||
+                    opcode == "MALLOC" || opcode == "LOOKUP" || opcode == "RELEASE") {
                     int op3u = stoi(op3);
                     inst.opcode = 0x5b;
                     inst.rd = op1u;
                     inst.rs1 = op2u;
                     inst.rs2 = op3u & 0x1f;
                     inst.imm = (op3u >> 5) & 0x7f;
-                    if (opcode == "RESET") {
+                    if (opcode == "RESET" || opcode == "MALLOC") {
                         inst.funct = 0;
-                    } else if (opcode == "LOAD") {
+                    } else if (opcode == "LOAD" || opcode == "LOOKUP") {
                         inst.funct = 1;
-                    } else if (opcode == "MATCH") {
+                    } else if (opcode == "MATCH" || opcode == "UPDATE") {
                         inst.funct = 2;
-                    } else if (opcode == "PASS") {
+                    } else if (opcode == "PASS" || opcode == "DELETE" || opcode == "RELEASE") {
                         inst.funct = 3;
                     }
-                } else if (opcode == "EXTRACTi" || opcode == "EXTRACTi_DONE") {
+                } else if (opcode == "EXTRACTi" || opcode == "EXTRACTi_DONE" || opcode == "UNLOCK") {
                     int op3u = stoi(op3);
                     inst.opcode = 0xb;
                     inst.rd = op1u;
@@ -282,6 +284,8 @@ aluOp_t instruction::subInstruction(string asm_line) {
                         inst.funct = 3;
                     } else if (opcode == "EXTRACTi_DONE") {
                         inst.funct = 7;
+                    } else if (opcode == "UNLOCK") {
+                        inst.funct = 1;
                     }
                     inst.rs1 = op2u;
                     inst.rs2 = op3u & 0x1f;
@@ -300,6 +304,14 @@ aluOp_t instruction::subInstruction(string asm_line) {
                     inst.rs1 = op2u;
                     inst.rs2 = op3u & 0x1f;
                     inst.imm = (op3u >> 5) & 0x3f;
+                } else if (opcode == "UPDATE0") {
+                    int op3u = stoi(op3.substr(1));
+                    inst.opcode = 0x5b;
+                    inst.rd = op1u;
+                    inst.rs1 = op2u;
+                    inst.rs2 = op3u;
+                    inst.imm = 0;
+                    inst.funct = 2;
                 } else {
                     // 4 or more operands
                     int op3u = stoi(op3);

@@ -85,12 +85,32 @@ class flow_table_wrap(tag_width: Int) extends
     val ch1_rep_data                        = Output(UInt(8.W))
     val ch1_rep_ready                       = Input(Bool())
 
+    val ch2_req_valid                       = Input(Bool())
+    val ch2_req_tag                         = Input(UInt(tag_width.W))
+    val ch2_req_data_ch1_opcode             = Input(UInt(3.W))
+    val ch2_req_data_ch1_bit_map            = Input(UInt(5.W))
+    val ch2_req_data_ch1_data_tuple_sIP     = Input(UInt(32.W))
+    val ch2_req_data_ch1_data_tuple_dIP     = Input(UInt(32.W))
+    val ch2_req_data_ch1_data_tuple_sPort   = Input(UInt(16.W))
+    val ch2_req_data_ch1_data_tuple_dPort   = Input(UInt(16.W))
+    val ch2_req_data_ch1_data_seq           = Input(UInt(32.W))
+    val ch2_req_data_ch1_data_pointer       = Input(UInt(9.W))
+    val ch2_req_data_ch1_data_ll_valid      = Input(Bool())
+    val ch2_req_data_ch1_data_slow_cnt      = Input(UInt(12.W))
+    val ch2_req_data_ch1_data_last_7_bytes  = Input(UInt(56.W))
+    val ch2_req_data_ch1_data_addr0         = Input(UInt(12.W))
+    val ch2_req_data_ch1_data_addr1         = Input(UInt(12.W))
+    val ch2_req_data_ch1_data_addr2         = Input(UInt(12.W))
+    val ch2_req_data_ch1_data_addr3         = Input(UInt(12.W))
+    val ch2_req_data_ch1_data_pointer2      = Input(UInt(9.W))
+    val ch2_req_ready                       = Output(Bool())
+
     val rst                                 = Input(Reset())
     val clk                                 = Input(Clock())
   })
 
   addResource("/bram_true2port_sim.v")
-  addResource("/flow_table_wrap.sv")
+  addResource("/flow_table_sw.sv")
 }
 
 class flowTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends MultiIOModule {
@@ -151,6 +171,11 @@ class flowTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: 
   val ch1_rep_data   = Wire(UInt(8.W))
   val ch1_rep_ready  = Wire(Bool())
 
+  val ch2_req_valid  = Wire(Bool())
+  val ch2_req_tag    = Wire(UInt(tag_width.W))
+  val ch2_req_data   = Wire(new ftCh1Input_t)
+  val ch2_req_ready  = Wire(Bool())
+
   class ch0_rep_t extends Bundle {
     val tag = UInt(tag_width.W)
     val flag = UInt(ip_width.W)
@@ -199,7 +224,12 @@ class flowTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: 
   ch1.out_bits := 0.U
   ch1_fifo.io.deq.ready := ch1.out_ready
 
-  ch2.in_ready := true.B
+  ch2_req_valid := ch2.in_valid
+  ch2_req_tag := ch2.in_tag
+  ch2_req_data.ch1_opcode := ch2.in_opcode
+  ch2_req_data.ch1_bit_map := ch2.in_bits(0)(265, 261)
+  ch2_req_data.ch1_data := ch2.in_bits(0)(260, 0).asTypeOf(new fce_t)
+  ch2.in_ready := ch2_req_ready
 
   val ft_inst = Module(new flow_table_wrap(tag_width))
   ft_inst.io.clk := clock
@@ -280,4 +310,23 @@ class flowTable(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: 
   ch1_rep_tag                                   := ft_inst.io.ch1_rep_tag
   ch1_rep_data                                  := ft_inst.io.ch1_rep_data
   ft_inst.io.ch1_rep_ready                      := ch1_rep_ready
+  ft_inst.io.ch2_req_valid                      := ch2_req_valid
+  ft_inst.io.ch2_req_tag                        := ch2_req_tag
+  ft_inst.io.ch2_req_data_ch1_opcode            := ch2_req_data.ch1_opcode
+  ft_inst.io.ch2_req_data_ch1_bit_map           := ch2_req_data.ch1_bit_map
+  ft_inst.io.ch2_req_data_ch1_data_tuple_sIP    := ch2_req_data.ch1_data.tuple.sIP
+  ft_inst.io.ch2_req_data_ch1_data_tuple_dIP    := ch2_req_data.ch1_data.tuple.dIP
+  ft_inst.io.ch2_req_data_ch1_data_tuple_sPort  := ch2_req_data.ch1_data.tuple.sPort
+  ft_inst.io.ch2_req_data_ch1_data_tuple_dPort  := ch2_req_data.ch1_data.tuple.dPort
+  ft_inst.io.ch2_req_data_ch1_data_seq          := ch2_req_data.ch1_data.seq
+  ft_inst.io.ch2_req_data_ch1_data_pointer      := ch2_req_data.ch1_data.pointer
+  ft_inst.io.ch2_req_data_ch1_data_ll_valid     := ch2_req_data.ch1_data.ll_valid
+  ft_inst.io.ch2_req_data_ch1_data_slow_cnt     := ch2_req_data.ch1_data.slow_cnt
+  ft_inst.io.ch2_req_data_ch1_data_last_7_bytes := ch2_req_data.ch1_data.last_7_bytes
+  ft_inst.io.ch2_req_data_ch1_data_addr0        := ch2_req_data.ch1_data.addr0
+  ft_inst.io.ch2_req_data_ch1_data_addr1        := ch2_req_data.ch1_data.addr1
+  ft_inst.io.ch2_req_data_ch1_data_addr2        := ch2_req_data.ch1_data.addr2
+  ft_inst.io.ch2_req_data_ch1_data_addr3        := ch2_req_data.ch1_data.addr3
+  ft_inst.io.ch2_req_data_ch1_data_pointer2     := ch2_req_data.ch1_data.pointer2
+  ch2_req_ready                                 := ft_inst.io.ch2_req_ready
 }

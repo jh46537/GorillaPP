@@ -145,15 +145,12 @@ class inputUnit_core(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_th
   // opcode(2) = 0: parse not done, 1: parse done
   // opcode(3) = 0: select imm, 1: select reg
 
-  val PKT_BUF_DEPTH = 512
-
   val parseFifo_t = new Bundle {
     val bits = UInt(256.W)
     val empty = UInt(6.W)
     val last = Bool()
   }
 
-  val pktFifo = Module(new Queue(new pkt_buf_t(num_threads), PKT_BUF_DEPTH))
   val parseFifo = Module(new Queue(parseFifo_t, 2))
   val parseDone = RegInit(false.B)
   val parseFifoEnqState = RegInit(0.U(1.W))
@@ -219,8 +216,8 @@ class inputUnit_core(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_th
   io.out_addr := addr
   io.out_data := shifter.io.out_data
   io.ar_ready := false.B
-  pktFifo.io.enq.valid := false.B
-  pktFifo.io.enq.bits := DontCare
+  io.pkt_buf_valid := false.B
+  io.pkt_buf_data := DontCare
   when (seekState === 0.U) {
     // IDLE
     io.ar_ready := true.B
@@ -277,10 +274,10 @@ class inputUnit_core(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_th
     pktFifo_in.tag := tag
     pktFifo_in.empty := 64.U - shifter.io.buf_length
     when (shifter.io.buf_length =/= 0.U) {
-      pktFifo.io.enq.valid := true.B
+      io.pkt_buf_valid := true.B
     }
-    pktFifo.io.enq.bits := pktFifo_in
-    when (pktFifo.io.enq.ready) {
+    io.pkt_buf_data := pktFifo_in
+    when (io.pkt_buf_ready) {
       shifter.io.clear := true.B
       when (shifter.io.buf_last) {
         parseDone := false.B
@@ -306,12 +303,12 @@ class inputUnit_core(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_th
   } .elsewhen (seekState === 6.U) {
     shifter.io.clear := true.B
     when (lastSeen || (!parseFifo.io.deq.valid) || (pktFifo_empty_r =/= 0.U)) {
-      pktFifo.io.enq.bits.data := pktFifo_in_r
-      pktFifo.io.enq.bits.tag := tag
-      pktFifo.io.enq.bits.last := lastSeen
-      pktFifo.io.enq.bits.empty := 32.U + pktFifo_empty_r
-      pktFifo.io.enq.valid := true.B
-      when (pktFifo.io.enq.ready) {
+      io.pkt_buf_data.data := pktFifo_in_r
+      io.pkt_buf_data.tag := tag
+      io.pkt_buf_data.last := lastSeen
+      io.pkt_buf_data.empty := 32.U + pktFifo_empty_r
+      io.pkt_buf_valid := true.B
+      when (io.pkt_buf_ready) {
         when (lastSeen) {
           parseDone := false.B
           lastSeen := false.B
@@ -323,12 +320,12 @@ class inputUnit_core(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_th
         }
       }
     } .elsewhen (parseFifo.io.deq.valid) {
-      pktFifo.io.enq.bits.data := Cat(parseFifo.io.deq.bits.bits, pktFifo_in_r)
-      pktFifo.io.enq.bits.tag := tag
-      pktFifo.io.enq.bits.last := parseFifo.io.deq.bits.last
-      pktFifo.io.enq.bits.empty := pktFifo_empty_r
-      pktFifo.io.enq.valid := true.B
-      when (pktFifo.io.enq.ready) {
+      io.pkt_buf_data.data := Cat(parseFifo.io.deq.bits.bits, pktFifo_in_r)
+      io.pkt_buf_data.tag := tag
+      io.pkt_buf_data.last := parseFifo.io.deq.bits.last
+      io.pkt_buf_data.empty := pktFifo_empty_r
+      io.pkt_buf_valid := true.B
+      when (io.pkt_buf_ready) {
         parseFifo.io.deq.ready := true.B
         when (parseFifo.io.deq.bits.last) {
           parseDone := false.B
@@ -341,14 +338,14 @@ class inputUnit_core(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_th
   } .elsewhen (seekState === 7.U) {
     // drain remaining flits
     shifter.io.clear := true.B
-    io.in_ready := pktFifo.io.enq.ready
+    io.in_ready := io.pkt_buf_ready
     when (io.in_valid) {
-      pktFifo.io.enq.bits.data := io.in_data
-      pktFifo.io.enq.bits.tag := tag
-      pktFifo.io.enq.bits.last := io.in_last
-      pktFifo.io.enq.bits.empty := io.in_empty
-      pktFifo.io.enq.valid := true.B
-      when (pktFifo.io.enq.ready) {
+      io.pkt_buf_data.data := io.in_data
+      io.pkt_buf_data.tag := tag
+      io.pkt_buf_data.last := io.in_last
+      io.pkt_buf_data.empty := io.in_empty
+      io.pkt_buf_valid := true.B
+      when (io.pkt_buf_ready) {
         when (io.in_last) {
           io.out_valid := true.B
           parseDone := false.B
@@ -357,9 +354,5 @@ class inputUnit_core(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_th
       }
     }
   }
-
-  io.pkt_buf_data := pktFifo.io.deq.bits
-  io.pkt_buf_valid := pktFifo.io.deq.valid
-  pktFifo.io.deq.ready := io.pkt_buf_ready
 
 }

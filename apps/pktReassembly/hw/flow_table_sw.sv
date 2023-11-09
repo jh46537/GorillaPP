@@ -1751,7 +1751,12 @@ module flowTableV
     output logic                 ch1_rep_valid,
     output logic [TAG_WIDTH-1:0] ch1_rep_tag,
     output logic [7:0]           ch1_rep_data,
-    input  logic                 ch1_rep_ready
+    input  logic                 ch1_rep_ready,
+
+    input  logic                 ch2_req_valid,
+    input  logic [TAG_WIDTH-1:0] ch2_req_tag,
+    input  ftCh1Input_t          ch2_req_data,
+    output logic                 ch2_req_ready
 );
 
 tuple_t         h0_tuple_in;
@@ -2162,131 +2167,47 @@ end
 
 always @(posedge clk) begin
     if (rst) begin
-        ch1_opcode      <= 0;
-        ch1_bit_map     <= 0;
-        ch1_wren        <= 0;
-        ch1_data        <= 0;
+        path_sel <= 'b0;
     end
     // Stall the pipeline if inserting to full para_q
     else if (!ch1_insert_stall) begin
         // Default value
-        ch1_wren <= 0;
-        ch1_bit_map <= ch0_bit_map;
-        ch1_data <= ch0_q;
         out_meta_data.flag <= 'd0;
         if (ch0_rd_ready) path_sel <= 'b0;
 
         if (ch0_rd_valid) begin
             // Hit, update or push to slow path
             // Check in string matcher if it has payload.
-            out_meta_data.ch0_q <= ch0_q;
             out_meta_data.ch0_pkt <= meta_last;
             out_meta_data.ch0_bit_map <= ch0_bit_map;
             out_meta_data.flag <= 'd1;
             if (ch0_bit_map != 0) begin
-                ch1_data.valid <= 1;
-                ch1_opcode <= FT_UPDATE;
-                // Inorder and no LL_node, forward the pkt
-                if (meta_last.seq == ch0_q.seq) begin
-                    `ifdef DEBUG
-                    $display("Inorder : pkt %d, seq %x, length %d, expect %x, slow_cnt %d",
-                             meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq, ch0_q.slow_cnt);
-                    `endif
-
-                    ch1_wren <= 1;
-                    // Slow Path has packets, update cnt
-                    if (ch0_q.slow_cnt > 0) begin
-                        `ifdef DEBUG
-                        $display("Check LL");
-                        `endif
-
-                        ch1_data.slow_cnt <= ch0_q.slow_cnt + 1;
-                        path_sel <= 'd1;
-                        out_meta_data.flag <= 'd6;
-                    end
-                    // Inorder packets, with no OOO node in
-                    // the LL. Update seq. Most common case.
-                    else begin
-                        ch1_data.seq   <= meta_last.seq + meta_last.len;
-                        path_sel <= 'd0;
-                        out_meta_data.flag <= 'd1;
-                        // Delete the fce, forward the pkt
-                        if (meta_last.tcp_flags[TCP_FIN] | meta_last.tcp_flags[TCP_RST]) begin
-                            `ifdef DEBUG
-                            $display("FIN/RST : pkt %d, seq %x, length %d, expect %x",
-                                     meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq);
-                            `endif
-
-                            ch1_data.valid <= 0;
-                            ch1_opcode <= FT_DELETE;
-                        end
-                    end
-                end
-                // If incoming seq is bigger than expected, push to slow path
-                else if (meta_last.seq > ch0_q.seq) begin
-                    `ifdef DEBUG
-                    $display("OOO : pkt %d, seq %x, length %d, expect %x, slow_cnt %d",
-                             meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq, ch0_q.slow_cnt);
-                    `endif
-
-                    // Update the slow_cnt
-                    ch1_wren <= 1;
-                    // Keep the old seq number, only update the slow_cnt
-                    ch1_data.slow_cnt <= ch0_q.slow_cnt + 1;
-                    ch1_data.seq <= ch0_q.seq;
-                    path_sel <= 'd1;
-                    out_meta_data.flag <= 'd11;
-                end
-                // The incoming seq is smaller than expected (overlapping bytes).
-                // Current policy drops these packet, without changing the FCE.
-                else begin
-                    path_sel <= 'd0;
-                    out_meta_data.flag <= 'd1;
-
-                    `ifdef DEBUG
-                    $display("Overlap : pkt %d, seq %x, length %d, expect %x",
-                             meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq);
-                    `endif
-                end
-            end
+                out_meta_data.ch0_q <= ch0_q;
+                path_sel <= 'd1;
             // Miss, insert
-            else begin
+            end else begin
                 // Insert to para_q, which is bit[4]
-                ch1_opcode          <= FT_INSERT;
-                ch1_bit_map         <= 5'b1_0000;
-                ch1_data.valid      <= 1;
-                ch1_data.tuple      <= meta_last.tuple;
-                ch1_data.pointer    <= 0;
-                ch1_data.ll_valid   <= 0;
-                ch1_data.slow_cnt   <= 0;
-                ch1_data.addr0      <= key_last[11:0];
-                ch1_data.addr1      <= key_last[23:12];
-                ch1_data.addr2      <= key_last[35:24];
-                ch1_data.addr3      <= key_last[47:36];
-                path_sel <= 'd0;
+                out_meta_data.ch0_q.valid      <= 1;
+                out_meta_data.ch0_q.tuple      <= meta_last.tuple;
+                out_meta_data.ch0_q.pointer    <= 0;
+                out_meta_data.ch0_q.ll_valid   <= 0;
+                out_meta_data.ch0_q.slow_cnt   <= 0;
+                out_meta_data.ch0_q.addr0      <= key_last[11:0];
+                out_meta_data.ch0_q.addr1      <= key_last[23:12];
+                out_meta_data.ch0_q.addr2      <= key_last[35:24];
+                out_meta_data.ch0_q.addr3      <= key_last[47:36];
+                path_sel <= 'd1;
                 out_meta_data.flag <= 'd1;
 
                 // SYN's expected seq is special
                 if (meta_last.tcp_flags[TCP_SYN]) begin
-                    ch1_data.seq <= meta_last.seq + 1;
-                    ch1_data.last_7_bytes <= {56{1'b1}};
+                    out_meta_data.ch0_q.seq <= meta_last.seq + 1;
+                    out_meta_data.ch0_q.last_7_bytes <= {56{1'b1}};
                 end
                 else begin
-                    ch1_data.seq <= meta_last.seq + meta_last.len;
-                    ch1_data.last_7_bytes <= meta_last.last_7_bytes;
+                    out_meta_data.ch0_q.seq <= meta_last.seq + meta_last.len;
+                    out_meta_data.ch0_q.last_7_bytes <= meta_last.last_7_bytes;
                 end
-
-                // Insert only when necessary
-                if (meta_last.tcp_flags[TCP_FIN] | meta_last.tcp_flags[TCP_RST]) begin
-                    ch1_wren <= 0;
-                end
-                else begin
-                    ch1_wren <= 1;
-                end
-                `ifdef DEBUG
-                $display("Insert : pkt %d, seq %x, length %d, expect %x, slow_cnt %d",
-                   meta_last.pktID, meta_last.seq, meta_last.len, ch0_q.seq, ch0_q.slow_cnt);
-                `endif
             end
         end
     end else begin
@@ -2389,9 +2310,10 @@ logic ch1_req_valid_r;
 
 always_comb begin
     if (ch1_wren) begin
-        ch1_opcode_i = ch1_opcode;
-        ch1_bit_map_i = ch1_bit_map;
-        ch1_data_i = ch1_data;
+        ch1_opcode_i = ch2_req_data.ch1_opcode;
+        ch1_bit_map_i = ch2_req_data.ch1_bit_map;
+        ch1_data_i = ch2_req_data.ch1_data;
+        ch1_data_i.valid = 1;
     end else begin
         ch1_opcode_i = ch1_req_data_r.ch1_opcode;
         ch1_bit_map_i = ch1_req_data_r.ch1_bit_map;
@@ -2403,6 +2325,8 @@ always_comb begin
         end
     end
 end
+assign ch1_wren = ch2_req_valid;
+assign ch2_req_ready = !ch1_insert_stall;
 assign ch1_wren_i = ch1_wren || ch1_req_valid_r;
 assign ch1_req_ready = (!ch1_wren) && (!ch1_insert_stall);
 always_ff @(posedge clk) begin
@@ -2525,12 +2449,33 @@ module flow_table_wrap (
     output                  ch1_rep_valid,
     output [TAG_WIDTH-1:0]  ch1_rep_tag,
     output [7:0]            ch1_rep_data,
-    input                   ch1_rep_ready
+    input                   ch1_rep_ready,
+
+    input                   ch2_req_valid,
+    input  [TAG_WIDTH-1:0]  ch2_req_tag,
+    input  [2:0]            ch2_req_data_ch1_opcode,
+    input  [4:0]            ch2_req_data_ch1_bit_map,
+    input  [31:0]           ch2_req_data_ch1_data_tuple_sIP,
+    input  [31:0]           ch2_req_data_ch1_data_tuple_dIP,
+    input  [15:0]           ch2_req_data_ch1_data_tuple_sPort,
+    input  [15:0]           ch2_req_data_ch1_data_tuple_dPort,
+    input  [31:0]           ch2_req_data_ch1_data_seq,
+    input  [8:0]            ch2_req_data_ch1_data_pointer,
+    input                   ch2_req_data_ch1_data_ll_valid,
+    input  [9:0]            ch2_req_data_ch1_data_slow_cnt,
+    input  [55:0]           ch2_req_data_ch1_data_last_7_bytes,
+    input  [11:0]           ch2_req_data_ch1_data_addr0,
+    input  [11:0]           ch2_req_data_ch1_data_addr1,
+    input  [11:0]           ch2_req_data_ch1_data_addr2,
+    input  [11:0]           ch2_req_data_ch1_data_addr3,
+    input  [8:0]            ch2_req_data_ch1_data_pointer2,
+    output                  ch2_req_ready
 );
 
 ftCh0Input_t  ch0_req_data;
 ftCh0Output_t ch0_rep_data;
 ftCh1Input_t  ch1_req_data;
+ftCh1Input_t  ch2_req_data;
 
 assign ch0_req_data.ch0_opcode = ch0_req_data_ch0_opcode;
 assign ch0_req_data.ch0_pkt.prot = ch0_req_data_ch0_pkt_prot;
@@ -2597,6 +2542,23 @@ assign ch1_req_data.ch1_data.addr1 = ch1_req_data_ch1_data_addr1;
 assign ch1_req_data.ch1_data.addr2 = ch1_req_data_ch1_data_addr2;
 assign ch1_req_data.ch1_data.addr3 = ch1_req_data_ch1_data_addr3;
 assign ch1_req_data.ch1_data.pointer2 = ch1_req_data_ch1_data_pointer2;
+
+assign ch2_req_data.ch1_opcode = ch2_req_data_ch1_opcode;
+assign ch2_req_data.ch1_bit_map = ch2_req_data_ch1_bit_map;
+assign ch2_req_data.ch1_data.tuple.sIP = ch2_req_data_ch1_data_tuple_sIP;
+assign ch2_req_data.ch1_data.tuple.dIP = ch2_req_data_ch1_data_tuple_dIP;
+assign ch2_req_data.ch1_data.tuple.sPort = ch2_req_data_ch1_data_tuple_sPort;
+assign ch2_req_data.ch1_data.tuple.dPort = ch2_req_data_ch1_data_tuple_dPort;
+assign ch2_req_data.ch1_data.seq = ch2_req_data_ch1_data_seq;
+assign ch2_req_data.ch1_data.pointer = ch2_req_data_ch1_data_pointer;
+assign ch2_req_data.ch1_data.ll_valid = ch2_req_data_ch1_data_ll_valid;
+assign ch2_req_data.ch1_data.slow_cnt = ch2_req_data_ch1_data_slow_cnt;
+assign ch2_req_data.ch1_data.last_7_bytes = ch2_req_data_ch1_data_last_7_bytes;
+assign ch2_req_data.ch1_data.addr0 = ch2_req_data_ch1_data_addr0;
+assign ch2_req_data.ch1_data.addr1 = ch2_req_data_ch1_data_addr1;
+assign ch2_req_data.ch1_data.addr2 = ch2_req_data_ch1_data_addr2;
+assign ch2_req_data.ch1_data.addr3 = ch2_req_data_ch1_data_addr3;
+assign ch2_req_data.ch1_data.pointer2 = ch2_req_data_ch1_data_pointer2;
 
 
 flowTableV inst(.*);

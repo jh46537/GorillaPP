@@ -36,6 +36,9 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
     val pkt_buf_ready = Input(Bool())
   })
 
+  val PKT_BUF_DEPTH = 512
+  val pktFifo = Module(new Queue(new pkt_buf_t(num_threads), PKT_BUF_DEPTH))
+
   // opcode(0) = 0: not write back, 1: write back
   // opcode(1) = 0: not shift, 1: shift
   // opcode(2) = 0: parse not done, 1: parse done
@@ -44,7 +47,7 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
 
   val inputCore = Module(new inputUnit_core(reg_width, num_regs_lg, opcode_width, num_threads))
   val inputSpec = Module(new inputUnit_spec(reg_width, num_regs_lg, opcode_width, num_threads, ip_width))
-  val coreFifo = Module(new Queue(new pkt_buf_t(num_threads), 4))
+  val coreFifo = Module(new Queue(new pkt_buf_t(num_threads), 32))
   val threadState = RegInit(0.U(1.W))
   val parseState = RegInit(0.U(3.W))
   val sThreadEncoder = Module(new RREncode(num_threads))
@@ -74,7 +77,6 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
   inputCore.io.in_data := coreFifo.io.deq.bits.data
   inputCore.io.in_empty := coreFifo.io.deq.bits.empty
   inputCore.io.in_last := coreFifo.io.deq.bits.last
-  coreFifo.io.deq.ready := inputCore.io.in_ready
   inputCore.io.ar_valid := false.B
   inputCore.io.ar_tag := DontCare
   inputCore.io.ar_opcode := 0.U
@@ -83,11 +85,7 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
   inputCore.io.ar_imm := io.ar_imm
   inputCore.io.out_ready := io.out_ready
 
-  io.pkt_buf_data := inputCore.io.pkt_buf_data
-  io.pkt_buf_valid := inputCore.io.pkt_buf_valid
-  inputCore.io.pkt_buf_ready := io.pkt_buf_ready
-
-  inputSpec.io.in_valid := io.in_valid
+  inputSpec.io.in_valid := false.B
   inputSpec.io.in_tag := io.in_tag
   inputSpec.io.in_data :=  io.in_data
   inputSpec.io.in_empty := io.in_empty
@@ -101,6 +99,10 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
   inputSpec.io.out_ready := io.out_ready
   inputSpec.io.pkt_buf_ready := coreFifo.io.enq.ready
 
+  io.pkt_buf_data := pktFifo.io.deq.bits
+  io.pkt_buf_valid := pktFifo.io.deq.valid
+  pktFifo.io.deq.ready := io.pkt_buf_ready
+
   io.ar_ready := false.B
   io.in_ready := false.B
   io.out_valid := false.B
@@ -112,6 +114,10 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
   io.out_data := DontCare
   coreFifo.io.enq.valid := false.B
   coreFifo.io.enq.bits := DontCare
+  coreFifo.io.deq.ready := false.B
+  pktFifo.io.enq.bits := inputCore.io.pkt_buf_data
+  pktFifo.io.enq.valid := inputCore.io.pkt_buf_valid
+  inputCore.io.pkt_buf_ready := pktFifo.io.enq.ready
   when (parseState === 0.U) {
     // IDLE
     isLast := false.B
@@ -138,6 +144,7 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
       // }
     }
   } .elsewhen (parseState === 1.U) {
+    inputSpec.io.in_valid := io.in_valid
     io.out_tag  := inputSpec.io.out_tag
     io.out_flag := inputSpec.io.out_flag
     io.out_wen  := inputSpec.io.out_wen
@@ -146,11 +153,11 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
     io.in_ready := inputSpec.io.in_ready
     coreFifo.io.enq.valid := inputSpec.io.pkt_buf_valid
     coreFifo.io.enq.bits := inputSpec.io.pkt_buf_data
+    coreFifo.io.enq.bits.tag := ar_tag
     when (inputSpec.io.out_valid) {
       when (!inputSpec.io.out_early) {
         // Parse done
-        io.out_valid := false.B
-        isLast := inputSpec.io.pkt_buf_data.last
+        io.out_valid := true.B
         parseState := 2.U
       } .otherwise {
         io.out_valid := true.B
@@ -158,22 +165,18 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
       }
     }
   } .elsewhen (parseState === 2.U) {
-    inputCore.io.ar_valid := true.B
-    inputCore.io.ar_tag := ar_tag
-    inputCore.io.ar_opcode := 4.U
-    parseDone := true.B
-    when (inputCore.io.ar_ready) {
-      when (isLast) {
-        parseState := 5.U
-      } .otherwise {
-        parseState := 3.U
-      }
+    pktFifo.io.enq.valid := coreFifo.io.deq.valid
+    pktFifo.io.enq.bits := coreFifo.io.deq.bits
+    coreFifo.io.deq.ready := pktFifo.io.enq.ready
+    when (!coreFifo.io.deq.valid) {
+      parseState := 0.U
     }
   } .elsewhen (parseState === 3.U) {
     // Use the inputCore and stream in the packet
     inputCore.io.ar_valid := io.ar_valid
     inputCore.io.ar_tag := io.ar_tag
     inputCore.io.ar_opcode := io.ar_opcode
+    coreFifo.io.deq.ready := inputCore.io.in_ready
     io.ar_ready := inputCore.io.ar_ready
     when (io.ar_valid && inputCore.io.ar_ready) {
       parseDone := io.ar_opcode(2)

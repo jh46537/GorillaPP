@@ -10,7 +10,7 @@ class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
     val in_tag    = Input(UInt(tag_width.W))
     val in_opcode = Input(UInt(opcode_width.W))
     val in_imm    = Input(UInt(12.W))
-    val in_bits   = Input(Vec(1, UInt(reg_width.W)))
+    val in_bits   = Input(Vec(2, UInt(reg_width.W)))
     val in_ready  = Output(Bool())
     val out_valid = Output(Bool())
     val out_tag   = Output(UInt(tag_width.W))
@@ -25,9 +25,10 @@ class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
   io.out_flag := 0.U
   /*******************Decode, allocate new ptr*****************/
   val inputTag = Reg(UInt(tag_width.W))
-  val opcode = Reg(UInt(opcode_width.W))
+  val opcode = Reg(UInt(3.W))
   val inputReg = Reg(new llNode_t)
-  val valid_d = Reg(Bool())
+  val inputReg2 = Reg(UInt(32.W))
+  val valid_d = RegInit(false.B)
 
   /*******************Initialize empty list*********************/
   val empty_list = Module(new Queue(UInt(9.W), 512))
@@ -54,21 +55,24 @@ class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
     when (io.in_valid && io.out_ready) {
       opcode := io.in_opcode
       inputReg := in_bits.node
+      inputReg2 := io.in_bits(1)
       inputTag := io.in_tag
-      when (io.in_opcode === 0.U) {
+      when (io.in_opcode(2, 0) === 0.U) {
         when (empty_list.io.count > 0.U) {
           new_ptr := empty_list.io.deq.bits
           empty_list.io.deq.ready := true.B
         } .otherwise {
           println("Empty list empty")
         }
-      } .elsewhen (io.in_opcode === 3.U) {
+      } .elsewhen (io.in_opcode(2, 0) === 3.U) {
         empty_list.io.enq.valid := true.B
         val node_u = in_bits.node.asUInt
         empty_list.io.enq.bits := node_u(8, 0)
       }
     }
-    valid_d := io.in_valid && io.out_ready
+    when (io.out_ready) {
+      valid_d := io.in_valid
+    }
   }
 
 
@@ -87,10 +91,9 @@ class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
   val rdAddr = Reg(UInt(9.W))
 
   val ptr_a = Reg(UInt(10.W))
-  val valid_a0 = Reg(Bool())
+  val valid_a0 = RegInit(false.B)
   val opcode_a0 = Reg(UInt(2.W))
 
-  valid_a0 := DontCare
   wren := false.B
   rden := false.B
   wben := 0.U
@@ -121,7 +124,7 @@ class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
       rden := true.B
       rdAddr := input_u(8, 0)
     } .elsewhen (opcode === 2.U) {
-      wrData := Cat(0.U(9.W), input_u(17, 9), 0.U(252.W))
+      wrData := Cat(0.U(9.W), inputReg2(8, 0), 0.U(252.W))
       wrAddr := input_u(8, 0)
       wren := true.B
       wben := 0x2.U
@@ -136,7 +139,7 @@ class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
 
   /*******************Access RAM 1*****************************/
   val tag_a1 = Reg(UInt(tag_width.W))
-  val valid_a1 = Reg(Bool())
+  val valid_a1 = RegInit(false.B)
   val rdData = Wire(UInt(270.W))
   val opcode_a1 = Reg(UInt(2.W))
   val ptr_o = Reg(UInt(9.W))
@@ -183,7 +186,7 @@ class dynamicMem(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads:
 
   /*******************Output**********************************/
   val tag_a2 = Reg(UInt(tag_width.W))
-  val valid_a2 = Reg(Bool())
+  val valid_a2 = RegInit(false.B)
   val opcode_a2 = Reg(UInt(2.W))
   val ptr_o_r = Reg(UInt(9.W))
   when (io.out_ready) {
