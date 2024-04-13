@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TARGET=parse/p4_parse_sw
+TARGET=tcp_parse
 CUR_DIR=$(pwd)
 cd ../../../
 PRIMATE_DIR=$(pwd)
@@ -22,7 +22,8 @@ cd $UARCH_DIR/apps/scripts/
 make clean && make
 cd $CUR_DIR/sw
 g++ primate_assembler.cpp -o primate_assembler
-./primate_assembler "${TARGET}.s" primate_pgm.bin
+./translate.py "${TARGET}.s" "${TARGET}_tl.s"
+./primate_assembler "${TARGET}_tl.s" primate_pgm.bin
 mv primate_pgm.bin $UARCH_DIR/chisel/Gorilla++/
 cd $CUR_DIR/hw
 cp $UARCH_DIR/templates/primate.template ./
@@ -30,14 +31,14 @@ python3 $UARCH_DIR/apps/scripts/scm.py
 cp header.scala $CHISEL_SRC_DIR/main/scala/
 cp alu_bfu0.scala $CHISEL_SRC_DIR/main/scala/
 cp alu_bfu1.scala $CHISEL_SRC_DIR/main/scala/
+cp alu_bfu2.scala $CHISEL_SRC_DIR/main/scala/
 cp cache.scala $CHISEL_SRC_DIR/main/scala/
 cp hashUnit.scala $CHISEL_SRC_DIR/main/scala/
 cp inOutUnit.scala $CHISEL_SRC_DIR/main/scala/
 cp inputUnit.scala $CHISEL_SRC_DIR/main/scala/
 cp inputUnit_core.scala $CHISEL_SRC_DIR/main/scala/
 cp match_table.scala $CHISEL_SRC_DIR/main/scala/
-cp outputUnit.scala $CHISEL_SRC_DIR/main/scala/
-cp outputUnit_core.scala $CHISEL_SRC_DIR/main/scala/
+cp outputUnit_simple.scala $CHISEL_SRC_DIR/main/scala/
 cp primate.scala $CHISEL_SRC_DIR/main/scala/
 [[ -e *.v ]] && cp *.v $CHISEL_SRC_DIR/main/resources/
 [[ -e *.sv ]] && cp *.sv $CHISEL_SRC_DIR/main/resources/

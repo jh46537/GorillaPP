@@ -282,7 +282,7 @@ class DecodeBFU extends Module {
 
   when (opcode(3, 0) === 0xb.U) {
     io.valid := true.B
-    when (io.rd =/= 0.U) {
+    when (io.rd =/= 0.U && (opcode(6, 4) =/= 0.U) && (opcode(6, 4) =/= 5.U)) {
       io.rdWrEn := true.B
     }
   } .elsewhen (opcode === 3.U) {
@@ -435,6 +435,11 @@ class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, num_src_pos_lg: Int, nu
     // io.remEn(i)     := aluDecoders(i).io.remEn
     // io.rs1Signed(i) := aluDecoders(i).io.rs1Signed
     // io.rs2Signed(i) := aluDecoders(i).io.rs2Signed
+  }
+
+  if (num_alus == num_bfus) {
+    // The last BFU is always the IO unit
+    io.rdWrEn(num_alus-1) := eiuDecoders(num_alus*3-1).io.rdWrEn & (!aluDecoders(num_alus-1).io.bfu_valid)
   }
 
   if (num_alus < num_bfus) {

@@ -76,6 +76,49 @@ public:
     }
 
     template<typename h_t>
+    void Input(const int length, h_t &header) {
+        bool res_valid = false;
+        int shift;
+
+        if (!payload_v) {
+            payload = get_input(infile);
+            payload_v = true;
+        }
+
+        while (!res_valid) {
+            shift = 0;
+            if (length <= input_buf_len) {
+                header = input_buf;
+                shift = length;
+                res_valid = true;
+            }
+
+            // shift and fill input buffer
+            // std::cout << "input_buf_len: " << input_buf_len << ", shift: " << shift << ", fifo_empty: " << fifo_empty << std::endl;
+            // std::cout << "input_buf: " << input_buf << std::endl;
+            if (input_buf_len == 0 || (input_buf_len == shift)) {
+                input_buf = payload.data;
+            } else {
+                input_buf = ((payload.data >> (fifo_empty*8)) << (input_buf_len*8 - shift*8)) | 
+                    ((input_buf << (IO_W - input_buf_len*8)) >> (IO_W - input_buf_len*8 + shift*8));
+            }
+
+            if (input_buf_len - shift <= fifo_empty) {
+                // fill input buffer and pop input
+                input_buf_len = input_buf_len - shift + IO_BW - fifo_empty;
+                last_buf = payload.last;
+                fifo_empty = 0;
+                payload = get_input(infile);
+                flits++;
+            } else {
+                // fill input buffer
+                fifo_empty += (IO_BW - input_buf_len + shift);
+                input_buf_len = IO_BW;
+            }
+        }
+    }
+
+    template<typename h_t>
     void Input_header(const int length, h_t &header) {
         bool res_valid = false;
         int shift;
@@ -180,6 +223,18 @@ public:
         }
         metadata.flits = flits;
         flits = 0;
+    }
+
+    template<typename h_t>
+    void Output(const int length, int &header) {
+        payload_t pl;
+        pl.data = header;
+        pl.empty = IO_BW - length;
+        pl.last = false;
+        if (pkt_buf.empty()) {
+            pl.last = true;
+        }
+        outfile << pl;
     }
 
     template<typename h_t>

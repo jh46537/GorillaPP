@@ -119,15 +119,11 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   alu_bfuInst(0).io.mem.readdatavalid  := io.mem.readdatavalid
   alu_bfuInst(0).io.mem.readdata       := io.mem.readdata
 
-  // if (NUM_ALUS >= NUM_BFUS+1) {
-    for (i <- 1 until NUM_BFUS+1) {
-      alu_bfuInst(i).io.mem.waitrequest   := false.B
-      alu_bfuInst(i).io.mem.readdatavalid := false.B
-      alu_bfuInst(i).io.mem.readdata      := DontCare
-    }
-  // } else {
-  //   // TODO  
-  // }
+  for (i <- 1 until NUM_ALUS) {
+    alu_bfuInst(i).io.mem.waitrequest   := false.B
+    alu_bfuInst(i).io.mem.readdatavalid := false.B
+    alu_bfuInst(i).io.mem.readdata      := DontCare
+  }
 
 
   object ThreadStageEnum extends ChiselEnum {
@@ -430,12 +426,12 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     }
   } else {
     when (gatherThread =/= NONE_SELECTED) {
-      when (bfuValids_out(NUM_BFUS+1) === true.B) {
+      when (aluMicrocodes_out.bfu_valid(NUM_BFUS+1) === true.B) {
         fuFifos_iou.io.enq.valid := true.B
         fuFifos_iou.io.enq.bits.tag := gatherThread
         fuFifos_iou.io.enq.bits.opcode := aluMicrocodes_out.opcode(NUM_BFUS+1)
         fuFifos_iou.io.enq.bits.rd := aluMicrocodes_out.rd(NUM_BFUS+1)
-        fuFifos_iou.io.enq.bits.imm := aluMicrocodes_out.imm(NUM_BFUS+1)
+        fuFifos_iou.io.enq.bits.imm := aluMicrocodes_out.imm(NUM_BFUS+1).asUInt
         fuFifos_iou.io.enq.bits.bits := srcA(NUM_BFUS+1)
       }
     }

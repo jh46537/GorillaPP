@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <cmath>
 
-#define NUM_ALUS 2
+#define NUM_ALUS 3
 #define NUM_SRC_POS 9
 #define NUM_SRC_POS_LG int(ceil(log2(NUM_SRC_POS)))
 #define NUM_SRC_MODE 7

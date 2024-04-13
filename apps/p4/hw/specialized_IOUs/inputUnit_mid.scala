@@ -127,6 +127,8 @@ class inputUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads
     // } .otherwise {
       // io.ar_ready := inputCore.io.ar_ready
     // }
+    inputSpec.io.in_valid := io.in_valid
+    io.in_ready := inputSpec.io.in_ready
     when (io.ar_valid) {
       ar_tag := io.ar_tag
       // when (io.ar_opcode(4) === 1.U) {
