@@ -1,68 +1,58 @@
-#include "tcp_parse.h"
+#include <stdint.h>
+#include "primate-hardware.h"
 
-// #pragma primate blue Output 1 1
-// void Output(standard_metadata_t &standard_metadata);
-void Output_meta(standard_metadata_t &standard_metadata); //outputMeta inst
-#pragma primate blue Output 1 1
-void Output(const int &length, ethernet_t &eth);
-void Output(const int &length, ipv4_t &ipv4);
-void Output(const int &length, tcp_t &tcp);
-void Output(const int &length, udp_t &udp);
-void Output(const int &length, tcp_option_t &tcp_option);
-void Output(const int &length, padding_t &padding);
-void Output_done();
-void Input_eth(const int &length, ethernet_t &eth);
-void Input_ipv4(const int &length, ipv4_t &ipv4);
-void Input_tcp(const int &length, tcp_t &tcp);
-void Input_udp(const int &length, udp_t &udp);
-void Input_tcp_option(const int &length, tcp_option_t &tcp_option);
-void Input_padding(const int &length, padding_t &padding);
-void Input_done();
-
-void p4_parse() {
-    // Parse
+void primate_main() {
     ethernet_t eth;
     ipv4_t ipv4;
     tcp_t tcp;
     udp_t udp;
-    tcp_option_t tcp_option;
-    padding_t padding;
 
-    uint16_t hdr_valid = 0;
-    Input_eth(14, eth);
-    Output(14, eth);
+    eth = PRIMATE::input<ethernet_t>();
+    PRIMATE::output<ethernet_t>(eth);
     if (eth.etherType == 0x800) {
-        Input_ipv4(20, ipv4);
-        Output(20, ipv4);
+        ipv4 = PRIMATE::input<ipv4_t>();
+        PRIMATE::output<ipv4_t>(ipv4);
         if (ipv4.protocol == 6) {
-            Input_tcp(20, tcp);
-            Output(20, tcp);
+            tcp = PRIMATE::input<tcp_t>();
+            PRIMATE::output<tcp_t>(tcp);
             if (tcp.dataOffset > 0) {
-                int hdr_byte_left = 4*(((int)tcp.dataOffset) - 5);
+                int hdr_byte_left = 4*(((unsigned)tcp.dataOffset) - 5);
+                int n = 0;
                 while (hdr_byte_left > 0) {
-                    Input_tcp_option(1, tcp_option);
-                    if (tcp_option.kind == 0) {
+                    unsigned _ExtInt(8) kind;
+                    kind = PRIMATE::input<unsigned _ExtInt(8)>(1);
+                    if (kind == 0) {
                         // end
                         hdr_byte_left--;
-                        Output(1, tcp_option);
-                        while (hdr_byte_left > 32) {
-                            Input_padding(32, padding);
-                            Output(32, padding);
-                            hdr_byte_left -= 32;
+                        unsigned _ExtInt(8) tcp_option;
+                        tcp_option = kind;
+                        PRIMATE::output<unsigned _ExtInt(8)>(tcp_option);
+                        int i = 0;
+                        unsigned _ExtInt(128) padding;
+                        while (hdr_byte_left > 16) {
+                            padding = PRIMATE::input<unsigned _ExtInt(128)>();
+                            PRIMATE::output<unsigned _ExtInt(128)>(padding);
+                            hdr_byte_left -= 16;
                         }
-                        Input_padding(hdr_byte_left, padding);
-                        Output(32, padding);
+                        padding = PRIMATE::input<unsigned _ExtInt(128)>(hdr_byte_left);
+                        PRIMATE::output<unsigned _ExtInt(128)>(padding);
                         break;
-                    } else if (tcp_option.kind == 1) {
+                    } else if (kind == 1) {
+                        // nop
+                        unsigned _ExtInt(8) tcp_option;
+                        tcp_option = kind;
                         hdr_byte_left--;
-                        Output(1, tcp_option);
+                        PRIMATE::output<unsigned _ExtInt(8)>(tcp_option);
                     }
+                    n++;
                 }
             }
         } else if (ipv4.protocol == 0x11) {
-            Input_udp(8, udp);
-            Output(8, udp);
+            udp = PRIMATE::input<udp_t>(8);
+            PRIMATE::output<udp_t>(udp);
         }
     }
+    PRIMATE::input_done();
+    PRIMATE::output_done();
 
 }
