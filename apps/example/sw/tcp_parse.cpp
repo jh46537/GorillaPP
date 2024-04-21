@@ -34,7 +34,7 @@ void primate_main() {
                             PRIMATE::output<unsigned _ExtInt(128)>(padding);
                             hdr_byte_left -= 16;
                         }
-                        padding = PRIMATE::input<unsigned _ExtInt(128)>(hdr_byte_left);
+                        padding = PRIMATE::input<unsigned _ExtInt(128)>(16);
                         PRIMATE::output<unsigned _ExtInt(128)>(padding);
                         break;
                     } else if (kind == 1) {

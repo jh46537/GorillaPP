@@ -28,16 +28,33 @@ cd $CUR_DIR/sw
 
 echo "done with archgen..."
 cp ${CUR_DIR}/hw/primate.cfg .
+
+oldIntrinsicsHash=$(sha1sum ./primate-compiler-gen/IntrinsicsPrimate.td)
+oldInstrInfoHash=$(sha1sum ./primate-compiler-gen/PrimateInstrInfo.td)
+oldSchedPrimateHash=$(sha1sum ./primate-compiler-gen/PrimateSchedPrimate.td)
+oldScheduleHash=$(sha1sum ./primate-compiler-gen/PrimateSchedule.td)
+
 ${COMPILER_DIR}/archgen2tablegen.py ${CUR_DIR}/hw/bfu_list.txt ${CUR_DIR}/hw/primate.cfg
-cp ./primate-compiler-gen/IntrinsicsPrimate.td ${COMPILER_DIR}/llvm/include/llvm/IR/IntrinsicsPrimate.td
-cp ./primate-compiler-gen/PrimateInstrInfo.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateInstrInfo.td
-cp ./primate-compiler-gen/PrimateSchedPrimate.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateSchedPrimate.td
-cp ./primate-compiler-gen/PrimateSchedule.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateSchedule.td
+
+newIntrinsicsHash=$(sha1sum ./primate-compiler-gen/IntrinsicsPrimate.td)
+newInstrInfoHash=$(sha1sum ./primate-compiler-gen/PrimateInstrInfo.td)
+newSchedPrimateHash=$(sha1sum ./primate-compiler-gen/PrimateSchedPrimate.td)
+newScheduleHash=$(sha1sum ./primate-compiler-gen/PrimateSchedule.td)
+
+if [ "${oldInstrInfoHash}" != "${newInstrInfoHash}" -o "${oldScheduleHash}" != "${newScheduleHash}" -o "${oldIntrinsicsHash}" != "${newIntrinsicsHash}" -o "${oldSchedPrimateHash}" != "${newSchedPrimateHash}" ]; then
+    echo "Tablegen files have changed. Please update the compiler."
+    cp ./primate-compiler-gen/IntrinsicsPrimate.td ${COMPILER_DIR}/llvm/include/llvm/IR/IntrinsicsPrimate.td
+    cp ./primate-compiler-gen/PrimateInstrInfo.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateInstrInfo.td
+    cp ./primate-compiler-gen/PrimateSchedPrimate.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateSchedPrimate.td
+    cp ./primate-compiler-gen/PrimateSchedule.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateSchedule.td
+else 
+    echo "Tablegen files have not changed." 
+fi
 
 # make compiler
 ninja -C ${COMPILER_DIR}/build
-# generate sidefiles required
-${COMPILER_DIR}/build/bin/clang++ -I/lib/gcc/x86_64-linux-gnu/9/include/ -O3 -mllvm -debug --target=primate32-linux-gnu -march=pr32i -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
+# generate side files required
+${COMPILER_DIR}/build/bin/clang++ -I/lib/gcc/x86_64-linux-gnu/9/include/ -O3  -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
 ${COMPILER_DIR}/build/bin/llvm-objdump -dr primate_pgm.o > primate_pgm_text
 ${COMPILER_DIR}/build/bin/llvm-objdump -t primate_pgm.o > primate_pgm_sym
 ${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ./primate_pgm.bin

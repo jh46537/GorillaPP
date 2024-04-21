@@ -13,12 +13,13 @@ rm:
 	rm -f ../src/main/scala/*.scala
 	cp ../src/main/scala/run.scala.orig ../src/main/scala/run.scala
 	cp ../Gorilla++/* ../src/main/scala/
+	rm verilator || true
  
 verilog:
 	cd $(basedir); $(SBT) clean && $(SBT) run
 
-verilator:
-	cd $(basedir); $(SBT) "test:runMain TopMain --backend-name verilator" | tee emulator/$@
+verilator: verilator_reset ../primate_pgm.bin
+	cd $(basedir); $(SBT) "test:runMain TopMain --backend-name verilator --full-stacktrace" | tee emulator/$@
 
 $(prjs): %: $(basedir)/src/main/scala/%.scala
 	@#cd $(basedir); $(SBT) "project KmeansAndMesh" "run $@ $(SBTARGS)"
