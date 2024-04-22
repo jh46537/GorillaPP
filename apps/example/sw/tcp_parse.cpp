@@ -1,5 +1,6 @@
 #include <stdint.h>
-#include "primate-hardware.h"
+#include "../../common/primate-hardware.hpp"
+#include "tcp_parse.h"
 
 void primate_main() {
     ethernet_t eth;

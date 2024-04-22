@@ -18,7 +18,7 @@ rm:
 verilog:
 	cd $(basedir); $(SBT) clean && $(SBT) run
 
-verilator: verilator_reset ../primate_pgm.bin
+verilator: ../primate_pgm.bin
 	cd $(basedir); $(SBT) "test:runMain TopMain --backend-name verilator --full-stacktrace" | tee emulator/$@
 
 $(prjs): %: $(basedir)/src/main/scala/%.scala

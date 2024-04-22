@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# ================================================
+# =          Set Up Some Useful Variables        =
+# ================================================
 set -o xtrace
 
 TARGET=tcp_parse
@@ -14,9 +17,14 @@ cd $UARCH_DIR/compiler/engineCompiler/multiThread/
 make clean && make
 cd $UARCH_DIR/apps/common/build/
 make clean && make
+
+# ================================================
+# =   Run Arch-gen to get primate parameters     =
+# ================================================
+# --target=riscv32-linux-gnu -march=rv32i
 cd $CUR_DIR/sw
 ninja -C $LLVM_DIR/build
-$LLVM_DIR/build/bin/clang -emit-llvm -S -O3 --target=riscv32-linux-gnu -march=rv32i "${TARGET}.cpp" -o "${TARGET}.ll"
+$LLVM_DIR/build/bin/clang -emit-llvm -S -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
 $LLVM_DIR/build/bin/opt -enable-new-pm=0 -load $LLVM_DIR/build/lib/LLVMPrimate.so -debug -primate < "${TARGET}.ll" > /dev/null 2> arch-gen.log
 cp primate.cfg $CUR_DIR/hw
 mv primate.cfg $CHISEL_SRC_DIR/main/scala/
@@ -27,6 +35,11 @@ make clean && make
 cd $CUR_DIR/sw
 
 echo "done with archgen..."
+
+# ================================================
+# =       Generate Primate Compiler              =
+# ================================================
+
 cp ${CUR_DIR}/hw/primate.cfg .
 
 oldIntrinsicsHash=$(sha1sum ./primate-compiler-gen/IntrinsicsPrimate.td)
@@ -61,6 +74,10 @@ ${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ./primate_pgm.bi
 # $UARCH_DIR/apps/scripts/primate_assembler "${TARGET}.s" primate_pgm.bin
 
 mv primate_pgm.bin $UARCH_DIR/chisel/Gorilla++/
+
+# ================================================
+# =       Create Primate.scala From Template     =
+# ================================================
 cd $CUR_DIR/hw
 cp $UARCH_DIR/templates/primate.template ./
 python3 $UARCH_DIR/apps/scripts/scm.py
