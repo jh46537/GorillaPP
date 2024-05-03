@@ -21,10 +21,10 @@ make clean && make
 # ================================================
 # =   Run Arch-gen to get primate parameters     =
 # ================================================
-# --target=riscv32-linux-gnu -march=rv32i
+# 
 cd $CUR_DIR/sw
 ninja -C $LLVM_DIR/build
-$LLVM_DIR/build/bin/clang -emit-llvm -S -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
+$LLVM_DIR/build/bin/clang -emit-llvm -S --target=riscv32-linux-gnu -march=rv32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
 $LLVM_DIR/build/bin/opt -enable-new-pm=0 -load $LLVM_DIR/build/lib/LLVMPrimate.so -debug -primate < "${TARGET}.ll" > /dev/null 2> arch-gen.log
 cp primate.cfg $CUR_DIR/hw
 mv primate.cfg $CHISEL_SRC_DIR/main/scala/
