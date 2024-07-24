@@ -9,20 +9,17 @@ class memReq(addrSize: Int, dataSize: Int) extends Bundle {
   var addr  = UInt(addrSize.W)
   var wData = UInt(dataSize.W)
 
-  override def cloneType = (new memReq(addrSize, dataSize)).asInstanceOf[this.type]
 }
 
 class memReadOnlyReq(addrSize: Int, dataSize: Int) extends Bundle {
   var addr  = UInt(addrSize.W)
 
-  override def cloneType = (new memReadOnlyReq(addrSize, dataSize)).asInstanceOf[this.type]
 }
 
 class memWriteOnlyReq(addrSize: Int, dataSize: Int) extends Bundle {
   var addr  = UInt(addrSize.W)
   var data  = UInt(dataSize.W)
 
-  override def cloneType = (new memWriteOnlyReq(addrSize, dataSize)).asInstanceOf[this.type]
 }
 
 class memReqDualAddress(addrSize: Int, dataSize: Int) extends Bundle {
@@ -31,34 +28,30 @@ class memReqDualAddress(addrSize: Int, dataSize: Int) extends Bundle {
   var wAddr = UInt(addrSize.W)
   var wData = UInt(dataSize.W)
 
-  override def cloneType = (new memReqDualAddress(addrSize, dataSize)).asInstanceOf[this.type]
 }
 
 class memRep(dataSize: Int) extends Bundle {
   var rData = UInt(dataSize.W)
 
-  override def cloneType = (new memRep(dataSize)).asInstanceOf[this.type]
 }
 
 class memReadOnlyRep(dataSize: Int) extends Bundle {
   var data  = UInt(dataSize.W)
 
-  override def cloneType = (new memReadOnlyRep(dataSize)).asInstanceOf[this.type]
 }
 
 class memWriteOnlyRep(dataSize: Int) extends Bundle {
-  override def cloneType = (new memWriteOnlyRep(dataSize)).asInstanceOf[this.type]
 }
 
-class memReq32_t          extends memReq(32, 32)          { override def cloneType = (new memReq32_t).asInstanceOf[this.type] }
-class memReq192_t         extends memReq(32, 192)         { override def cloneType = (new memReq192_t).asInstanceOf[this.type] }
-class memReadOnlyReq32_t  extends memReadOnlyReq(32, 32)  { override def cloneType = (new memReadOnlyReq32_t).asInstanceOf[this.type] }
-class memWriteOnlyReq32_t extends memWriteOnlyReq(32, 32) { override def cloneType = (new memWriteOnlyReq32_t).asInstanceOf[this.type] }
+class memReq32_t          extends memReq(32, 32)          { }
+class memReq192_t         extends memReq(32, 192)         { }
+class memReadOnlyReq32_t  extends memReadOnlyReq(32, 32)  { }
+class memWriteOnlyReq32_t extends memWriteOnlyReq(32, 32) { }
 
-class memRep32_t          extends memRep(32)              { override def cloneType = (new memRep32_t).asInstanceOf[this.type] }
-class memRep192_t         extends memRep(192)             { override def cloneType = (new memRep192_t).asInstanceOf[this.type] }
-class memReadOnlyRep32_t  extends memReadOnlyRep(32)      { override def cloneType = (new memReadOnlyRep32_t).asInstanceOf[this.type] }
-class memWriteOnlyRep32_t extends memWriteOnlyRep(32)     { override def cloneType = (new memWriteOnlyRep32_t).asInstanceOf[this.type] }
+class memRep32_t          extends memRep(32)              { }
+class memRep192_t         extends memRep(192)             { }
+class memReadOnlyRep32_t  extends memReadOnlyRep(32)      { }
+class memWriteOnlyRep32_t extends memWriteOnlyRep(32)     { }
 
 
 object spMem {
@@ -92,7 +85,6 @@ class spMemComponent(height: Int, width: Int)
   )
   with include
 {
-  override def cloneType = (new spMemComponent(height, width)).asInstanceOf[this.type]
 
   val read::write::Nil = Enum(2)
   val tagReg = Reg(UInt((TAGWIDTH*2).W))
@@ -124,7 +116,6 @@ class rwSpMemComponent(height: Int, width: Int)
   )
   with include
 {
-  override def cloneType = (new rwSpMemComponent(height, width)).asInstanceOf[this.type]
 
   //val io = IO(new Bundle {
   //  val read = new gInOutBundle(

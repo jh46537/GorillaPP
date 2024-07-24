@@ -7,10 +7,9 @@ class pkt_buf_t(num_threads: Int) extends Bundle {
   val empty = UInt(7.W)
   val last = Bool()
 
-  override def cloneType = (new pkt_buf_t(num_threads).asInstanceOf[this.type])
 }
 
-class inOutUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends MultiIOModule {
+class inOutUnit(reg_width: Int, num_regs_lg: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
   val io = IO(new Bundle {
     val in_valid     = Input(Bool())
     val in_tag       = Input(UInt(log2Up(num_threads).W))

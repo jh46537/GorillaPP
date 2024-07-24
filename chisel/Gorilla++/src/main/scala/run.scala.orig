@@ -1,6 +1,6 @@
 import chisel3._
-import chisel3.util._
+import circt.stage.ChiselStage
 
 object TopDriver extends App {
-  chisel3.Driver.execute(args, () => new Top)
+  ChiselStage.emitSystemVerilog(new Top)
 }

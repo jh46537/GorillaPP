@@ -1,37 +1,14 @@
 import chisel3._
 import chisel3.util._
 
-class alu_bfu2(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
-  val io = IO(new Bundle {
-    val in_valid      = Input(Bool())
-    val in_alu_bfu    = Input(Bool())
-    val in_tag        = Input(UInt(tag_width.W))
-    val in_opcode     = Input(UInt(opcode_width.W))
-    val in_ready      = Output(Bool())
-    val in_rs1        = Input(UInt(reg_width.W))
-    val in_rs2        = Input(UInt(32.W))
-    val in_addEn      = Input(Bool())
-    val in_subEn      = Input(Bool())
-    val in_sltEn      = Input(Bool())
-    val in_sltuEn     = Input(Bool())
-    val in_andEn      = Input(Bool())
-    val in_orEn       = Input(Bool())
-    val in_xorEn      = Input(Bool())
-    val in_sllEn      = Input(Bool())
-    val in_srEn       = Input(Bool())
-    val in_srMode     = Input(Bool())
-    val in_luiEn      = Input(Bool())
-    val in_catEn      = Input(Bool())
-    val in_immSel     = Input(Bool())
-    val in_imm        = Input(SInt(32.W))
-    val out_valid     = Output(Bool())
-    val out_tag       = Output(UInt(tag_width.W))
-    val out_flag      = Output(UInt(32.W))
-    val out_bits      = Output(UInt(reg_width.W))
-    val out_ready     = Input(Bool())
 
-    val mem           = new gMemBundle
-  })
+class alu_bfu2(tag_width0: Int, reg_width0: Int, opcode_width0: Int, num_threads0: Int, ip_width0: Int) extends {
+   val ip_width: Int = ip_width0
+   val num_threads: Int = num_threads0
+   val opcode_width: Int = opcode_width0
+   val reg_width: Int = reg_width0
+   val tag_width: Int = tag_width0
+  } with Module with HasALUBFUInterface {
 
   val aluInst = Module(new ALU(reg_width))
   val alu_valid_d0 = RegInit(false.B)

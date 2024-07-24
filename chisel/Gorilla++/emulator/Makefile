@@ -16,10 +16,10 @@ rm:
 	rm verilator || true
  
 verilog:
-	cd $(basedir); $(SBT) clean && $(SBT) run
+	cd $(basedir); $(SBT) clean && $(SBT) test
 
 verilator: ../primate_pgm.bin
-	cd $(basedir); $(SBT) "test:runMain TopMain --backend-name verilator --full-stacktrace" | tee emulator/$@
+	cd $(basedir); $(SBT) "test:runMain VerilogMain --backend-name verilator --full-stacktrace" | tee emulator/$@
 
 $(prjs): %: $(basedir)/src/main/scala/%.scala
 	@#cd $(basedir); $(SBT) "project KmeansAndMesh" "run $@ $(SBTARGS)"
@@ -32,6 +32,6 @@ $(prj_out): %.out: $(basedir)/src/main/scala/%.scala
 	cd $(basedir); $(SBT) clean && $(SBT) test | tee emulator/$@
 
 clean: 
-	rm -f *.out *.o emulator.h *-emulator.* $(prjs) $(addsuffix .h, $(prjs)) $(addsuffix .cpp, $(prjs))
+	rm -f verilator *.out *.o emulator.h *-emulator.* $(prjs) $(addsuffix .h, $(prjs)) $(addsuffix .cpp, $(prjs))
 
 .PHONY: all clean

@@ -323,7 +323,6 @@ class ALUMicrocodes(num_alus: Int, num_src_pos_lg: Int, num_src_modes_lg: Int) e
   val immSel    = Vec(num_alus, Bool())
   val imm       = Vec(num_alus, SInt(32.W))
 
-  override def cloneType = (new ALUMicrocodes(num_alus, num_src_pos_lg, num_src_modes_lg).asInstanceOf[this.type])
 }
 
 class BRMicrocodes(num_alus: Int, num_fus: Int) extends Bundle {
@@ -333,7 +332,6 @@ class BRMicrocodes(num_alus: Int, num_fus: Int) extends Bundle {
   val rs2       = UInt(log2Up(num_alus*3+num_fus).W)
   val pcOffset  = SInt(21.W)
 
-  override def cloneType = (new BRMicrocodes(num_alus, num_fus).asInstanceOf[this.type])
 }
 
 class BFUMicrocodes(num_bfus: Int) extends Bundle {
@@ -342,7 +340,6 @@ class BFUMicrocodes(num_bfus: Int) extends Bundle {
   val rd        = Vec(num_bfus, UInt(5.W))
   val bimm      = Vec(num_bfus, UInt(12.W))
 
-  override def cloneType = (new BFUMicrocodes(num_bfus).asInstanceOf[this.type])
 }
 
 class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {

@@ -2,7 +2,6 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.Fill
 import chisel3.util.PriorityEncoder
-import chisel3.experimental.ChiselEnum
 import chisel3.util.experimental.loadMemoryFromFileInline
 
 import scala.collection.mutable.ArrayBuffer
@@ -14,15 +13,11 @@ class BFU_regfile_req_t(num_threads_lg: Int, num_regs_lg: Int) extends Bundle {
   val tag = UInt(num_threads_lg.W)
   val rdAddr1 = UInt(num_regs_lg.W)
   val rdAddr2 = UInt(num_regs_lg.W)
-
-  override def cloneType = (new BFU_regfile_req_t(num_threads_lg, num_regs_lg).asInstanceOf[this.type])
 }
 
 class BFU_regfile_rsp_t(reg_width: Int) extends Bundle {
   val rdData1 = UInt(reg_width.W)
   val rdData2 = UInt(reg_width.W)
-
-  override def cloneType = (new BFU_regfile_rsp_t(reg_width).asInstanceOf[this.type])
 }
 
 class Fetch(num: Int, ipWidth: Int, instrWidth: Int, inst_ram_size: Int) extends Module {
@@ -688,8 +683,12 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val caseFU = (0 until (NUM_FUS+3*NUM_ALUS)).map(i => (i.U -> dstPCs(i)))
   val branchU_rs1 = Wire(UInt(32.W))
   val branchU_rs2 = Wire(UInt(32.W))
-  branchU_rs1 := MuxLookup(threadMem_out.brUcodes.rs1, DontCare, caseFU)
-  branchU_rs2 := MuxLookup(threadMem_out.brUcodes.rs2, DontCare, caseFU)
+  val dc1 = Wire(UInt(32.W))
+  val dc2 = Wire(UInt(32.W))
+  dc1 := DontCare
+  dc2 := DontCare
+  branchU_rs1 := MuxLookup(threadMem_out.brUcodes.rs1, dc1)(caseFU)
+  branchU_rs2 := MuxLookup(threadMem_out.brUcodes.rs2, dc2)(caseFU)
   branchU.io.brValid := threadValid && brUcodes_wb.brValid
   branchU.io.rs1 := branchU_rs1.asSInt
   branchU.io.rs2 := branchU_rs2.asSInt

@@ -1,6 +1,6 @@
 import chisel3._
 import chisel3.util._
-import chisel3.iotesters.PeekPokeTester
+import chisel3.simulator.EphemeralSimulator._
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
@@ -26,7 +26,7 @@ class gPipe[T <: Data](latency: Int = 1)
   io.in.ready := io.out.ready
 }
 
-class gTester[T <: Module](c: T) extends PeekPokeTester[T](c) {
+class gTester[T <: Module](c: T) {
   def PCReport(cycles: Int, dataElements: Int) = {
     println("PCREPORT: throughput " +
      "%.4f".format(dataElements.intValue.toDouble/
@@ -41,47 +41,47 @@ class gTester[T <: Module](c: T) extends PeekPokeTester[T](c) {
 
   def resetPC() = {
     val io = c.asInstanceOf[Top].io
-    poke(io.in.valid, false.B)
-    poke(io.pcIn.valid, true.B)
-    poke(io.pcIn.bits.request, true.B)
-    poke(io.pcIn.bits.pcType, Pcounters.pcReset)
-    step(1)
+    io.in.valid.poke(false.B)
+    io.pcIn.valid.poke(true.B)
+    io.pcIn.bits.request.poke(true.B)
+    io.pcIn.bits.pcType.poke(Pcounters.pcReset)
+    c.clock.step(1)
     poke(io.pcIn.valid, false.B)
-    while(peek(io.pcOut.valid) == 0) {
-      step(1)
+    while(io.pcOut.valid.peek() == 0) {
+      c.clock.step(1)
     }
     println("PCREPORT: Performance counter reset received")
   }
 
   def pausePC() = {
     val io = c.asInstanceOf[Top].io
-    poke(io.pcIn.valid, true.B)
-    poke(io.pcIn.bits.request, true.B)
-    poke(io.pcIn.bits.pcType, Pcounters.pcPause)
-    poke(io.pcIn.bits.moduleId, 0.U)
-    poke(io.pcIn.bits.portId, 0.U)
-    step(1)
-    poke(io.pcIn.valid, false.B)
-    while(peek(io.pcOut.valid) == 0) {
-      step(1)
+    io.pcIn.valid.poke(true.B)
+    io.pcIn.bits.request.poke(true.B)
+    io.pcIn.bits.pcType.poke(Pcounters.pcPause)
+    io.pcIn.bits.moduleId.poke(0.U)
+    io.pcIn.bits.portId.poke(0.U)
+    c.clock.step(1)
+    io.pcIn.valid.poke(false.B)
+    while(io.pcOut.valid.peek() == 0) {
+      c.clock.step(1)
     }
     println("PCREPORT: Performance counter pause ack received")
   }
 
   def getBackPressure(moduleId: Int, portId: Int): Int = {
       val io = c.asInstanceOf[Top].io
-      step(1)
-      poke(io.pcIn.valid, true.B)
-      poke(io.pcIn.bits.request, true.B)
-      poke(io.pcIn.bits.pcType, Pcounters.backPressure)
-      poke(io.pcIn.bits.moduleId, moduleId.U)
-      poke(io.pcIn.bits.portId, portId.U)
-      step(1)
-      poke(io.pcIn.valid, false.B)
-      while(peek(io.pcOut.valid) == 0) {
-        step(1)
+      c.clock.step(1)
+      io.pcIn.valid.poke(true.B)
+      io.pcIn.bits.request.poke(true.B)
+      io.pcIn.bits.pcType.poke(Pcounters.backPressure)
+      io.pcIn.bits.moduleId.poke(moduleId.U)
+      io.pcIn.bits.portId.poke(portId.U)
+      c.clock.step(1)
+      io.pcIn.valid.poke(false.B)
+      while(io.pcOut.valid.peek() == 0) {
+        c.clock.step(1)
       }
-    peek(io.pcOut.bits.pcValue).toInt
+    io.pcOut.bits.pcValue.peek().litValue.toInt
   }
 
   def getBackPressures(cycles: Int) = {
@@ -109,20 +109,20 @@ class gTester[T <: Module](c: T) extends PeekPokeTester[T](c) {
    pcType: UInt) {
     val io = c.asInstanceOf[Top].io
     for ((name, id) <- Pcounters.moduleIDs) {
-      step(1)
-      poke(io.pcIn.valid, true.B)
-      poke(io.pcIn.bits.request, true.B)
-      poke(io.pcIn.bits.pcType, pcType)
-      poke(io.pcIn.bits.moduleId, id.U)
-      poke(io.pcIn.bits.portId, 0.U) // doesn't matter
-      step(1)
-      poke(io.pcIn.valid, false.B)
-      while(peek(io.pcOut.valid) == 0) {
-        step(1)
+      c.clock.step(1)
+      io.pcIn.valid.poke(true.B)
+      io.pcIn.bits.request.poke(true.B)
+      io.pcIn.bits.pcType.poke(pcType)
+      io.pcIn.bits.moduleId.poke(id.U)
+      io.pcIn.bits.portId.poke(0.U) // doesn't matter
+      c.clock.step(1)
+      io.pcIn.valid.poke(false.B)
+      while(io.pcOut.valid.peek() == 0) {
+        c.clock.step(1)
       }
       println("PCREPORT: " + pcName + " " +  name + " received " +
-       "%.4f".format(peek(io.pcOut.bits.pcValue).toDouble / cycles.toDouble))
-      step(1)
+       "%.4f".format(io.pcOut.bits.pcValue.peek().litValue.toInt.toDouble / cycles.toDouble))
+      c.clock.step(1)
     }
   }
 

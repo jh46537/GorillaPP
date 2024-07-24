@@ -58,8 +58,10 @@ class Gather(reg_width: Int, num_src_pos: Int, src_pos: Array[Int],
 
   din_d1 := din_d0
   mode_d1 := mode_d0
+  val dc = Wire(UInt(max_out_width.W))
+  dc := DontCare
   val cases = (0 until num_muxes).map( x => x.U -> reg0(x))
-  reg1 := MuxLookup(shift_d0, DontCare, cases)
+  reg1 := MuxLookup(shift_d0, dc)(cases)
 
   val reg2 = Reg(UInt(max_out_width.W))
   val din_d2 = Reg(UInt(reg_width.W))
@@ -68,7 +70,9 @@ class Gather(reg_width: Int, num_src_pos: Int, src_pos: Array[Int],
   mode_d2 := mode_d1
 
   val cases2 = (0 until num_modes).map( x => x.U -> reg1(src_mode(x)-1, 0))
-  reg2 := MuxLookup(mode_d1, DontCare, cases2)
+  val dc2 = Wire(UInt(max_out_width.W))
+  dc2 := DontCare
+  reg2 := MuxLookup(mode_d1, dc2)(cases2)
   if (max_out_width < reg_width) {
     io.dout := Cat(din_d2(reg_width-1, max_out_width), reg2)
   } else {

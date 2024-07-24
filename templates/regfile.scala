@@ -2,7 +2,6 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.Fill
 import chisel3.util.PriorityEncoder
-import chisel3.experimental.ChiselEnum
 
 class Regfile(num: Int, width: Int, num_blocks: Int, block_widths: Array[Int]) extends Module {
   val io = IO(new Bundle {

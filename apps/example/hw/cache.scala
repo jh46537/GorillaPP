@@ -6,7 +6,6 @@ class cache_t(tag_width: Int, value_width: Int) extends Bundle {
   val tag   = UInt(tag_width.W)
   val value = UInt(value_width.W)
 
-  override def cloneType = (new cache_t(tag_width, value_width).asInstanceOf[this.type])
 }
 
 class cache(num_entries: Int, tag_width: Int, value_width: Int, associativity: Int) extends Module {
