@@ -2,11 +2,12 @@
 
 lazy val commonSettings = Seq(
   organization := "",
-  scalaVersion := "2.13.12",
-  crossScalaVersions := Seq("2.13.12")
+  scalaVersion := "2.13.14",
+  crossScalaVersions := Seq("2.13.14")
 )
 
-val chiselVersion = "6.5.0"
+// val chiselVersion = "6.5.0"
+val chiselVersion = "6.4.3-tywaves-SNAPSHOT+0-a713fdaf+20240829-1909-SNAPSHOT"
 
 lazy val chiseltestSettings = Seq(
   name := "chiseltest",
@@ -22,6 +23,7 @@ lazy val chiseltestSettings = Seq(
   libraryDependencies ++= Seq(
     "org.chipsalliance" %% "chisel" % chiselVersion,
     "org.scalatest" %% "scalatest" % "3.2.17",
+    "com.github.rameloni" %% "tywaves-chisel-api" % "0.4.1-SNAPSHOT"
   ),
   addCompilerPlugin("org.chipsalliance" % "chisel-plugin" % chiselVersion cross CrossVersion.full),
   resolvers ++= Resolver.sonatypeOssRepos("snapshots"),

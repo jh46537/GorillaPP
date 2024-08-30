@@ -4,6 +4,7 @@
 # =          Set Up Some Useful Variables        =
 # ================================================
 set -o xtrace
+set -e
 
 TARGET=tcp_parse
 CUR_DIR=$(pwd)
@@ -14,10 +15,10 @@ LLVM_DIR=$PRIMATE_DIR/primate-arch-gen
 COMPILER_DIR=$PRIMATE_DIR/primate-compiler
 UARCH_DIR=$PRIMATE_DIR/primate-uarch
 CHISEL_SRC_DIR=$UARCH_DIR/chisel/Gorilla++/src
-cd $UARCH_DIR/compiler/engineCompiler/multiThread/
-make clean && make
-cd $UARCH_DIR/apps/common/build/
-make clean && make
+# cd $UARCH_DIR/compiler/engineCompiler/multiThread/
+# make clean && make
+# cd $UARCH_DIR/apps/common/build/
+# make clean && make
 echo "done with gorilla++ building"
 echo $(pwd)
 # ================================================
@@ -25,9 +26,9 @@ echo $(pwd)
 # ================================================
 # 
 cd $CUR_DIR/sw
-# ninja -C $LLVM_DIR/build
-# $LLVM_DIR/build/bin/clang -emit-llvm -S --target=riscv32-linux-gnu -march=rv32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
-# $LLVM_DIR/build/bin/opt -enable-new-pm=0 -load $LLVM_DIR/build/lib/LLVMPrimate.so -debug -primate < "${TARGET}.ll" > /dev/null 2> arch-gen.log
+ninja -C $LLVM_DIR/build
+$LLVM_DIR/build/bin/clang -emit-llvm -S --target=riscv32-linux-gnu -march=rv32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
+$LLVM_DIR/build/bin/opt -enable-new-pm=0 -load $LLVM_DIR/build/lib/LLVMPrimate.so -debug -primate < "${TARGET}.ll" > /dev/null 2> arch-gen.log
 cp primate.cfg $CUR_DIR/hw
 mv primate.cfg $CHISEL_SRC_DIR/main/scala/
 # cp input.txt $UARCH_DIR/chisel/Gorilla++/

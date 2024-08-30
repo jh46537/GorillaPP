@@ -1,4 +1,3 @@
-#include <stdint.h>
 #include "../../common/primate-hardware.hpp"
 #include "tcp_parse.h"
 

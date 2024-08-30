@@ -46,7 +46,7 @@ class gTester[T <: Module](c: T) {
     io.pcIn.bits.request.poke(true.B)
     io.pcIn.bits.pcType.poke(Pcounters.pcReset)
     c.clock.step(1)
-    poke(io.pcIn.valid, false.B)
+    io.pcIn.valid.poke(false.B)
     while(io.pcOut.valid.peek() == 0) {
       c.clock.step(1)
     }
@@ -91,7 +91,7 @@ class gTester[T <: Module](c: T) {
       println("PCREPORT: input back pressure " +  name + " received " + "%.4f".format(
         getBackPressure(id, 1).toDouble/cycles.toDouble)
       )
-      step(1)
+      c.clock.step(1)
       //Output backPressure
       println("PCREPORT: output back pressure " +  name + " received " + "%.4f".format(
         getBackPressure(id, 2).toDouble/cycles.toDouble)

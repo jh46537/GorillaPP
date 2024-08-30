@@ -14,12 +14,13 @@ rm:
 	cp ../src/main/scala/run.scala.orig ../src/main/scala/run.scala
 	cp ../Gorilla++/* ../src/main/scala/
 	rm verilator || true
- 
+
 verilog:
 	cd $(basedir); $(SBT) clean && $(SBT) test
 
 verilator: ../primate_pgm.bin
-	cd $(basedir); $(SBT) "test:runMain VerilogMain --backend-name verilator --full-stacktrace" | tee emulator/$@
+	cd $(basedir); $(SBT) "testOnly TopSimTester" | tee ./verilator.log
+	cp ../test_run_dir/Top/TywavesSimulator/Primate_Sim/primateWorkdir/trace.vcd .
 
 $(prjs): %: $(basedir)/src/main/scala/%.scala
 	@#cd $(basedir); $(SBT) "project KmeansAndMesh" "run $@ $(SBTARGS)"
@@ -34,4 +35,4 @@ $(prj_out): %.out: $(basedir)/src/main/scala/%.scala
 clean: 
 	rm -f verilator *.out *.o emulator.h *-emulator.* $(prjs) $(addsuffix .h, $(prjs)) $(addsuffix .cpp, $(prjs))
 
-.PHONY: all clean
+.PHONY: all clean verilator

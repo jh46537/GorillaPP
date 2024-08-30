@@ -1,4 +1,4 @@
-import chisel3.iotesters.PeekPokeTester
+import chisel3.simulator.EphemeralSimulator._
 import org.scalatest._
 import flatspec._
 import matchers.should._
@@ -19,27 +19,27 @@ class TopTests(c: Top) extends gTester[Top](c) {
 
   //Spin for a while without any test input
   for (time <- 0 until 5) {
-    poke(c.io.in.valid, false.B)
-    poke(c.io.in.last, true.B)
-    poke(c.io.pcIn.valid, false.B)
-    poke(c.io.pcIn.bits.pcType, Pcounters.pcReset)
-    poke(c.io.pcIn.bits.moduleId, (0).U)
-    poke(c.io.pcIn.bits.portId, (0).U)
-    step(1)
+    c.io.in.valid.poke(false.B)
+    c.io.in.last.poke(true.B)
+    c.io.pcIn.valid.poke(false.B)
+    c.io.pcIn.bits.pcType.poke(Pcounters.pcReset)
+    c.io.pcIn.bits.moduleId.poke((0).U)
+    c.io.pcIn.bits.portId.poke((0).U)
+    c.clock.step(1)
   }
 
   //Reset the PC Ring
-  poke(c.io.pcIn.valid, true.B)
-  poke(c.io.pcIn.bits.request, true.B)
-  poke(c.io.pcIn.bits.pcType, Pcounters.pcReset)
-  step(1)
-  poke(c.io.pcIn.valid, false.B)
-  while(peek(c.io.pcOut.valid) == 0) {
-    step(1)
+  c.io.pcIn.valid.poke(true.B)
+  c.io.pcIn.bits.request.poke(true.B)
+  c.io.pcIn.bits.pcType.poke(Pcounters.pcReset)
+  c.clock.step(1)
+  c.io.pcIn.valid.poke(false.B)
+  while(c.io.pcOut.valid.peek() == 0) {
+    c.clock.step(1)
   }
   println("PCREPORT: Performance counter reset received")
   for (time <- 0 until 512) {
-    step(1)
+    c.clock.step(1)
   }
   //Actual tests
   var sourced = 0
@@ -64,22 +64,22 @@ class TopTests(c: Top) extends gTester[Top](c) {
     val empty = BigInt(line(1), 16)
     val last = BigInt(line(0))
     if (sourced < numOfInputs) {
-      poke(c.io.in.bits.data, data.U)
-      poke(c.io.in.bits.empty, empty.U)
-      poke(c.io.in.last, last.U.asBool)
-      poke(c.io.in.valid, true.B)
-      poke(c.io.out.ready, true.B)
+      c.io.in.bits.data.poke(data.U)
+//      c.io.in.bits.empty.poke(empty.U)
+      c.io.in.last.poke(last.U.asBool)
+      c.io.in.valid.poke(true.B)
+      c.io.out.ready.poke(true.B)
     } else {
-      poke(c.io.in.valid, false.B)
-      poke(c.io.in.last, true.B)
-      poke(c.io.out.ready, true.B)
+      c.io.in.valid.poke(false.B)
+      c.io.in.last.poke(true.B)
+      c.io.out.ready.poke(true.B)
     }
 
     // Memory
-    poke(c.io.mem.waitrequest, false.B)
-    if (peek(c.io.mem.read) == 1) {
+    c.io.mem.waitrequest.poke(false.B)
+    if (c.io.mem.read.peek() == 1) {
       memReqBuf_time(memReqPtr) = cycles + memDelay
-      memReqBuf_addr(memReqPtr) = peek(c.io.mem.mem_addr).toInt
+      memReqBuf_addr(memReqPtr) = c.io.mem.mem_addr.peek().litValue.toInt
       if (memReqPtr == 1023) {
         memReqPtr = 0
       } else {
@@ -90,28 +90,28 @@ class TopTests(c: Top) extends gTester[Top](c) {
       println("mem response: cycles: " + cycles + ", time: " + memReqBuf_time(memRspPtr) + ", ptr: " + memRspPtr)
       val memReqAddr = memReqBuf_addr(memRspPtr) >> 6
       val mem_res = BigInt(mem(memReqAddr), 16)
-      poke(c.io.mem.readdatavalid, true.B)
-      poke(c.io.mem.readdata, mem_res.U)
+      c.io.mem.readdatavalid.poke(true.B)
+      c.io.mem.readdata.poke(mem_res.U)
       if (memRspPtr == 1023) {
         memRspPtr = 0
       } else {
         memRspPtr = memRspPtr + 1
       }
     } else {
-      poke(c.io.mem.readdatavalid, false.B)
+      c.io.mem.readdatavalid.poke(false.B)
     }
 
     // Generate packets
 
-    if (peek(c.io.in.ready) == 1 && (sourced < numOfInputs)) {
+    if (c.io.in.ready.peek() == 1 && (sourced < numOfInputs)) {
       sourcedIndex += 1
     //   println("sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
     }
-    if (peek(c.io.in.ready) == 1 && peek(c.io.in.last) == 1 && (sourced < numOfInputs)) {
+    if (c.io.in.ready.peek() == 1 && c.io.in.last.peek() == 1 && (sourced < numOfInputs)) {
       sourced += 1
     //   println("sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
     }
-    if (peek(c.io.out.valid) == 1 && peek(c.io.out.last) == 1) {
+    if (c.io.out.valid.peek() == 1 && c.io.out.last.peek() == 1) {
     //   //When multi-threading or replication is used order of outputs are not preserved.
     //   //Otherwise, we can check the values
     //   //allPassed = allPassed && (peek(c.io.out.bits) == (inputData(sinkedIndex) + 2))
@@ -127,34 +127,34 @@ class TopTests(c: Top) extends gTester[Top](c) {
       sinked += 1
     //   sinkedIndex = sinked % inputData.length
     }
-    step(1)
+    c.clock.step(1)
     cycles += 1
   }
-  poke(c.io.in.valid, false.B)
-  poke(c.io.in.last, true.B)
-  step(1)
+  c.io.in.valid.poke(false.B)
+  c.io.in.last.poke(true.B)
+  c.clock.step(1)
 
   val UsePCReport = true
   if (!UsePCReport) {
     // Inquire the back pressure through the PC ring
-    poke(c.io.pcIn.valid, true.B)
-    poke(c.io.pcIn.bits.request, true.B)
-    poke(c.io.pcIn.bits.pcType, Pcounters.backPressure)
-    poke(c.io.pcIn.bits.moduleId, (3).U) //incthrough module Replicated
-    poke(c.io.pcIn.bits.portId, (1).U) //Input port
-    step(1)
-    poke(c.io.pcIn.valid, false.B)
-    while(peek(c.io.pcOut.valid) == 0) {
-      step(1)
+    c.io.pcIn.valid.poke(true.B)
+    c.io.pcIn.bits.request.poke(true.B)
+    c.io.pcIn.bits.pcType.poke(Pcounters.backPressure)
+    c.io.pcIn.bits.moduleId.poke((3).U) //incthrough module Replicated
+    c.io.pcIn.bits.portId.poke((1).U) //Input port
+    c.clock.step(1)
+    c.io.pcIn.valid.poke(false.B)
+    while(c.io.pcOut.valid.peek() == 0) {
+      c.clock.step(1)
     }
-    println("PCREPORT: back pressure received " + peek(c.io.pcOut.bits.pcValue))
+    println("PCREPORT: back pressure received " + c.io.pcOut.bits.pcValue.peek())
     println("cycles: " + cycles)
   } else {
     PCReport(cycles, numOfInputs)
   }
-  step(1)
+  c.clock.step(1)
 
-  expect(allPassed.B, true.B)
+  assert(allPassed.B)
 
   // fileSource.close
   
