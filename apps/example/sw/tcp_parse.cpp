@@ -1,6 +1,6 @@
-#include <stdint.h>
 #include "../../common/primate-hardware.hpp"
 #include "tcp_parse.h"
+
 
 void primate_main() {
     ethernet_t eth;
@@ -30,13 +30,11 @@ void primate_main() {
                         PRIMATE::output<unsigned _ExtInt(8)>(tcp_option);
                         int i = 0;
                         unsigned _ExtInt(128) padding;
-                        while (hdr_byte_left > 16) {
+                        while (hdr_byte_left > 0) {
                             padding = PRIMATE::input<unsigned _ExtInt(128)>();
                             PRIMATE::output<unsigned _ExtInt(128)>(padding);
                             hdr_byte_left -= 16;
                         }
-                        padding = PRIMATE::input<unsigned _ExtInt(128)>(16);
-                        PRIMATE::output<unsigned _ExtInt(128)>(padding);
                         break;
                     } else if (kind == 1) {
                         // nop
@@ -54,6 +52,6 @@ void primate_main() {
         }
     }
     PRIMATE::input_done();
-    PRIMATE::output_done();
+    //    PRIMATE::output_done();
 
 }

@@ -1,5 +1,6 @@
-#include <stdint.h>
-
+typedef unsigned _ExtInt(16) uint16_t;
+typedef unsigned _ExtInt(8)  uint8_t;
+typedef unsigned _ExtInt(32) uint32_t;
 typedef uint32_t ip4Addr_t;
 typedef _ExtInt(16) egressSpec_t;
 typedef _ExtInt(48) macAddr_t;

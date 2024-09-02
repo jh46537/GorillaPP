@@ -4,6 +4,7 @@
 # =          Set Up Some Useful Variables        =
 # ================================================
 set -o xtrace
+set -e
 
 TARGET=tcp_parse
 CUR_DIR=$(pwd)
@@ -13,10 +14,6 @@ LLVM_DIR=$PRIMATE_DIR/primate-arch-gen
 COMPILER_DIR=$PRIMATE_DIR/primate-compiler
 UARCH_DIR=$PRIMATE_DIR/primate-uarch
 CHISEL_SRC_DIR=$UARCH_DIR/chisel/Gorilla++/src
-cd $UARCH_DIR/compiler/engineCompiler/multiThread/
-make clean && make
-cd $UARCH_DIR/apps/common/build/
-make clean && make
 
 # ================================================
 # =   Run Arch-gen to get primate parameters     =
@@ -39,6 +36,11 @@ echo "done with archgen..."
 # ================================================
 # =       Generate Primate Compiler              =
 # ================================================
+
+touch ./primate-compiler-gen/IntrinsicsPrimate.td
+touch ./primate-compiler-gen/PrimateInstrInfo.td
+touch ./primate-compiler-gen/PrimateSchedPrimate.td
+touch ./primate-compiler-gen/PrimateSchedule.td
 
 cp ${CUR_DIR}/hw/primate.cfg .
 
