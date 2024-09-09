@@ -1,3 +1,4 @@
+#define _BitInt(x) _ExtInt(x) 
 typedef unsigned _ExtInt(16) uint16_t;
 typedef unsigned _ExtInt(8)  uint8_t;
 typedef unsigned _ExtInt(32) uint32_t;
@@ -33,7 +34,8 @@ typedef struct
 
 typedef struct
 {
-    _ExtInt(256) padding;
+  _BitInt(128) padding1;
+  _BitInt(128) padding2;
 } padding_t;
 
 typedef struct

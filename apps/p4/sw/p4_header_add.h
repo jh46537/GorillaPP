@@ -1,5 +1,5 @@
-#include <stdint.h>
 
+typedef unsigned _ExtInt(16) uint16_t;
 typedef _ExtInt(9) egressSpec_t;
 typedef _ExtInt(48) macAddr_t;
 
@@ -41,4 +41,9 @@ typedef struct standard_metadata_t
 {
     egressSpec_t egress_spec;
     uint16_t mcast_grp;
+};
+
+typedef struct forward_data_t {
+  macAddr_t address;
+  egressSpec_t port;
 };

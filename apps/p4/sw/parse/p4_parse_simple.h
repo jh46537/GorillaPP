@@ -1,8 +1,18 @@
-#include <stdint.h>
 
+typedef unsigned _ExtInt(16) uint16_t;
+typedef unsigned _ExtInt(32) uint32_t;
+typedef unsigned _ExtInt(8) uint8_t;
 typedef _ExtInt(16) egressSpec_t;
 typedef _ExtInt(48) macAddr_t;
 typedef uint32_t ip4Addr_t;
+
+typedef struct {
+  macAddr_t dstAddr;
+  egressSpec_t port;
+} forward_exact_t;
+typedef struct {
+  uint32_t flag;
+} forward_result_t;
 
 typedef struct
 {
@@ -10,25 +20,6 @@ typedef struct
     macAddr_t srcAddr;
     uint16_t  etherType;
 } ethernet_t;
-
-// typedef struct ptp_t
-// {
-//     _ExtInt(4)  transportSpecific;
-//     _ExtInt(4)  messageType;
-//     _ExtInt(4)  reserved;
-//     _ExtInt(4)  versionPTP;
-//     uint16_t    messageLength;
-//     uint8_t     domainNumber;
-//     uint8_t     reserved2;
-//     uint16_t    flags;
-//     uint64_t    correction;
-//     uint32_t    reserved3;
-//     _ExtInt(80) sourcePortIdentity;
-//     uint16_t    sequenceId;
-//     uint8_t     PTPcontrol;
-//     uint8_t     logMessagePeriod;
-//     _ExtInt(80) originTimestamp;
-// };
 
 typedef struct
 {
@@ -39,7 +30,8 @@ typedef struct
 
 typedef struct
 {
-    _ExtInt(192) sourcePortIdentity_originTimestamp;
+  _ExtInt(128) sourcePortIdentity;
+  _ExtInt(64) originTimestamp;
 } ptp_h_t;
 
 typedef struct

@@ -43,6 +43,7 @@ touch ./primate-compiler-gen/PrimateSchedPrimate.td
 touch ./primate-compiler-gen/PrimateSchedule.td
 
 cp ${CUR_DIR}/hw/primate.cfg .
+cp ${CUR_DIR}/hw/bfu_list.txt .
 
 oldIntrinsicsHash=$(sha1sum ./primate-compiler-gen/IntrinsicsPrimate.td)
 oldInstrInfoHash=$(sha1sum ./primate-compiler-gen/PrimateInstrInfo.td)
@@ -69,7 +70,7 @@ fi
 # make compiler
 ninja -C ${COMPILER_DIR}/build
 # generate side files required
-${COMPILER_DIR}/build/bin/clang++ -I/lib/gcc/x86_64-linux-gnu/9/include/ -O3  -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
+${COMPILER_DIR}/build/bin/clang++ -O3  -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
 ${COMPILER_DIR}/build/bin/llvm-objdump -dr primate_pgm.o > primate_pgm_text
 ${COMPILER_DIR}/build/bin/llvm-objdump -t primate_pgm.o > primate_pgm_sym
 ${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ./primate_pgm.bin
