@@ -13,7 +13,7 @@
 #Module=cache
 #Module=multiProtocolEngine
 #Module=config
-Module=adder
+Module=primate
 #Module=pageRank
 Source=./$(Module).c
 #Source=./$(Module).h
