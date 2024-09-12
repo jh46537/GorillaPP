@@ -15,6 +15,13 @@ COMPILER_DIR=$PRIMATE_DIR/primate-compiler
 UARCH_DIR=$PRIMATE_DIR/primate-uarch
 CHISEL_SRC_DIR=$UARCH_DIR/chisel/Gorilla++/src
 
+##### Hack alert. This just copies some files into their home
+##### I could just find those files but time.
+cd $UARCH_DIR/compiler/engineCompiler/multiThread/
+make clean && make || true
+cd $UARCH_DIR/apps/common/build/
+make clean && make || true
+
 # ================================================
 # =   Run Arch-gen to get primate parameters     =
 # ================================================
@@ -73,7 +80,7 @@ ninja -C ${COMPILER_DIR}/build
 ${COMPILER_DIR}/build/bin/clang++ -O3  -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
 ${COMPILER_DIR}/build/bin/llvm-objdump -dr primate_pgm.o > primate_pgm_text
 ${COMPILER_DIR}/build/bin/llvm-objdump -t primate_pgm.o > primate_pgm_sym
-${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ./primate_pgm.bin
+${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ${CUR_DIR}/hw/primate.cfg ./primate_pgm.bin
 # $UARCH_DIR/apps/scripts/primate_assembler "${TARGET}.s" primate_pgm.bin
 
 mv primate_pgm.bin $UARCH_DIR/chisel/Gorilla++/

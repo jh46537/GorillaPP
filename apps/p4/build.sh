@@ -15,6 +15,13 @@ COMPILER_DIR=$PRIMATE_DIR/primate-compiler
 UARCH_DIR=$PRIMATE_DIR/primate-uarch
 CHISEL_SRC_DIR=$UARCH_DIR/chisel/Gorilla++/src
 
+##### Hack alert. This just copies some files into their home
+##### I could just find those files but time.
+cd $UARCH_DIR/compiler/engineCompiler/multiThread/
+make clean && make || true
+cd $UARCH_DIR/apps/common/build/
+make clean && make || true
+
 # ================================================
 # =   Run Arch-gen to get primate parameters     =
 # ================================================
@@ -39,6 +46,7 @@ echo "done with archgen..."
 # =       Generate Primate Compiler              =
 # ================================================
 
+mkdir -p ./primate-compiler-gen
 touch ./primate-compiler-gen/IntrinsicsPrimate.td
 touch ./primate-compiler-gen/PrimateInstrInfo.td
 touch ./primate-compiler-gen/PrimateSchedPrimate.td
@@ -88,6 +96,7 @@ echo "Done primate program built"
 cd $CUR_DIR/hw
 cp $UARCH_DIR/templates/primate.template ./
 python3 $UARCH_DIR/apps/scripts/scm.py
+cp ${UARCH_DIR}/apps/lib/*.scala $CHISEL_SRC_DIR/main/scala/
 cp header.scala $CHISEL_SRC_DIR/main/scala/
 cp alu_bfu0.scala $CHISEL_SRC_DIR/main/scala/
 cp alu_bfu1.scala $CHISEL_SRC_DIR/main/scala/

@@ -57,7 +57,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val NUM_THREADS = knobs.apply("NUM_THREADS").toInt
   val REG_WIDTH = knobs.apply("REG_WIDTH").toInt
   val NUM_REGS = knobs.apply("NUM_REGS").toInt
-  val NUM_BFUS = knobs.apply("NUM_BFUS").toInt
+  val NUM_BFUS = knobs.apply("NUM_BFUS").toInt + 1
   val NUM_ALUS = knobs.apply("NUM_ALUS").toInt
   val IMM_WIDTH = knobs.apply("IMM_WIDTH").toInt
   val NUM_REGBLOCKS = knobs.apply("NUM_REGBLOCKS").toInt
@@ -78,11 +78,11 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val NUM_THREADS_LG = log2Up(NUM_THREADS)
   val NUM_REGS_LG = log2Up(NUM_REGS)
   val NUM_FUOPS_LG = 6 // currently fixed to 6 due to the risc-v encoding
-  val NUM_FUS = (NUM_BFUS+2).max(NUM_ALUS)
+  val NUM_FUS = (NUM_BFUS).max(NUM_ALUS)
   val NUM_FUS_LG = log2Up(NUM_FUS)
   val NUM_RD_BANKS = scala.math.pow(2, log2Up(NUM_FUS)).toInt
   val NUM_RF_RD_PORTS = NUM_FUS
-  val NUM_WR = (NUM_BFUS+1).max(NUM_ALUS)
+  val NUM_WR = (NUM_BFUS).max(NUM_ALUS)
   val NUM_RF_WR_PORTS = (NUM_WR+1)/2
   val NUM_WR_BANKS = scala.math.pow(2, log2Up(NUM_RF_WR_PORTS)).toInt
   val NUM_SRC_POS_LG = log2Up(NUM_SRC_POS)
@@ -145,8 +145,8 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     // FIXME: input -> rf & rf -> output
     val ip          = UInt((IP_WIDTH+2).W)
 
-    val bfuValids   = Vec(NUM_BFUS+2, Bool())
-    val execValids  = Vec(NUM_BFUS+2, Bool())
+    val bfuValids   = Vec(NUM_BFUS, Bool())
+    val execValids  = Vec(NUM_BFUS, Bool())
     val io_dstPC    = UInt(IP_WIDTH.W)
     val execDone    = Bool()
     val finish      = Bool()
@@ -222,7 +222,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   /****************** Fetch logic *********************************/
   val fetchUnit = Module(new Fetch(NUM_THREADS, IP_WIDTH, INSTR_WIDTH, INST_RAM_SIZE))
   val instr = Wire(UInt(INSTR_WIDTH.W))
-  fetchUnit.io.ip := (threadStates(vThread).ip >> 2)
+  fetchUnit.io.ip := (threadStates(vThread).ip)
   instr := fetchUnit.io.instr
 
   when (vThread =/= NONE_SELECTED) {
@@ -233,11 +233,11 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val decodeThread = RegInit(NONE_SELECTED)
   decodeThread := vThread
 
-  val decodeUnit = Module(new Decode(NUM_ALUS, NUM_BFUS+2, NUM_FUS, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_DST_POS_LG, NUM_DST_MODES_LG))
+  val decodeUnit = Module(new Decode(NUM_ALUS, NUM_BFUS, NUM_FUS, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_DST_POS_LG, NUM_DST_MODES_LG))
   val aluMicrocodes_in = Wire(new ALUMicrocodes(NUM_ALUS, NUM_SRC_POS_LG, NUM_SRC_MODES_LG))
   val bfuMicrocodes_in = Wire(new BFUMicrocodes(NUM_FUS-NUM_ALUS))
   val rdWrEn_in = Wire(Vec(NUM_FUS, Bool()))
-  val bfuValids_in = Wire(Vec(NUM_BFUS+2, Bool()))
+  val bfuValids_in = Wire(Vec(NUM_BFUS, Bool()))
   decodeUnit.io.instr := instr
 
   val BFU_RSPQ_DEPTH_LG = 3
@@ -265,7 +265,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   when (decodeThread =/= NONE_SELECTED) {
     threadStates(decodeThread).bfuValids := decodeUnit.io.bfuValids
     threadStates(decodeThread).invalid := false.B
-    threadStates(decodeThread).execValids := VecInit(Seq.fill(NUM_BFUS+2)(false.B))
+    threadStates(decodeThread).execValids := VecInit(Seq.fill(NUM_BFUS)(false.B))
     decode_valid := true.B
 
     aluMicrocodes_in := decodeUnit.io.aluUcodes
@@ -294,7 +294,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   .otherwise {
     val initVec = RegInit(VecInit(Seq.fill(NUM_FUS)(false.B)))
     val initVecALU = RegInit(VecInit(Seq.fill(NUM_ALUS)(false.B)))
-    val initVecBFU = RegInit(VecInit(Seq.fill(NUM_BFUS+2)(false.B)))
+    val initVecBFU = RegInit(VecInit(Seq.fill(NUM_BFUS)(false.B)))
     aluMicrocodes_in.bfu_valid := initVecALU
     aluMicrocodes_in.opcode := DontCare
     aluMicrocodes_in.rs1_pos := DontCare
@@ -351,7 +351,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val readThread_vec = RegInit(VecInit(Seq.fill(REG_DELAY+ALU_DELAY)(NONE_SELECTED)))
   val aluMicrocodes_vec = Reg(Vec(REG_DELAY, new ALUMicrocodes(NUM_ALUS, NUM_SRC_POS_LG, NUM_SRC_MODES_LG)))
   val bfuMicrocodes_vec = Reg(Vec(REG_DELAY, new BFUMicrocodes(NUM_FUS-NUM_ALUS)))
-  val bfuValids_vec = RegInit(VecInit(Seq.fill(REG_DELAY)(VecInit(Seq.fill(NUM_BFUS+2)(false.B)))))
+  val bfuValids_vec = RegInit(VecInit(Seq.fill(REG_DELAY)(VecInit(Seq.fill(NUM_BFUS)(false.B)))))
   val bfuRdRspQ_enq_vec = RegInit(VecInit(Seq.fill(REG_DELAY)(false.B)))
 
   readThread_vec(REG_DELAY+ALU_DELAY-1) := decodeThread
@@ -413,26 +413,26 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   fuFifos_iou.io.enq.valid := false.B
   fuFifos_iou.io.enq.bits := DontCare
 
-  if (NUM_BFUS+2 > NUM_ALUS) {
+  if (NUM_BFUS > NUM_ALUS) {
     when (gatherThread =/= NONE_SELECTED) {
-      when (bfuValids_out(NUM_BFUS+1) === true.B) {
+      when (bfuValids_out(NUM_BFUS-1) === true.B) {
         fuFifos_iou.io.enq.valid := true.B
         fuFifos_iou.io.enq.bits.tag := gatherThread
-        fuFifos_iou.io.enq.bits.opcode := bfuMicrocodes_out.opcode(NUM_BFUS+1-NUM_ALUS)
-        fuFifos_iou.io.enq.bits.rd := bfuMicrocodes_out.rd(NUM_BFUS+1-NUM_ALUS)
-        fuFifos_iou.io.enq.bits.imm := bfuMicrocodes_out.bimm(NUM_BFUS+1-NUM_ALUS)
-        fuFifos_iou.io.enq.bits.bits := srcA(NUM_BFUS+1)
+        fuFifos_iou.io.enq.bits.opcode := bfuMicrocodes_out.opcode(NUM_BFUS-1-NUM_ALUS)
+        fuFifos_iou.io.enq.bits.rd := bfuMicrocodes_out.rd(NUM_BFUS-1-NUM_ALUS)
+        fuFifos_iou.io.enq.bits.imm := bfuMicrocodes_out.bimm(NUM_BFUS-1-NUM_ALUS)
+        fuFifos_iou.io.enq.bits.bits := srcA(NUM_BFUS-1)
       }
     }
   } else {
     when (gatherThread =/= NONE_SELECTED) {
-      when (aluMicrocodes_out.bfu_valid(NUM_BFUS+1) === true.B) {
+      when (aluMicrocodes_out.bfu_valid(NUM_BFUS-1) === true.B) {
         fuFifos_iou.io.enq.valid := true.B
         fuFifos_iou.io.enq.bits.tag := gatherThread
-        fuFifos_iou.io.enq.bits.opcode := aluMicrocodes_out.opcode(NUM_BFUS+1)
-        fuFifos_iou.io.enq.bits.rd := aluMicrocodes_out.rd(NUM_BFUS+1)
-        fuFifos_iou.io.enq.bits.imm := aluMicrocodes_out.imm(NUM_BFUS+1).asUInt
-        fuFifos_iou.io.enq.bits.bits := srcA(NUM_BFUS+1)
+        fuFifos_iou.io.enq.bits.opcode := aluMicrocodes_out.opcode(NUM_BFUS-1)
+        fuFifos_iou.io.enq.bits.rd := aluMicrocodes_out.rd(NUM_BFUS-1)
+        fuFifos_iou.io.enq.bits.imm := aluMicrocodes_out.imm(NUM_BFUS-1).asUInt
+        fuFifos_iou.io.enq.bits.bits := srcA(NUM_BFUS-1)
       }
     }
   }
@@ -583,11 +583,11 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   }
 
   when (ioUnit.io.w_valid) {
-    threadStates(ioUnit.io.w_tag).execValids(NUM_BFUS+1) := true.B
+    threadStates(ioUnit.io.w_tag).execValids(NUM_BFUS-1) := true.B
     threadStates(ioUnit.io.w_tag).io_dstPC := ioUnit.io.w_flag
   }
   when (ioUnit.io.r_valid) {
-    threadStates(ioUnit.io.r_tag).execValids(NUM_BFUS+1) := true.B
+    threadStates(ioUnit.io.r_tag).execValids(NUM_BFUS-1) := true.B
     threadStates(ioUnit.io.r_tag).io_dstPC := ioUnit.io.r_flag
   }
 
@@ -661,7 +661,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     for (i <- 0 until NUM_ALUS) {
       dstPCs(4*i+2) := destMems_out(i).dstPC
     }
-    dstPCs(4*(NUM_BFUS+1)+2) := threadStates(branchThread_vec(WB_DELAY-2)).io_dstPC
+    dstPCs(4*(NUM_BFUS-1)+2) := threadStates(branchThread_vec(WB_DELAY-2)).io_dstPC
   }
 
   threadMem_out := threadMem.io.q.asTypeOf(chiselTypeOf(threadMem_out))

@@ -20,7 +20,7 @@ class BranchUnit extends Module {
   val pcPlain = Wire(SInt(32.W))
   val pcOut_r = Reg(SInt(32.W))
   val finish_r = RegInit(false.B)
-  pcInc := io.pc + 4.S
+  pcInc := io.pc + 1.S
   pcOff := io.pc + io.pcOffset
   pcPlain := io.pcOffset
   io.pcOut := pcOut_r
