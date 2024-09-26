@@ -65,7 +65,6 @@ class TopTests(c: Top) extends gTester[Top](c) {
     val last = BigInt(line(0))
     if (sourced < numOfInputs) {
       poke(c.io.in.bits.data, data.U)
-      poke(c.io.in.bits.empty, empty.U)
       poke(c.io.in.last, last.U.asBool)
       poke(c.io.in.valid, true.B)
       poke(c.io.out.ready, true.B)
