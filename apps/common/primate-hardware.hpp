@@ -1,15 +1,18 @@
 #pragma once
-#include <stddef.h>
 
 namespace PRIMATE {
     // Add your code here
     template<typename T>
     #pragma primate blue IO 1 1
-    T input(size_t size = sizeof(T));
+    __attribute__((always_inline)) T input() {
+      return *((T*)__primate_input(sizeof(T)));
+    }
 
     template<typename T>
     #pragma primate blue IO 1 1
-    void output(T out, size_t size = sizeof(T));
+    __attribute__((always_inline)) void output(T out) {
+      __primate_output((const void*)&out, sizeof(T));
+    }
 
     #pragma primate blue IO 1 1
     void input_done();
