@@ -77,8 +77,8 @@ class Gather(reg_width: Int, num_src_pos: Int, src_pos: Array[Int],
 }
 
 class Scatter(reg_width: Int, lg_num_rdBlocks: Int, lg_num_modes: Int, num_wrBlocks: Int,
-  num_dst_pos: Int, dst_encode: Array[Int], dst_pos: Array[Int],
-  num_wbens: Int, dst_en_encode: Array[(Int, Int)], wbens: Array[Int]) extends Module {
+  num_dst_pos: Int, dst_encode: Array[Long], dst_pos: Array[Long],
+  num_wbens: Int, dst_en_encode: Array[(Int, Int)], wbens: Array[Long]) extends Module {
   val io = IO(new Bundle {
     val din = Input(UInt(reg_width.W))
     val shift = Input(UInt(lg_num_rdBlocks.W))
@@ -102,8 +102,8 @@ class Scatter(reg_width: Int, lg_num_rdBlocks: Int, lg_num_modes: Int, num_wrBlo
 
 class GatherScatterUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int,
   num_src_pos: Int, src_pos: Array[Int], max_out_width: Int, num_modes:Int, src_mode: Array[Int], 
-  num_regblocks: Int, num_dst_pos: Int, dst_encode: Array[Int], dst_pos: Array[Int],
-  num_wbens: Int, dst_en_encode: Array[(Int, Int)], wbens: Array[Int]) extends Module {
+  num_regblocks: Int, num_dst_pos: Int, dst_encode: Array[Long], dst_pos: Array[Long],
+  num_wbens: Int, dst_en_encode: Array[(Int, Int)], wbens: Array[Long]) extends Module {
   val io = IO(new Bundle{
     val in_valid      = Input(Bool())
     val in_tag        = Input(UInt(tag_width.W))

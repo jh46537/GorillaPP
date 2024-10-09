@@ -174,7 +174,7 @@ __attribute__((always_inline)) void aes_expandEncKey(uint8_t *k, uint8_t *rc)
 } /* aes_expandEncKey */
 
 /* -------------------------------------------------------------------------- */
-__attribute__((always_inline)) void aes256_encrypt_ecb(aes256_context *ctx, uint8_t k[32], uint8_t buf[16])
+__attribute__((always_inline)) void aes256_encrypt_ecb(aes256_context_input_t *ctx, uint8_t k[32], uint8_t buf[16])
 {
     //INIT
     uint8_t rcon = 1;
@@ -204,8 +204,9 @@ __attribute__((always_inline)) void aes256_encrypt_ecb(aes256_context *ctx, uint
 } /* aes256_encrypt */
 
 void primate_main() {
-  aes256_context ctx = PRIMATE::input<aes256_context>();
-  outBuffer bf;
+  aes256_context_input_t ctx = PRIMATE::input<aes256_context_input_t>();
+  PRIMATE::input_done();
+  outBuffer_output_t bf;
   uint8_t k[32] = {0};
 
   aes256_encrypt_ecb(&ctx, k, bf.buffer);

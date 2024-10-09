@@ -30,11 +30,11 @@ class DecodeBranch extends Module {
     } .otherwise {
       io.brMode := 3.U
     }
-    val tmp = Cat(io.instr(31), io.instr(19, 12), io.instr(20), io.instr(30, 21), 0.U(1.W)).asSInt
+    val tmp = Cat(io.instr(31), io.instr(19, 12), io.instr(20), io.instr(30, 21)).asSInt
     io.pcOffset := tmp
   } .elsewhen (opcode === 0x63.U) {
     io.brMode := io.instr(14, 12)
-    val tmp = Cat(io.instr(31), io.instr(7), io.instr(30, 25), io.instr(11, 8), 0.U(1.W)).asSInt
+    val tmp = Cat(io.instr(31), io.instr(7), io.instr(30, 25), io.instr(11, 8)).asSInt
     io.pcOffset := tmp
   } .elsewhen (opcode === 0x67.U) {
     val tmp = io.instr(31, 20).asSInt

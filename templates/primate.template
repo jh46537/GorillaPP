@@ -57,7 +57,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val NUM_THREADS = knobs.apply("NUM_THREADS").toInt
   val REG_WIDTH = knobs.apply("REG_WIDTH").toInt
   val NUM_REGS = knobs.apply("NUM_REGS").toInt
-  val NUM_BFUS = knobs.apply("NUM_BFUS").toInt + 1
+  val NUM_BFUS = knobs.apply("NUM_BFUS").toInt + 2 // IO and LSU are hidden lol
   val NUM_ALUS = knobs.apply("NUM_ALUS").toInt
   val IMM_WIDTH = knobs.apply("IMM_WIDTH").toInt
   val NUM_REGBLOCKS = knobs.apply("NUM_REGBLOCKS").toInt
@@ -70,9 +70,9 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val REG_BLOCK_WIDTH:Array[Int] = knobs.apply("REG_BLOCK_WIDTH").split(" ").map(_.toInt)
   val src_pos:Array[Int] = knobs.apply("SRC_POS").split(" ").map(_.toInt)
   val src_mode:Array[Int] = knobs.apply("SRC_MODE").split(" ").map(_.toInt)
-  val dst_encode:Array[Int] = knobs.apply("DST_ENCODE").split(" ").map(_.toInt)
-  val dst_pos:Array[Int] = knobs.apply("DST_POS").split(" ").map(_.toInt)
-  val wbens:Array[Int] = knobs.apply("DST_EN").split(" ").map(_.toInt)
+  val dst_encode:Array[Long] = knobs.apply("DST_ENCODE").split(" ").map(_.toLong)
+  val dst_pos:Array[Long] = knobs.apply("DST_POS").split(" ").map(_.toLong)
+  val wbens:Array[Long] = knobs.apply("DST_EN").split(" ").map(_.toLong)
   val dst_en_encode:Array[(Int, Int)] = knobs.apply("DST_EN_ENCODE").split(";").map(_.split(" ") match {case Array(a1, a2) => (a1.toInt, a2.toInt)})
 
   val NUM_THREADS_LG = log2Up(NUM_THREADS)
@@ -89,7 +89,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val NUM_SRC_MODES_LG = log2Up(NUM_SRC_MODES)
   val NUM_DST_POS_LG = log2Up(NUM_DST_POS)
   val NUM_DST_MODES_LG = log2Up(NUM_SRC_MODES)
-  val INST_RAM_SIZE = 512
+  val INST_RAM_SIZE = 4096
   // FIXME
   // val ALU_SRC_WIDTH = NUM_REGS_LG + NUM_SRC_POS_LG + NUM_SRC_MODES_LG
   // val ALU_INST_WIDTH = 7 + NUM_REGS_LG + NUM_DST_POS_LG + NUM_DST_MODES_LG + (3 + ALU_SRC_WIDTH + ALU_SRC_WIDTH.max(12)).max(20)

@@ -53,7 +53,8 @@ fi
 ninja -C ${COMPILER_DIR}/build
 ${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S --target=primate32-linux-gnu -march=pr32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
 # crash on destruct. || true is just to keep moving.
-${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true 
+${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
+mv *.scala $CUR_DIR/hw
 cp primate.cfg $CUR_DIR/hw
 mv primate.cfg $CHISEL_SRC_DIR/main/scala/
 cp input.txt $UARCH_DIR/chisel/Gorilla++/
@@ -102,10 +103,12 @@ fi
 # make compiler
 ninja -C ${COMPILER_DIR}/build
 # generate side files required
-${COMPILER_DIR}/build/bin/clang++ -O3 -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
+${COMPILER_DIR}/build/bin/clang++ -O3 -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -fno-pic -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
 ${COMPILER_DIR}/build/bin/llvm-objdump -dr primate_pgm.o > primate_pgm_text
 ${COMPILER_DIR}/build/bin/llvm-objdump -t primate_pgm.o > primate_pgm_sym
+${COMPILER_DIR}/build/bin/llvm-objdump -s -j .rodata primate_pgm.o > primate_rodata
 ${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ${CUR_DIR}/hw/primate.cfg ./primate_pgm.bin
+${COMPILER_DIR}/elf2meminit.py ./primate_rodata ./memInit.txt
 # $UARCH_DIR/apps/scripts/primate_assembler "${TARGET}.s" primate_pgm.bin
 
 mv primate_pgm.bin $UARCH_DIR/chisel/Gorilla++/
@@ -114,18 +117,16 @@ mv primate_pgm.bin $UARCH_DIR/chisel/Gorilla++/
 # =       Create Primate.scala From Template     =
 # ================================================
 cd $CUR_DIR/hw
+cp ../sw/memInit.txt $CHISEL_SRC_DIR/..
 cp $UARCH_DIR/templates/primate.template ./
 python3 $UARCH_DIR/apps/scripts/scm.py
 cp header.scala $CHISEL_SRC_DIR/main/scala/
 cp alu_bfu0.scala $CHISEL_SRC_DIR/main/scala/
 cp alu_bfu1.scala $CHISEL_SRC_DIR/main/scala/
-cp alu_bfu2.scala $CHISEL_SRC_DIR/main/scala/
 cp cache.scala $CHISEL_SRC_DIR/main/scala/
-cp hashUnit.scala $CHISEL_SRC_DIR/main/scala/
 cp inOutUnit.scala $CHISEL_SRC_DIR/main/scala/
 cp inputUnit.scala $CHISEL_SRC_DIR/main/scala/
 cp inputUnit_core.scala $CHISEL_SRC_DIR/main/scala/
-cp match_table.scala $CHISEL_SRC_DIR/main/scala/
 cp outputUnit_simple.scala $CHISEL_SRC_DIR/main/scala/
 cp primate.scala $CHISEL_SRC_DIR/main/scala/
 [[ -e *.v ]] && cp *.v $CHISEL_SRC_DIR/main/resources/

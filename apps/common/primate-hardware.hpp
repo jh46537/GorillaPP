@@ -15,8 +15,12 @@ namespace PRIMATE {
     }
 
     #pragma primate blue IO 1 1
-    void input_done();
+    __attribute__((always_inline)) void input_done() {
+      __primate_input_done();
+    }
 
     #pragma primate blue IO 1 1
-    void output_done();
+    __attribute__((always_inline)) void output_done() {
+      __primate_output_done();
+    }
 }
