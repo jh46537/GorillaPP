@@ -50,20 +50,20 @@ else
     echo "Tablegen files have not changed." 
 fi
 
-ninja -C ${COMPILER_DIR}/build
-${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S --target=primate32-linux-gnu -march=pr32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
-# crash on destruct. || true is just to keep moving.
-${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
-mv *.scala $CUR_DIR/hw
-cp primate.cfg $CUR_DIR/hw
-mv primate.cfg $CHISEL_SRC_DIR/main/scala/
-cp input.txt $UARCH_DIR/chisel/Gorilla++/
-mv primate_assembler.h $UARCH_DIR/apps/scripts/
-cd $UARCH_DIR/apps/scripts/
-make clean && make
-cd $CUR_DIR/sw
+# ninja -C ${COMPILER_DIR}/build
+# ${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S --target=primate32-linux-gnu -march=pr32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
+# # crash on destruct. || true is just to keep moving.
+# ${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
+# mv *.scala $CUR_DIR/hw
+# cp primate.cfg $CUR_DIR/hw
+# mv primate.cfg $CHISEL_SRC_DIR/main/scala/
+# cp input.txt $UARCH_DIR/chisel/Gorilla++/
+# mv primate_assembler.h $UARCH_DIR/apps/scripts/
+# cd $UARCH_DIR/apps/scripts/
+# make clean && make
+# cd $CUR_DIR/sw
 
-echo "done with archgen..."
+# echo "done with archgen..."
 
 # ================================================
 # =       Generate Primate Compiler              =
@@ -74,28 +74,34 @@ touch ./primate-compiler-gen/IntrinsicsPrimateBFU.td
 touch ./primate-compiler-gen/PrimateInstrInfoBFU.td
 touch ./primate-compiler-gen/PrimateSchedPrimate.td
 touch ./primate-compiler-gen/PrimateScheduleBFU.td
+touch ./primate-compiler-gen/PrimateRegisterDefs.td
+touch ./primate-compiler-gen/PrimateRegisterOrdering.td
+touch ./primate-compiler-gen/PrimateInstrReconfigFormats.td
+touch ./primate-compiler-gen/PrimateInstrReconfigF.td
 
 cp ${CUR_DIR}/hw/primate.cfg .
 cp ${CUR_DIR}/hw/bfu_list.txt .
 
-oldIntrinsicsHash=$(sha1sum ./primate-compiler-gen/IntrinsicsPrimateBFU.td)
-oldInstrInfoHash=$(sha1sum ./primate-compiler-gen/PrimateInstrInfoBFU.td)
-oldSchedPrimateHash=$(sha1sum ./primate-compiler-gen/PrimateSchedPrimate.td)
-oldScheduleHash=$(sha1sum ./primate-compiler-gen/PrimateScheduleBFU.td)
+oldPrimateCompilerGenHash=$(sha1sum ./primate-compiler-gen/* | sha1sum)
 
 ${COMPILER_DIR}/archgen2tablegen.py -b ${CUR_DIR}/hw/bfu_list.txt -p ${CUR_DIR}/hw/primate.cfg
 
-newIntrinsicsHash=$(sha1sum ./primate-compiler-gen/IntrinsicsPrimateBFU.td)
-newInstrInfoHash=$(sha1sum ./primate-compiler-gen/PrimateInstrInfoBFU.td)
-newSchedPrimateHash=$(sha1sum ./primate-compiler-gen/PrimateSchedPrimate.td)
-newScheduleHash=$(sha1sum ./primate-compiler-gen/PrimateScheduleBFU.td)
+newPrimateCompilerGenHash=$(sha1sum ./primate-compiler-gen/* | sha1sum)
 
-if [ "${oldInstrInfoHash}" != "${newInstrInfoHash}" -o "${oldScheduleHash}" != "${newScheduleHash}" -o "${oldIntrinsicsHash}" != "${newIntrinsicsHash}" -o "${oldSchedPrimateHash}" != "${newSchedPrimateHash}" ]; then
+if [ "${oldPrimateCompilerGenHash}" != "${newPrimateCompilerGenHash}" ]; then
     echo "Tablegen files have changed. Please update the compiler."
     cp ./primate-compiler-gen/IntrinsicsPrimateBFU.td ${COMPILER_DIR}/llvm/include/llvm/IR/IntrinsicsPrimateBFU.td
     cp ./primate-compiler-gen/PrimateInstrInfoBFU.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateInstrInfoBFU.td
     cp ./primate-compiler-gen/PrimateSchedPrimate.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateSchedPrimate.td
-    cp ./primate-compiler-gen/PrimateScheduleBFU.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateScheduleBFU.td
+    cp ./primate-compiler-gen/PrimateScheduleBFU.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateScheduleBFU.td    
+
+    cp ./primate-compiler-gen/PrimateRegisterDefs.td ${COMPILER_DIR}/llvm/lib/Target/Primate/
+    cp ./primate-compiler-gen/PrimateRegisterOrdering.td ${COMPILER_DIR}/llvm/lib/Target/Primate/
+    cp ./primate-compiler-gen/PrimateInstrReconfigFormats.td ${COMPILER_DIR}/llvm/lib/Target/Primate/
+    cp ./primate-compiler-gen/PrimateInstrReconfigF.td ${COMPILER_DIR}/llvm/lib/Target/Primate/
+
+    cp ./primate-compiler-gen/PrimateDisasseblerGen.inc ${COMPILER_DIR}llvm/lib/Target/Primate/Disassembler/PrimateDisasseblerGen.inc
+    cp ./primate-compiler-gen/PrimateInstructionSize.inc ${COMPILER_DIR}llvm/lib/Target/Primate/MCTargetDesc/PrimateInstructionSize.inc
 else 
     echo "Tablegen files have not changed." 
 fi
@@ -103,10 +109,10 @@ fi
 # make compiler
 ninja -C ${COMPILER_DIR}/build
 # generate side files required
-${COMPILER_DIR}/build/bin/clang++ -O3 -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -fno-pic -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
-${COMPILER_DIR}/build/bin/llvm-objdump -dr primate_pgm.o > primate_pgm_text
-${COMPILER_DIR}/build/bin/llvm-objdump -t primate_pgm.o > primate_pgm_sym
-${COMPILER_DIR}/build/bin/llvm-objdump -s -j .rodata primate_pgm.o > primate_rodata
+${COMPILER_DIR}/build/bin/clang++ -O3 -mllvm -align-all-blocks=0 -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -fno-pic -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
+${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -dr primate_pgm.o > primate_pgm_text
+${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -t primate_pgm.o > primate_pgm_sym
+${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -s -j .rodata primate_pgm.o > primate_rodata
 ${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ${CUR_DIR}/hw/primate.cfg ./primate_pgm.bin
 ${COMPILER_DIR}/elf2meminit.py ./primate_rodata ./memInit.txt
 # $UARCH_DIR/apps/scripts/primate_assembler "${TARGET}.s" primate_pgm.bin
