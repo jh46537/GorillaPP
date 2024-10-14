@@ -100,8 +100,8 @@ if [ "${oldPrimateCompilerGenHash}" != "${newPrimateCompilerGenHash}" ]; then
     cp ./primate-compiler-gen/PrimateInstrReconfigFormats.td ${COMPILER_DIR}/llvm/lib/Target/Primate/
     cp ./primate-compiler-gen/PrimateInstrReconfigF.td ${COMPILER_DIR}/llvm/lib/Target/Primate/
 
-    cp ./primate-compiler-gen/PrimateDisasseblerGen.inc ${COMPILER_DIR}llvm/lib/Target/Primate/Disassembler/PrimateDisasseblerGen.inc
-    cp ./primate-compiler-gen/PrimateInstructionSize.inc ${COMPILER_DIR}llvm/lib/Target/Primate/MCTargetDesc/PrimateInstructionSize.inc
+    cp ./primate-compiler-gen/PrimateDisasseblerGen.inc ${COMPILER_DIR}/llvm/lib/Target/Primate/Disassembler/PrimateDisasseblerGen.inc
+    cp ./primate-compiler-gen/PrimateInstructionSize.inc ${COMPILER_DIR}/llvm/lib/Target/Primate/MCTargetDesc/PrimateInstructionSize.inc
 else 
     echo "Tablegen files have not changed." 
 fi
