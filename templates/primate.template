@@ -91,10 +91,11 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val NUM_DST_MODES_LG = log2Up(NUM_SRC_MODES)
   val INST_RAM_SIZE = 4096
   // FIXME
-  // val ALU_SRC_WIDTH = NUM_REGS_LG + NUM_SRC_POS_LG + NUM_SRC_MODES_LG
+  val ALU_SRC_WIDTH = NUM_REGS_LG
   // val ALU_INST_WIDTH = 7 + NUM_REGS_LG + NUM_DST_POS_LG + NUM_DST_MODES_LG + (3 + ALU_SRC_WIDTH + ALU_SRC_WIDTH.max(12)).max(20)
   // val ALU_INST_WIDTH = 64
-  val INSTR_WIDTH = 32 * (NUM_FUS + NUM_ALUS*3 + 1)
+  val ALU_INST_WIDTH = Math.ceil((7 + ALU_SRC_WIDTH * 3 + 3 + 7)/8) * 8
+  val INSTR_WIDTH = ALU_INST_WIDTH.toInt * (NUM_FUS + NUM_ALUS*3 + 1)
 
   val NONE_SELECTED = (NUM_THREADS).U((log2Up(NUM_THREADS+1)).W)
 
@@ -233,9 +234,9 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val decodeThread = RegInit(NONE_SELECTED)
   decodeThread := vThread
 
-  val decodeUnit = Module(new Decode(NUM_ALUS, NUM_BFUS, NUM_FUS, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_DST_POS_LG, NUM_DST_MODES_LG))
-  val aluMicrocodes_in = Wire(new ALUMicrocodes(NUM_ALUS, NUM_SRC_POS_LG, NUM_SRC_MODES_LG))
-  val bfuMicrocodes_in = Wire(new BFUMicrocodes(NUM_FUS-NUM_ALUS))
+  val decodeUnit = Module(new Decode(NUM_ALUS, NUM_BFUS, NUM_FUS, INSTR_WIDTH, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_DST_POS_LG, NUM_DST_MODES_LG))
+  val aluMicrocodes_in = Wire(new ALUMicrocodes(NUM_ALUS, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG))
+  val bfuMicrocodes_in = Wire(new BFUMicrocodes(NUM_FUS-NUM_ALUS, ALU_SRC_WIDTH))
   val rdWrEn_in = Wire(Vec(NUM_FUS, Bool()))
   val bfuValids_in = Wire(Vec(NUM_BFUS, Bool()))
   decodeUnit.io.instr := instr
@@ -349,8 +350,8 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val ALU_DELAY = 3 // 3 (gather)
 
   val readThread_vec = RegInit(VecInit(Seq.fill(REG_DELAY+ALU_DELAY)(NONE_SELECTED)))
-  val aluMicrocodes_vec = Reg(Vec(REG_DELAY, new ALUMicrocodes(NUM_ALUS, NUM_SRC_POS_LG, NUM_SRC_MODES_LG)))
-  val bfuMicrocodes_vec = Reg(Vec(REG_DELAY, new BFUMicrocodes(NUM_FUS-NUM_ALUS)))
+  val aluMicrocodes_vec = Reg(Vec(REG_DELAY, new ALUMicrocodes(NUM_ALUS, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG)))
+  val bfuMicrocodes_vec = Reg(Vec(REG_DELAY, new BFUMicrocodes(NUM_FUS-NUM_ALUS, ALU_SRC_WIDTH)))
   val bfuValids_vec = RegInit(VecInit(Seq.fill(REG_DELAY)(VecInit(Seq.fill(NUM_BFUS)(false.B)))))
   val bfuRdRspQ_enq_vec = RegInit(VecInit(Seq.fill(REG_DELAY)(false.B)))
 

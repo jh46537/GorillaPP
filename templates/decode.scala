@@ -1,23 +1,36 @@
 import chisel3._
 import chisel3.util._
 
-class DecodeBranch extends Module {
+class DecodeBranch(inst_width: Int, num_regs_lg: Int) extends Module {
   val io = IO(new Bundle {
-    val instr     = Input(UInt(32.W))
+    val instr     = Input(UInt(inst_width.W))
     val brValid   = Output(Bool())
     val brMode    = Output(UInt(4.W))
-    val rs1       = Output(UInt(5.W))
-    val rs2       = Output(UInt(5.W))
-    val rd        = Output(UInt(5.W))
+    val rs1       = Output(UInt(num_regs_lg.W))
+    val rs2       = Output(UInt(num_regs_lg.W))
+    val rd        = Output(UInt(num_regs_lg.W))
     val rdWrEn    = Output(Bool())
     val pcOffset  = Output(SInt(21.W))
   })
 
+  val OPCODE_LOW = 0
+  val OPCODE_HIGH = OPCODE_LOW + 6
+  val RD_LOW = OPCODE_HIGH + 1
+  val RD_HIGH = RD_LOW + num_regs_lg - 1
+  val FUNCT3_LOW = RD_HIGH + 1
+  val FUNCT3_HIGH = FUNCT3_LOW + 2
+  val RS1_LOW = FUNCT3_HIGH + 1
+  val RS1_HIGH = RS1_LOW + num_regs_lg - 1
+  val RS2_LOW = RS1_HIGH + 1
+  val RS2_HIGH = RS2_LOW + num_regs_lg - 1
+  val IMM_LOW = RS2_HIGH + 1
+  val IMM_HIGH = IMM_LOW + 6
+
   val opcode = Wire(UInt(7.W))
-  opcode := io.instr(6, 0)
-  io.rd := io.instr(11, 7)
-  io.rs1 := io.instr(19, 15)
-  io.rs2 := io.instr(24, 20)
+  opcode := io.instr(OPCODE_HIGH, OPCODE_LOW)
+  io.rd := io.instr(RD_HIGH, RD_LOW)
+  io.rs1 := io.instr(RS1_HIGH, RS1_LOW)
+  io.rs2 := io.instr(RS2_HIGH, RS2_LOW)
   io.rdWrEn := false.B
   io.pcOffset := 0.S
   io.brMode := DontCare
@@ -30,14 +43,14 @@ class DecodeBranch extends Module {
     } .otherwise {
       io.brMode := 3.U
     }
-    val tmp = Cat(io.instr(31), io.instr(19, 12), io.instr(20), io.instr(30, 21)).asSInt
+    val tmp = Cat(io.instr(FUNCT3_LOW+19), io.instr(FUNCT3_LOW+7, FUNCT3_LOW), io.instr(FUNCT3_LOW+8), io.instr(FUNCT3_LOW+18, FUNCT3_LOW+9)).asSInt
     io.pcOffset := tmp
   } .elsewhen (opcode === 0x63.U) {
-    io.brMode := io.instr(14, 12)
-    val tmp = Cat(io.instr(31), io.instr(7), io.instr(30, 25), io.instr(11, 8)).asSInt
+    io.brMode := io.instr(FUNCT3_LOW+2, FUNCT3_LOW)
+    val tmp = Cat(io.instr(IMM_HIGH), io.instr(RD_LOW), io.instr(IMM_HIGH-1, IMM_LOW), io.instr(RD_LOW+4, RD_LOW+1)).asSInt
     io.pcOffset := tmp
   } .elsewhen (opcode === 0x67.U) {
-    val tmp = io.instr(31, 20).asSInt
+    val tmp = io.instr(RS2_LOW+11, RS2_LOW).asSInt
     io.brMode := 8.U
     io.pcOffset := tmp
   } .otherwise {
@@ -45,37 +58,48 @@ class DecodeBranch extends Module {
   }
 }
 
-class DecodeEIU(num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {
+class DecodeEIU(inst_width: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {
   val io = IO(new Bundle {
-    val instr     = Input(UInt(32.W))
-    val rs        = Output(UInt(5.W))
+    val instr     = Input(UInt(inst_width.W))
+    val rs        = Output(UInt(num_regs_lg.W))
     val rs_pos    = Output(UInt(num_src_pos_lg.W))
     val rs_mode   = Output(UInt(num_src_modes_lg.W))
-    val rd        = Output(UInt(5.W))
+    val rd        = Output(UInt(num_regs_lg.W))
     val rd_pos    = Output(UInt(num_dst_pos_lg.W))
     val rd_mode   = Output(UInt(num_dst_modes_lg.W))
     val rdWrEn    = Output(Bool())
   })
 
-  io.rs := io.instr(19, 15)
-  io.rs_pos := io.instr(20+num_src_pos_lg-1, 20)
-  io.rs_mode := io.instr(20+num_src_pos_lg+num_src_modes_lg-1, 20+num_src_pos_lg)
-  io.rd := io.instr(11, 7)
-  io.rd_pos := io.instr(20+num_dst_pos_lg-1, 20)
-  io.rd_mode := io.instr(20+num_dst_pos_lg+num_dst_modes_lg-1, 20+num_dst_pos_lg)
+  val OPCODE_LOW = 0
+  val OPCODE_HIGH = OPCODE_LOW + 6
+  val RD_LOW = OPCODE_HIGH + 1
+  val RD_HIGH = RD_LOW + num_regs_lg - 1
+  val FUNCT3_LOW = RD_HIGH + 1
+  val FUNCT3_HIGH = FUNCT3_LOW + 2
+  val RS1_LOW = FUNCT3_HIGH + 1
+  val RS1_HIGH = RS1_LOW + num_regs_lg - 1
+  val IMM_LOW = RS1_HIGH + 1
+  val IMM_HIGH = IMM_LOW + 11
+
+  io.rs := io.instr(RS1_HIGH, RS1_LOW)
+  io.rs_pos := io.instr(IMM_LOW+num_src_pos_lg-1, IMM_LOW)
+  io.rs_mode := io.instr(IMM_LOW+num_src_pos_lg+num_src_modes_lg-1, IMM_LOW+num_src_pos_lg)
+  io.rd := io.instr(RD_HIGH, RD_LOW)
+  io.rd_pos := io.instr(IMM_LOW+num_dst_pos_lg-1, IMM_LOW)
+  io.rd_mode := io.instr(IMM_LOW+num_dst_pos_lg+num_dst_modes_lg-1, IMM_LOW+num_dst_pos_lg)
 
   io.rdWrEn := false.B
-  when ((io.instr(12) === 1.U) && (io.rd =/= 0.U)) {
+  when ((io.instr(FUNCT3_LOW) === 1.U) && (io.rd =/= 0.U)) {
     io.rdWrEn := true.B
   }
 }
 
-class DecodeALUBFU extends Module {
+class DecodeALUBFU(inst_width: Int, num_regs_lg: Int) extends Module {
   val io = IO(new Bundle {
-    val instr     = Input(UInt(32.W))
-    val rs1       = Output(UInt(5.W))
-    val rs2       = Output(UInt(5.W))
-    val rd        = Output(UInt(5.W))
+    val instr     = Input(UInt(inst_width.W))
+    val rs1       = Output(UInt(num_regs_lg.W))
+    val rs2       = Output(UInt(num_regs_lg.W))
+    val rd        = Output(UInt(num_regs_lg.W))
     val rdWrEn    = Output(Bool())
     val addEn     = Output(Bool())
     val subEn     = Output(Bool())
@@ -101,17 +125,30 @@ class DecodeALUBFU extends Module {
     val bfu_opcode = Output(UInt(6.W))
   })
 
+  val OPCODE_LOW = 0
+  val OPCODE_HIGH = OPCODE_LOW + 6
+  val RD_LOW = OPCODE_HIGH + 1
+  val RD_HIGH = RD_LOW + num_regs_lg - 1
+  val FUNCT3_LOW = RD_HIGH + 1
+  val FUNCT3_HIGH = FUNCT3_LOW + 2
+  val RS1_LOW = FUNCT3_HIGH + 1
+  val RS1_HIGH = RS1_LOW + num_regs_lg - 1
+  val RS2_LOW = RS1_HIGH + 1
+  val RS2_HIGH = RS2_LOW + num_regs_lg - 1
+  val IMM_LOW = RS2_HIGH + 1
+  val IMM_HIGH = IMM_LOW + 6
+
   val opcode = Wire(UInt(7.W))
   val funct3 = Wire(UInt(3.W))
   val imm12 = Wire(SInt(12.W))
   val imm5 = Wire(SInt(5.W))
   val imm32 = Wire(UInt(32.W))
-  opcode := io.instr(6, 0)
-  funct3 := io.instr(14, 12)
-  io.rd := io.instr(11, 7)
-  io.rs1 := io.instr(19, 15)
-  io.rs2 := io.instr(24, 20)
-  io.bfu_opcode := Cat(io.instr(6, 4), io.instr(14, 12))
+  opcode := io.instr(OPCODE_HIGH, OPCODE_LOW)
+  funct3 := io.instr(FUNCT3_HIGH, FUNCT3_LOW)
+  io.rd := io.instr(RD_HIGH, RD_LOW)
+  io.rs1 := io.instr(RS1_HIGH, RS1_LOW)
+  io.rs2 := io.instr(RS2_HIGH, RS2_LOW)
+  io.bfu_opcode := Cat(io.instr(OPCODE_LOW+6, OPCODE_LOW+4), io.instr(FUNCT3_LOW+2, FUNCT3_LOW))
   io.rdWrEn := true.B
   io.addEn  := false.B
   io.subEn  := false.B
@@ -133,11 +170,11 @@ class DecodeALUBFU extends Module {
   io.rs1Signed := true.B
   io.rs2Signed := true.B
   io.imm := 0.S
-  imm12 := io.instr(31, 20).asSInt
-  imm5 := io.instr(24, 20).asSInt
-  imm32 := Cat(io.instr(31, 12), 0.U(12.W))
+  imm12 := io.instr(RS2_LOW+11, RS2_LOW).asSInt
+  imm5 := io.instr(RS2_LOW+4, RS2_LOW).asSInt
+  imm32 := Cat(io.instr(FUNCT3_LOW+19, FUNCT3_LOW), 0.U(12.W))
 
-  when (opcode === 0x13.U && io.instr(14, 7) === 0.U) {
+  when (opcode === 0x13.U && io.instr(FUNCT3_HIGH, RD_LOW) === 0.U) {
     io.rdWrEn := false.B
   } .elsewhen (opcode(3, 0) === 0xb.U) {
     when (io.rd === 0.U) {
@@ -177,15 +214,15 @@ class DecodeALUBFU extends Module {
   } .elsewhen (opcode === 0x3.U) {
     io.imm := imm12
   } .elsewhen (opcode === 0x23.U) {
-    io.imm := Cat(io.instr(31, 25), io.instr(11, 7)).asSInt
+    io.imm := Cat(io.instr(IMM_HIGH, IMM_LOW), io.instr(RD_LOW+4, RD_LOW)).asSInt
   } .elsewhen (opcode(3, 0) === 0xb.U) {
     io.imm := imm12
   }
 
-  when (opcode === 0x13.U || ((opcode === 0x33.U) && (io.instr(25) === 0.U))) {
+  when (opcode === 0x13.U || ((opcode === 0x33.U) && (io.instr(IMM_LOW) === 0.U))) {
     switch (funct3) {
       is (0.U) {
-        when ((opcode === 0x33.U) && io.instr(30) === 1.U) {
+        when ((opcode === 0x33.U) && io.instr(IMM_LOW+5) === 1.U) {
           io.subEn := true.B
         } .otherwise {
           io.addEn := true.B
@@ -205,7 +242,7 @@ class DecodeALUBFU extends Module {
       }
       is (5.U) {
         io.srEn := true.B
-        when (io.instr(30) === 1.U) {
+        when (io.instr(IMM_LOW+5) === 1.U) {
           io.srMode := true.B
         } .otherwise {
           io.srMode := false.B
@@ -220,7 +257,7 @@ class DecodeALUBFU extends Module {
     }
   }
 
-  when ((opcode === 0x33.U) && (io.instr(25) === 1.U)) {
+  when ((opcode === 0x33.U) && (io.instr(IMM_LOW) === 1.U)) {
     switch (funct3) {
       is (0.U) {
         io.mulEn := true.B
@@ -261,24 +298,37 @@ class DecodeALUBFU extends Module {
   }
 }
 
-class DecodeBFU extends Module {
+class DecodeBFU(inst_width: Int, num_regs_lg: Int) extends Module {
   val io = IO(new Bundle{
-    val instr     = Input(UInt(32.W))
+    val instr     = Input(UInt(inst_width.W))
     val valid     = Output(Bool())
     val opcode    = Output(UInt(6.W))
-    val rs        = Output(Vec(2, UInt(5.W)))
-    val rd        = Output(UInt(5.W))
+    val rs        = Output(Vec(2, UInt(num_regs_lg.W)))
+    val rd        = Output(UInt(num_regs_lg.W))
     val rdWrEn    = Output(Bool())
     val imm       = Output(UInt(12.W))
   })
 
-  val opcode = io.instr(6, 0)
-  io.opcode := Cat(io.instr(6, 4), io.instr(14, 12))
-  io.rd := io.instr(11, 7)
-  io.rs(0) := io.instr(19, 15)
-  io.rs(1) := io.instr(24, 20)
+  val OPCODE_LOW = 0
+  val OPCODE_HIGH = OPCODE_LOW + 6
+  val RD_LOW = OPCODE_HIGH + 1
+  val RD_HIGH = RD_LOW + num_regs_lg - 1
+  val FUNCT3_LOW = RD_HIGH + 1
+  val FUNCT3_HIGH = FUNCT3_LOW + 2
+  val RS1_LOW = FUNCT3_HIGH + 1
+  val RS1_HIGH = RS1_LOW + num_regs_lg - 1
+  val RS2_LOW = RS1_HIGH + 1
+  val RS2_HIGH = RS2_LOW + num_regs_lg - 1
+  val IMM_LOW = RS2_HIGH + 1
+  val IMM_HIGH = IMM_LOW + 6
+
+  val opcode = io.instr(OPCODE_HIGH, OPCODE_LOW)
+  io.opcode := Cat(io.instr(OPCODE_LOW+6, OPCODE_LOW+4), io.instr(FUNCT3_LOW+2, FUNCT3_LOW))
+  io.rd := io.instr(RD_HIGH, RD_LOW)
+  io.rs(0) := io.instr(RS1_HIGH, RS1_LOW)
+  io.rs(1) := io.instr(RS2_HIGH, RS2_LOW)
   io.rdWrEn := false.B
-  io.imm := io.instr(31, 20)
+  io.imm := io.instr(RS2_LOW+11, RS2_LOW)
 
   when (opcode(3, 0) === 0xb.U) {
     io.valid := true.B
@@ -292,7 +342,7 @@ class DecodeBFU extends Module {
     }
   } .elsewhen (opcode === 0x23.U) {
     io.valid := true.B
-    io.imm := Cat(io.instr(31, 25), io.instr(11, 7))
+    io.imm := Cat(io.instr(IMM_HIGH, IMM_LOW), io.instr(RD_LOW+4, RD_LOW))
   } .otherwise {
     io.valid := false.B
   }
@@ -300,14 +350,14 @@ class DecodeBFU extends Module {
 
 }
 
-class ALUMicrocodes(num_alus: Int, num_src_pos_lg: Int, num_src_modes_lg: Int) extends Bundle {
+class ALUMicrocodes(num_alus: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_modes_lg: Int) extends Bundle {
   val bfu_valid = Vec(num_alus, Bool())
   val opcode    = Vec(num_alus, UInt(6.W))
   val rs1_pos   = Vec(num_alus, UInt(num_src_pos_lg.W))
   val rs1_mode  = Vec(num_alus, UInt(num_src_modes_lg.W))
   val rs2_pos   = Vec(num_alus, UInt(num_src_pos_lg.W))
   val rs2_mode  = Vec(num_alus, UInt(num_src_modes_lg.W))
-  val rd        = Vec(num_alus, UInt(5.W))
+  val rd        = Vec(num_alus, UInt(num_regs_lg.W))
   val addEn     = Vec(num_alus, Bool())
   val subEn     = Vec(num_alus, Bool())
   val sltEn     = Vec(num_alus, Bool())
@@ -323,7 +373,7 @@ class ALUMicrocodes(num_alus: Int, num_src_pos_lg: Int, num_src_modes_lg: Int) e
   val immSel    = Vec(num_alus, Bool())
   val imm       = Vec(num_alus, SInt(32.W))
 
-  override def cloneType = (new ALUMicrocodes(num_alus, num_src_pos_lg, num_src_modes_lg).asInstanceOf[this.type])
+  override def cloneType = (new ALUMicrocodes(num_alus, num_regs_lg, num_src_pos_lg, num_src_modes_lg).asInstanceOf[this.type])
 }
 
 class BRMicrocodes(num_alus: Int, num_fus: Int) extends Bundle {
@@ -336,50 +386,50 @@ class BRMicrocodes(num_alus: Int, num_fus: Int) extends Bundle {
   override def cloneType = (new BRMicrocodes(num_alus, num_fus).asInstanceOf[this.type])
 }
 
-class BFUMicrocodes(num_bfus: Int) extends Bundle {
+class BFUMicrocodes(num_bfus: Int, num_regs_lg: Int) extends Bundle {
   val opcode    = Vec(num_bfus, UInt(6.W))
-  val rs        = Vec(num_bfus, Vec(2, UInt(5.W)))
-  val rd        = Vec(num_bfus, UInt(5.W))
+  val rs        = Vec(num_bfus, Vec(2, UInt(num_regs_lg.W)))
+  val rd        = Vec(num_bfus, UInt(num_regs_lg.W))
   val bimm      = Vec(num_bfus, UInt(12.W))
 
-  override def cloneType = (new BFUMicrocodes(num_bfus).asInstanceOf[this.type])
+  override def cloneType = (new BFUMicrocodes(num_bfus, num_regs_lg).asInstanceOf[this.type])
 }
 
-class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {
+class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, inst_width: Int, num_regs_lg: Int, num_src_pos_lg: Int, num_src_modes_lg: Int, num_dst_pos_lg: Int, num_dst_modes_lg: Int) extends Module {
   val io = IO(new Bundle {
-    val instr     = Input(UInt(((num_alus*3+num_fus+1)*32).W))
+    val instr     = Input(UInt(((num_alus*3+num_fus+1)*inst_width).W))
 
-    val rs1       = Output(Vec(num_fus, UInt(5.W)))
-    val rs2       = Output(Vec(num_fus, UInt(5.W)))
-    val rd        = Output(Vec(num_fus, UInt(5.W)))
+    val rs1       = Output(Vec(num_fus, UInt(num_regs_lg.W)))
+    val rs2       = Output(Vec(num_fus, UInt(num_regs_lg.W)))
+    val rd        = Output(Vec(num_fus, UInt(num_regs_lg.W)))
     val rd_pos    = Output(Vec(num_alus, UInt(num_dst_pos_lg.W)))
     val rd_mode   = Output(Vec(num_alus, UInt(num_dst_modes_lg.W)))
     val rdWrEn    = Output(Vec(num_fus, Bool()))
 
     val bfuValids = Output(Vec(num_bfus, Bool()))
     val brUcodes  = Output(new BRMicrocodes(num_alus, num_fus))
-    val aluUcodes = Output(new ALUMicrocodes(num_alus, num_src_pos_lg, num_src_modes_lg))
-    val bfuUcodes = Output(new BFUMicrocodes(num_fus-num_alus))
+    val aluUcodes = Output(new ALUMicrocodes(num_alus, num_regs_lg, num_src_pos_lg, num_src_modes_lg))
+    val bfuUcodes = Output(new BFUMicrocodes(num_fus-num_alus, num_regs_lg))
   })
   // num_alus cannot exceed num_regs, or index will be truncated
   // assert(num_alus + num_bfus <= 32)
 
-  val branchDecoder = Module(new DecodeBranch)
-  val eiuDecoders = Seq.fill(3*num_alus)(Module(new DecodeEIU(num_src_pos_lg, num_src_modes_lg, num_dst_pos_lg, num_dst_modes_lg)))
-  val aluDecoders = Seq.fill(num_alus)(Module(new DecodeALUBFU))
-  val bfuDecoders = Seq.fill(num_fus-num_alus)(Module(new DecodeBFU))
+  val branchDecoder = Module(new DecodeBranch(inst_width, num_regs_lg))
+  val eiuDecoders = Seq.fill(3*num_alus)(Module(new DecodeEIU(inst_width, num_regs_lg, num_src_pos_lg, num_src_modes_lg, num_dst_pos_lg, num_dst_modes_lg)))
+  val aluDecoders = Seq.fill(num_alus)(Module(new DecodeALUBFU(inst_width, num_regs_lg)))
+  val bfuDecoders = Seq.fill(num_fus-num_alus)(Module(new DecodeBFU(inst_width, num_regs_lg)))
 
-  val ALU_PKT_WIDTH = 4*32
+  val ALU_PKT_WIDTH = 4*inst_width
   val EXTRACT0_LOW = 0
-  val EXTRACT0_HIGH = EXTRACT0_LOW + 31
+  val EXTRACT0_HIGH = EXTRACT0_LOW + inst_width - 1
   val EXTRACT1_LOW = EXTRACT0_HIGH + 1
-  val EXTRACT1_HIGH = EXTRACT1_LOW + 31
+  val EXTRACT1_HIGH = EXTRACT1_LOW + inst_width - 1
   val ALU_LOW = EXTRACT1_HIGH + 1
-  val ALU_HIGH = ALU_LOW + 31
+  val ALU_HIGH = ALU_LOW + inst_width -1 
   val INSERT_LOW = ALU_HIGH + 1
-  val INSERT_HIGH = INSERT_LOW + 31
-  val BRINST_LOW = num_fus*32 + num_alus*3*32
-  val BRINST_HIGH = BRINST_LOW + 31
+  val INSERT_HIGH = INSERT_LOW + inst_width - 1
+  val BRINST_LOW = num_fus*inst_width + num_alus*3*inst_width
+  val BRINST_HIGH = BRINST_LOW + inst_width - 1
 
   branchDecoder.io.instr := io.instr(BRINST_HIGH, BRINST_LOW)
   io.brUcodes.brValid := branchDecoder.io.brValid
@@ -397,7 +447,7 @@ class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, num_src_pos_lg: Int, nu
 
   if (num_alus < num_bfus) {
     for (i <- 0 until (num_bfus-num_alus)) {
-      bfuDecoders(i).io.instr := io.instr(num_alus*ALU_PKT_WIDTH+i*32+31, num_alus*ALU_PKT_WIDTH+i*32)
+      bfuDecoders(i).io.instr := io.instr(num_alus*ALU_PKT_WIDTH+i*inst_width+inst_width-1, num_alus*ALU_PKT_WIDTH+i*inst_width)
     }
   }
 
