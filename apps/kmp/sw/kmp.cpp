@@ -5,6 +5,7 @@ Implementation based on http://www-igm.univ-mlv.fr/~lecroq/string/node8.html
 #include "kmp.h"
 #include "../../common/primate-hardware.hpp"
 
+__attribute__((always_inline))
 void CPF(char pattern[PATTERN_SIZE], int32_t kmpNext[PATTERN_SIZE]) {
     int32_t k, q;
     k = 0;
@@ -21,7 +22,7 @@ void CPF(char pattern[PATTERN_SIZE], int32_t kmpNext[PATTERN_SIZE]) {
     }
 }
 
-
+__attribute__((always_inline))
 int kmp(char pattern[PATTERN_SIZE], char input[STRING_SIZE], int32_t kmpNext[PATTERN_SIZE], int32_t n_matches[1]) {
     int32_t i, q;
     n_matches[0] = 0;
@@ -43,7 +44,6 @@ int kmp(char pattern[PATTERN_SIZE], char input[STRING_SIZE], int32_t kmpNext[PAT
     }
     return 0;
 }
-
 
 void primate_main() {
   bench_args_t args = PRIMATE::input<bench_args_t>();

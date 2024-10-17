@@ -14,6 +14,7 @@
 //Set number of iterations to execute
 #define MAX_ITERATION 1
 
+__attribute__((always_inline))
 void stencil( TYPE orig[row_size * col_size],
         TYPE sol[row_size * col_size],
         TYPE filter[f_size] );

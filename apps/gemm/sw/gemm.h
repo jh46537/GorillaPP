@@ -17,6 +17,7 @@
 //Set number of iterations to execute
 #define MAX_ITERATION 1
 
+__attribute__((always_inline))
 void gemm(TYPE m1[N], TYPE m2[N], TYPE prod[N]);
 ////////////////////////////////////////////////////////////////////////////////
 // Test harness interface code.

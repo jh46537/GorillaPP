@@ -4,6 +4,7 @@
 #define ALEN 128
 #define BLEN 128
 
+__attribute__((always_inline))
 void needwun(char SEQA[ALEN], char SEQB[BLEN],
              char alignedA[ALEN+BLEN], char alignedB[ALEN+BLEN],
              int M[(ALEN+1)*(BLEN+1)], char ptr[(ALEN+1)*(BLEN+1)]);

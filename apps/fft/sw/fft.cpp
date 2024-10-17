@@ -1,6 +1,7 @@
 #include "fft.h"
 #include "../../common/primate-hardware.hpp"
 
+__attribute__((always_inline))
 void fft(double real[FFT_SIZE], double img[FFT_SIZE], double real_twid[FFT_SIZE/2], double img_twid[FFT_SIZE/2]){
     int even, odd, span, log, rootindex;
     double temp;

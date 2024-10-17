@@ -11,6 +11,7 @@
 
 #define MAX(A,B) ( ((A)>(B))?(A):(B) )
 
+__attribute__((always_inline))
 void needwun(char SEQA[ALEN], char SEQB[BLEN],
              char alignedA[ALEN+BLEN], char alignedB[ALEN+BLEN],
              int M[(ALEN+1)*(BLEN+1)], char ptr[(ALEN+1)*(BLEN+1)]){
