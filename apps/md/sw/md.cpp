@@ -1,4 +1,5 @@
 #include "md.h"
+#include "../../common/primate-hardware.hpp"
 
 #define MIN(x,y) ( (x)<(y) ? (x) : (y) )
 #define MAX(x,y) ( (x)>(y) ? (x) : (y) )
@@ -54,4 +55,12 @@ void md( int n_points[blockSide][blockSide][blockSide],
     } // loop_p
   }}} // loop_grid1_*
   }}} // loop_grid0_*
+}
+
+void primate_main() {
+  bench_args_t args = PRIMATE::input<bench_args_t>();
+  PRIMATE::input_done();
+  md(args.n_points, args.force, args.position);
+  PRIMATE::output(args.force);  // probably wrong
+  PRIMATE::output_done();
 }

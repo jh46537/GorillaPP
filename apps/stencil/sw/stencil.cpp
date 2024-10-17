@@ -1,4 +1,5 @@
 #include "stencil.h"
+#include "../../common/primate-hardware.hpp"
 
 void stencil (TYPE orig[row_size * col_size], TYPE sol[row_size * col_size], TYPE filter[f_size]){
     int r, c, k1, k2;
@@ -16,4 +17,12 @@ void stencil (TYPE orig[row_size * col_size], TYPE sol[row_size * col_size], TYP
             sol[(r*col_size) + c] = temp;
         }
     }
+}
+
+void primate_main() {
+  bench_args_t args = PRIMATE::input<bench_args_t>();
+  PRIMATE::input_done();
+  stencil(args.orig, args.sol, args.filter);
+  PRIMATE::output(args.sol);
+  PRIMATE::output_done();
 }

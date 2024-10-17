@@ -4,6 +4,7 @@ http://www.cs.berkeley.edu/~mhoemmen/matrix-seminar/slides/UCB_sparse_tutorial_1
 */
 
 #include "spmv.h"
+#include "../../common/primate-hardware.hpp"
 
 void spmv(TYPE val[NNZ], int32_t cols[NNZ], int32_t rowDelimiters[N+1], TYPE vec[N], TYPE out[N]){
     int i, j;
@@ -19,4 +20,12 @@ void spmv(TYPE val[NNZ], int32_t cols[NNZ], int32_t rowDelimiters[N+1], TYPE vec
         }
         out[i] = sum;
     }
+}
+
+void primate_main() {
+  bench_args_t args = PRIMATE::input<bench_args_t>();
+  PRIMATE::input_done();
+  spmv(args.val, args.cols, args.rowDelimiters, args.vec, args.out);
+  PRIMATE::output(args.out);
+  PRIMATE::output_done();
 }

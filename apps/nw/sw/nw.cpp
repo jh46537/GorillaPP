@@ -1,4 +1,5 @@
 #include "nw.h"
+#include "../../common/primate-hardware.hpp"
 
 #define MATCH_SCORE 1
 #define MISMATCH_SCORE -1
@@ -88,4 +89,12 @@ void needwun(char SEQA[ALEN], char SEQB[BLEN],
     pad_b: for( ; b_str_idx<ALEN+BLEN; b_str_idx++ ) {
       alignedB[b_str_idx] = '_';
     }
+}
+
+void primate_main() {
+  bench_args_t args = PRIMATE::input<bench_args_t>();
+  PRIMATE::input_done();
+  needwun(args.seqA, args.seqB, args.alignedA, args.alignedB, args.M, args.ptr);
+  PRIMATE::output(args); // probably wrong
+  PRIMATE::output_done();
 }

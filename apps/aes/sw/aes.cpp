@@ -211,4 +211,5 @@ void primate_main() {
 
   aes256_encrypt_ecb(&ctx, k, bf.buffer);
   PRIMATE::output(bf);
+  PRIMATE::output_done();
 }

@@ -1,4 +1,5 @@
 #include "fft.h"
+#include "../../common/primate-hardware.hpp"
 
 void fft(double real[FFT_SIZE], double img[FFT_SIZE], double real_twid[FFT_SIZE/2], double img_twid[FFT_SIZE/2]){
     int even, odd, span, log, rootindex;
@@ -28,4 +29,12 @@ void fft(double real[FFT_SIZE], double img[FFT_SIZE], double real_twid[FFT_SIZE/
             }
         }
     }
+}
+
+void primate_main() {
+  bench_args_t args = PRIMATE::input<bench_args_t>();
+  PRIMATE::input_done();
+  fft(args.real, args.img, args.real_twid, args.img_twid);
+  PRIMATE::output(args.real); // probably wrong
+  PRIMATE::output_done();
 }

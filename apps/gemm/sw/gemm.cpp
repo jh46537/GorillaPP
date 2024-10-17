@@ -1,4 +1,5 @@
 #include "gemm.h"
+#include "../../common/primate-hardware.hpp"
 
 void gemm( TYPE m1[N], TYPE m2[N], TYPE prod[N] ){
     int i, j, k;
@@ -17,4 +18,12 @@ void gemm( TYPE m1[N], TYPE m2[N], TYPE prod[N] ){
             prod[i_col + j]  = sum;
         }
     }
+}
+
+void primate_main() {
+  bench_args_t args = PRIMATE::input<bench_args_t>();
+  PRIMATE::input_done();
+  gemm(args.m1, args.m2, args.prod);
+  PRIMATE::output(args.prod);  // probably wrong
+  PRIMATE::output_done();
 }

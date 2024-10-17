@@ -1,14 +1,5 @@
-#include "../../common/primate-hardware.hpp"
 #include "viterbi.h"
-
-void primate_main() {
-  tok_t obs[N_OBS] = PRIMATE::input<tok_t[N_OBS]>();
-  prob_t init[N_STATES] = PRIMATE::input<prob_t[N_STATES]>();
-  prob_t transition[N_STATES*N_STATES] = PRIMATE::input<prob_t[N_STATES*N_STATES]>();
-  prob_t emission[N_STATES*N_TOKENS] = PRIMATE::input<prob_t[N_STATES*N_TOKENS]>();
-  state_t path[N_OBS] = PRIMATE::input<state_t[N_OBS]>();
-  viterbi();
-}
+#include "../../common/primate-hardware.hpp"
 
 __attribute__((always_inline)) int viterbi( tok_t obs[N_OBS], prob_t init[N_STATES], prob_t transition[N_STATES*N_STATES], prob_t emission[N_STATES*N_TOKENS], state_t path[N_OBS] )
 {
@@ -71,4 +62,16 @@ __attribute__((always_inline)) int viterbi( tok_t obs[N_OBS], prob_t init[N_STAT
   }
 
   return 0;
+}
+
+void primate_main() {
+  bench_args_t args = PRIMATE::input<bench_args_t>();
+  PRIMATE::input_done();
+  viterbi(args.obs, 
+          args.init, 
+          args.transition, 
+          args.emission, 
+          args.path);
+  PRIMATE::output(args.path); // probably wrong
+  PRIMATE::output_done();
 }

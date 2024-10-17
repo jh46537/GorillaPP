@@ -4,6 +4,7 @@ Hong, Oguntebi, Olukotun. "Efficient Parallel Graph Exploration on Multi-Core CP
 */
 
 #include "bfs.h"
+#include "../../common/primate-hardware.hpp"
 
 #define Q_PUSH(node) { queue[q_in==0?N_NODES-1:q_in-1]=node; q_in=(q_in+1)%N_NODES; }
 #define Q_PEEK() (queue[q_out])
@@ -31,7 +32,7 @@ void bfs(node_t nodes[N_NODES], edge_t edges[N_EDGES],
   level_counts[0] = 1;
   Q_PUSH(starting_node);
 
-  loop_queue: for( dummy=0; dummy<N_NODES; dummy++ ) { // Typically while(not_empty(queue)){
+  loop_queue: for( dummy=0; dummy<N_NODES; dummy++ ) { 
     if( Q_EMPTY() )
       break;
     n = Q_PEEK();
@@ -59,13 +60,22 @@ void bfs(node_t nodes[N_NODES], edge_t edges[N_EDGES],
   */
 }
 
-int main() {
-  node_t nodes[N_NODES] = PRIMATE::input<node_t>();
-  edge_t edges[N_EDGES] = PRIMATE::input<edge_t>();
-  node_index_t starting_node = PRIMATE::input<node_index_t>;
-  level_t level[N_NODES] = PRIMATE::input<level_t>();
-  edge_index_t level_counts[N_LEVELS] = PRIMATE::input<edge_index_t>();
-  bfs(nodes, edges,
-      starting_node, level,
-      level_counts);
+// int main() {
+//   node_t nodes[N_NODES] = PRIMATE::input<node_t>();
+//   edge_t edges[N_EDGES] = PRIMATE::input<edge_t>();
+//   node_index_t starting_node = PRIMATE::input<node_index_t>;
+//   level_t level[N_NODES] = PRIMATE::input<level_t>();
+//   edge_index_t level_counts[N_LEVELS] = PRIMATE::input<edge_index_t>();
+//   bfs(nodes, edges,
+//       starting_node, level,
+//       level_counts);
+// }
+
+void primate_main() {
+  bench_args_t args = PRIMATE::input<bench_args_t>();
+  PRIMATE::input_done();
+  bfs(args.nodes, args.edges, args.starting_node, 
+      args.level, args.level_counts);
+  PRIMATE::output(args.starting_node);  // probably wrong
+  PRIMATE::output_done();
 }

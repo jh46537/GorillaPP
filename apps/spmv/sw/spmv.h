@@ -18,9 +18,9 @@ void spmv(TYPE val[NNZ], int32_t cols[NNZ], int32_t rowDelimiters[N + 1],
 // Test harness interface code.
 
 struct bench_args_t {
-  TYPE val[NNZ];
+  TYPE    val[NNZ];
   int32_t cols[NNZ];
   int32_t rowDelimiters[N+1];
-  TYPE vec[N];
-  TYPE out[N];
+  TYPE    vec[N];
+  TYPE    out[N];
 };
