@@ -50,20 +50,20 @@ else
     echo "Tablegen files have not changed." 
 fi
 
-# ninja -C ${COMPILER_DIR}/build
-# ${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S --target=primate32-linux-gnu -march=pr32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
-# # crash on destruct. || true is just to keep moving.
-# ${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
-# mv *.scala $CUR_DIR/hw
-# cp primate.cfg $CUR_DIR/hw
-# mv primate.cfg $CHISEL_SRC_DIR/main/scala/
-# cp input.txt $UARCH_DIR/chisel/Gorilla++/
-# mv primate_assembler.h $UARCH_DIR/apps/scripts/
-# cd $UARCH_DIR/apps/scripts/
-# make clean && make
-# cd $CUR_DIR/sw
+ninja -C ${COMPILER_DIR}/build
+${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S --target=primate32-linux-gnu -march=pr32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
+# crash on destruct. || true is just to keep moving.
+${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
+mv *.scala $CUR_DIR/hw
+cp primate.cfg $CUR_DIR/hw
+mv primate.cfg $CHISEL_SRC_DIR/main/scala/
+cp input.txt $UARCH_DIR/chisel/Gorilla++/
+mv primate_assembler.h $UARCH_DIR/apps/scripts/
+cd $UARCH_DIR/apps/scripts/
+make clean && make
+cd $CUR_DIR/sw
 
-# echo "done with archgen..."
+echo "done with archgen..."
 
 # ================================================
 # =       Generate Primate Compiler              =

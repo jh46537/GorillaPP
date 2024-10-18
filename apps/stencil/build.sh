@@ -6,7 +6,7 @@
 set -o xtrace
 set -e
 
-TARGET=fft
+TARGET=stencil
 CUR_DIR=$(pwd)
 cd ../../../
 PRIMATE_DIR=/primate
@@ -51,7 +51,7 @@ else
 fi
 
 ninja -C ${COMPILER_DIR}/build
-${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S --target=primate32-linux-gnu -march=pr32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll" 2> front_end.log
+${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S --target=primate32-linux-gnu -march=pr32i -O3 "${TARGET}.cpp" -o "${TARGET}.ll"
 # crash on destruct. || true is just to keep moving.
 ${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
 mv *.scala $CUR_DIR/hw
