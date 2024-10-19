@@ -1,8 +1,3 @@
-/*
-*   Byte-oriented AES-256 implementation.
-*   All lookup tables replaced with 'on the fly' calculations.
-*/
-#include "primate-common.h"
 #include "../../common/primate-hardware.hpp"
 
 
@@ -36,7 +31,7 @@ __attribute__((always_inline)) unsigned int sub_word(unsigned int word) {
 	       (s_box[(word >> 24) & 0xff] << 24);
 }
 
-__attribute__((always_inline)) unsigned int* key_exp(unsigned int *key, int keylen) {
+__attribute__((always_inline)) void key_exp(unsigned int *key, int keylen, unsigned int *W) {
     const int r_con[16] = {
         0b0,
         0b1,
@@ -58,7 +53,7 @@ __attribute__((always_inline)) unsigned int* key_exp(unsigned int *key, int keyl
 
     unsigned int N = keylen / 32;  // number of 32 bit words in key
     unsigned int R = 7 + N;        // number of rounds to perform
-    unsigned int W[44] = {0};     // array of 4*R 32 bit segments of the expanded key
+    //unsigned int W[44] = {0};     // array of 4*R 32 bit segments of the expanded key
     unsigned int K[N];             // 32 bit words of original key
     for (int i = 0; i < N; i++) {
         K[i] = key[i];
@@ -75,21 +70,7 @@ __attribute__((always_inline)) unsigned int* key_exp(unsigned int *key, int keyl
             W[i] = W[i-N] ^ W[i-1];
         }
     }
-
-    return W;
 }
-
-__attribute__((always_inline)) void reverse(unsigned int *ptr, int len) {
-    for (int i = 0; i < len/2; i++) {
-        unsigned int buff;
-
-        buff = ptr[i];
-        ptr[i] = ptr[len-1-i];
-        ptr[len-1-i] = buff;
-    }
-}
-
-
 
 struct input_t {
     unsigned int plaintext[4];
@@ -97,7 +78,7 @@ struct input_t {
 };
 
 struct output_t {
-    _ExtInt(128) ciphertext;
+    unsigned int ciphertext[4];
 };
 
 
@@ -109,11 +90,12 @@ void primate_main() {
     // input data to dut
     input_t inctx;
     unsigned int key[4] = {0x2b7e1516, 0x28aed2a6, 0xabf71588, 0x09cf4f3c};
-    inctx.exp_key = key_exp(key, 128);
+    key_exp(key, 128, inctx.exp_key);
 
-    unsigned int input[4] = {0x3243f6a8, 0x885a308d, 0x313198a2, 0xe0370734};
-    reverse(input, 4);
-    inctx.plaintext = input;
+    inctx.plaintext[3] = 0x3243f6a8;
+    inctx.plaintext[2] = 0x885a308d;
+    inctx.plaintext[1] = 0x313198a2;
+    inctx.plaintext[0] = 0xe0370734;
 
     // call BFU
     output_t outctx = aes128(inctx);
