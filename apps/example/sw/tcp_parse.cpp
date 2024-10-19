@@ -21,7 +21,7 @@ void primate_main() {
                 int n = 0;
                 while (hdr_byte_left > 0) {
                     unsigned _ExtInt(8) kind;
-                    kind = PRIMATE::input<unsigned _ExtInt(8)>(1);
+                    kind = PRIMATE::input<unsigned _ExtInt(8)>();
                     if (kind == 0) {
                         // end
                         hdr_byte_left--;
@@ -47,7 +47,7 @@ void primate_main() {
                 }
             }
         } else if (ipv4.protocol == 0x11) {
-            udp = PRIMATE::input<udp_t>(8);
+            udp = PRIMATE::input<udp_t>();
             PRIMATE::output<udp_t>(udp);
         }
     }

@@ -48,9 +48,10 @@ class TopTests(c: Top) extends gTester[Top](c) {
   var sinkedIndex = 0
   var allPassed = true
   var cycles = 0
-  // val numOfInputs = lines.length
-  val numOfInputs = 512
-  val numOfOutputs = 512
+  val numOfInputs = lines.length
+  val numOfOutputs = lines.length
+  // val numOfInputs = 512
+  // val numOfOutputs = 512
   val numThreads = 16
   var memReqBuf_time = new Array[Int](1024)
   var memReqBuf_addr = new Array[Int](1024)
@@ -59,11 +60,11 @@ class TopTests(c: Top) extends gTester[Top](c) {
 
   while(cycles < 250000 && (sourced < numOfInputs || sinked < numOfOutputs)) {
     // Read packets from file
-    val line = lines(sourcedIndex).split(" ")
-    val data = BigInt(line(2), 16)
-    val empty = BigInt(line(1), 16)
-    val last = BigInt(line(0))
     if (sourced < numOfInputs) {
+      val line = lines(sourcedIndex).split(" ")
+      val data = BigInt(line(2), 16)
+      val empty = BigInt(line(1), 16)
+      val last = BigInt(line(0))
       poke(c.io.in.bits.data, data.U)
       poke(c.io.in.last, last.U.asBool)
       poke(c.io.in.valid, true.B)
@@ -121,8 +122,8 @@ class TopTests(c: Top) extends gTester[Top](c) {
     //     //         " expected " + (inputData(sinkedIndex) + 2))
     //     println("Sinked is " + sinked)
     //   }
-    //     println("At " + cycles + " output " + peek(c.io.out.bits.pkt_flags) +
-    //             " sinked. sinked is " + sinked)
+        println("At " + cycles + " output " + peek(c.io.out.bits.pkt_flags) +
+                " sinked. sinked is " + sinked)
       sinked += 1
     //   sinkedIndex = sinked % inputData.length
     }

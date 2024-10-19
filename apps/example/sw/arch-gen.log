@@ -1,0 +1,293 @@
+Args: /primate/primate-compiler/build/bin/opt -debug -passes=primate-arch-gen -debug 
+Init Target Machine for CPU: 
+This is a string
+found primate Function: ; Function Attrs: alwaysinline mustprogress nounwind
+define dso_local void @_ZN7PRIMATE10input_doneEv() local_unnamed_addr #0 !primate !7 {
+entry:
+  tail call void @llvm.primate.input.done()
+  ret void
+}
+
+return type: void
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.input.done() #1
+
+return type: void
+found primate Function: ; Function Attrs: alwaysinline mustprogress nounwind
+define dso_local void @_ZN7PRIMATE11output_doneEv() local_unnamed_addr #0 !primate !7 {
+entry:
+  tail call void @llvm.primate.output.done()
+  ret void
+}
+
+return type: void
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.done() #1
+
+return type: void
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 %struct.ethernet_t @llvm.primate.input.s_struct.ethernet_ts.i32(i32 %0) #1
+
+arg type: i32 %0
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: %struct.ethernet_t = type { i48, i48, i16 }
+reg width of type : %struct.ethernet_t = type { i48, i48, i16 }
+112
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 %struct.ipv4_t @llvm.primate.input.s_struct.ipv4_ts.i32(i32 %0) #1
+
+arg type: i32 %0
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: %struct.ipv4_t = type { i72, i8, i80 }
+reg width of type : %struct.ipv4_t = type { i72, i8, i80 }
+160
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 %struct.tcp_t @llvm.primate.input.s_struct.tcp_ts.i32(i32 %0) #1
+
+arg type: i32 %0
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: %struct.tcp_t = type { i96, i4, i60 }
+reg width of type : %struct.tcp_t = type { i96, i4, i60 }
+160
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 i8 @llvm.primate.input.i8.i32(i32 %0) #1
+
+arg type: i32 %0
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: i8
+reg width of type : i8
+8
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 i128 @llvm.primate.input.i128.i32(i32 %0) #1
+
+arg type: i32 %0
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: i128
+reg width of type : i128
+128
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 %struct.udp_t @llvm.primate.input.s_struct.udp_ts.i32(i32 %0) #1
+
+arg type: i32 %0
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: %struct.udp_t = type { i64 }
+reg width of type : %struct.udp_t = type { i64 }
+64
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.s_struct.ethernet_ts.i32(%struct.ethernet_t %0, i32 %1) #1
+
+arg type: %struct.ethernet_t %0
+arg type: %struct.ethernet_t = type { i48, i48, i16 }
+ptr
+reg width of type : %struct.ethernet_t = type { i48, i48, i16 }
+112
+arg type: i32 %1
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: void
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.s_struct.ipv4_ts.i32(%struct.ipv4_t %0, i32 %1) #1
+
+arg type: %struct.ipv4_t %0
+arg type: %struct.ipv4_t = type { i72, i8, i80 }
+ptr
+reg width of type : %struct.ipv4_t = type { i72, i8, i80 }
+160
+arg type: i32 %1
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: void
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.s_struct.tcp_ts.i32(%struct.tcp_t %0, i32 %1) #1
+
+arg type: %struct.tcp_t %0
+arg type: %struct.tcp_t = type { i96, i4, i60 }
+ptr
+reg width of type : %struct.tcp_t = type { i96, i4, i60 }
+160
+arg type: i32 %1
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: void
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.i8.i32(i8 %0, i32 %1) #1
+
+arg type: i8 %0
+arg type: i8
+ptr
+reg width of type : i8
+8
+arg type: i32 %1
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: void
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.i128.i32(i128 %0, i32 %1) #1
+
+arg type: i128 %0
+arg type: i128
+ptr
+reg width of type : i128
+128
+arg type: i32 %1
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: void
+found primate Function: ; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.s_struct.udp_ts.i32(%struct.udp_t %0, i32 %1) #1
+
+arg type: %struct.udp_t %0
+arg type: %struct.udp_t = type { i64 }
+ptr
+reg width of type : %struct.udp_t = type { i64 }
+64
+arg type: i32 %1
+arg type: i32
+ptr
+reg width of type : i32
+32
+return type: void
+after checking all function calls we have field index mappings: 
+index: 0 field: 8, 32, 48, 64, 72, 96, 128, 160, 
+index: 48 field: 48, 
+index: 72 field: 8, 
+index: 80 field: 80, 
+index: 96 field: 4, 16, 
+index: 100 field: 60, 
+max reg width: 160
+Found a new BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+Found another BFU with name: IO
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+Found Primate Main!
+numALU: 2, perf: 0.000000e+00, utilization: 0.000000e+00
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+non primate main. skipping eval
+Number of regs: 32
+Number of instructions: 0
+; Function Attrs: alwaysinline mustprogress nounwind
+define dso_local void @_ZN7PRIMATE10input_doneEv() local_unnamed_addr #0 !primate !7 {
+entry:
+  tail call void @llvm.primate.input.done()
+  ret void
+}
+
+; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.input.done() #1
+
+; Function Attrs: alwaysinline mustprogress nounwind
+define dso_local void @_ZN7PRIMATE11output_doneEv() local_unnamed_addr #0 !primate !7 {
+entry:
+  tail call void @llvm.primate.output.done()
+  ret void
+}
+
+; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.done() #1
+
+; Function Attrs: nounwind
+declare !primate !7 %struct.ethernet_t @llvm.primate.input.s_struct.ethernet_ts.i32(i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 %struct.ipv4_t @llvm.primate.input.s_struct.ipv4_ts.i32(i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 %struct.tcp_t @llvm.primate.input.s_struct.tcp_ts.i32(i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 i8 @llvm.primate.input.i8.i32(i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 i128 @llvm.primate.input.i128.i32(i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 %struct.udp_t @llvm.primate.input.s_struct.udp_ts.i32(i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.s_struct.ethernet_ts.i32(%struct.ethernet_t, i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.s_struct.ipv4_ts.i32(%struct.ipv4_t, i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.s_struct.tcp_ts.i32(%struct.tcp_t, i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.i8.i32(i8, i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.i128.i32(i128, i32) #1
+
+; Function Attrs: nounwind
+declare !primate !7 void @llvm.primate.output.s_struct.udp_ts.i32(%struct.udp_t, i32) #1
+
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	
+-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	-1	

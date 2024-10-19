@@ -414,6 +414,7 @@ class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, inst_width: Int, num_re
   // num_alus cannot exceed num_regs, or index will be truncated
   // assert(num_alus + num_bfus <= 32)
 
+  print("Decode instantiated with " + num_alus + " ALUs, " + num_bfus + " BFUs, " + num_fus + " FUs, " + inst_width + " bit instructions, " + num_regs_lg + " bit register indices, " + num_src_pos_lg + " bit source positions, " + num_src_modes_lg + " bit source modes, " + num_dst_pos_lg + " bit destination positions, " + num_dst_modes_lg + " bit destination modes\n")
   val branchDecoder = Module(new DecodeBranch(inst_width, num_regs_lg))
   val eiuDecoders = Seq.fill(3*num_alus)(Module(new DecodeEIU(inst_width, num_regs_lg, num_src_pos_lg, num_src_modes_lg, num_dst_pos_lg, num_dst_modes_lg)))
   val aluDecoders = Seq.fill(num_alus)(Module(new DecodeALUBFU(inst_width, num_regs_lg)))

@@ -94,7 +94,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val ALU_SRC_WIDTH = NUM_REGS_LG
   // val ALU_INST_WIDTH = 7 + NUM_REGS_LG + NUM_DST_POS_LG + NUM_DST_MODES_LG + (3 + ALU_SRC_WIDTH + ALU_SRC_WIDTH.max(12)).max(20)
   // val ALU_INST_WIDTH = 64
-  val ALU_INST_WIDTH = Math.ceil((7 + ALU_SRC_WIDTH * 3 + 3 + 7)/8) * 8
+  val ALU_INST_WIDTH = Math.ceil((7 + ALU_SRC_WIDTH * 3 + 3 + 7)/8.0) * 8
   val INSTR_WIDTH = ALU_INST_WIDTH.toInt * (NUM_FUS + NUM_ALUS*3 + 1)
 
   val NONE_SELECTED = (NUM_THREADS).U((log2Up(NUM_THREADS+1)).W)
@@ -234,7 +234,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val decodeThread = RegInit(NONE_SELECTED)
   decodeThread := vThread
 
-  val decodeUnit = Module(new Decode(NUM_ALUS, NUM_BFUS, NUM_FUS, INSTR_WIDTH, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_DST_POS_LG, NUM_DST_MODES_LG))
+  val decodeUnit = Module(new Decode(NUM_ALUS, NUM_BFUS, NUM_FUS, ALU_INST_WIDTH.toInt, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_DST_POS_LG, NUM_DST_MODES_LG))
   val aluMicrocodes_in = Wire(new ALUMicrocodes(NUM_ALUS, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG))
   val bfuMicrocodes_in = Wire(new BFUMicrocodes(NUM_FUS-NUM_ALUS, ALU_SRC_WIDTH))
   val rdWrEn_in = Wire(Vec(NUM_FUS, Bool()))

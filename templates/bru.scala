@@ -46,7 +46,7 @@ class BranchUnit extends Module {
       }
       is (3.U) {
         pcOut_r := pcOff
-        when (pcPlain === -2.S) {
+        when (pcPlain === -1.S) {
           finish_r := true.B
         }
       }
