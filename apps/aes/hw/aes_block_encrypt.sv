@@ -25,7 +25,7 @@ module aes_block_encrypt #(parameter KEYLEN=128) (
   assign ivalid[0] = valid_in;
   assign valid_out = ivalid[STD_ROUND_COUNT+1];
   for (i=0; i<STD_ROUND_COUNT+1; i++) begin : valid
-    flopr #(1) flop (clk, rst, .en(ready_out), ivalid[i], ivalid[i+1]);
+    floper #(1) flop (clk, rst, ready_out, ivalid[i], ivalid[i+1]);
   end
 
   // repartition keys
@@ -38,11 +38,11 @@ module aes_block_encrypt #(parameter KEYLEN=128) (
 
   for (i=0; i<STD_ROUND_COUNT; i++) begin : stdround
     aes_standard_round aesrnd (.key(short_key[i+1]), .state(round_interm[i]), .new_state(ri_preflop[i]));
-    flopr #(128) flop (clk, rst, .en(ready_out), ri_preflop[i], round_interm[i+1]);
+    floper #(128) flop (clk, rst, ready_out, ri_preflop[i], round_interm[i+1]);
   end
 
   aes_reduced_round aesrnd_short (.key(short_key[STD_ROUND_COUNT+1]),
     .state(round_interm[STD_ROUND_COUNT]), .new_state(ri_preflop[STD_ROUND_COUNT]));
-  flopr #(128) flop (clk, rst, .en(ready_out), ri_preflop[STD_ROUND_COUNT], ciphertext);
+  floper #(128) flop (clk, rst, ready_out, ri_preflop[STD_ROUND_COUNT], ciphertext);
 
 endmodule : aes_block_encrypt

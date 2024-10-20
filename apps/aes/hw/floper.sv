@@ -1,4 +1,4 @@
-module flopr #(parameter WIDTH) (
+module floper #(parameter WIDTH) (
     input  logic clk, rst, en,
     input  logic [WIDTH-1:0] d,
     output logic [WIDTH-1:0] q
@@ -11,4 +11,4 @@ module flopr #(parameter WIDTH) (
       q <= d;
   end
 
-endmodule : flopr
+endmodule : floper
