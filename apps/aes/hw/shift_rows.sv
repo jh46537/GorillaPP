@@ -15,9 +15,9 @@ module shift_rows(
 genvar i;
 for (i = 0; i < 4; i++) begin
     assign output_matrix[i][3] = input_matrix[i][3];
-    assign output_matrix[i][2] = input_matrix[(i-1)%4][2];
-    assign output_matrix[i][1] = input_matrix[(i-2)%4][1];
-    assign output_matrix[i][0] = input_matrix[(i-3)%4][0];
+    assign output_matrix[i][2] = input_matrix[(i+3)%4][2];
+    assign output_matrix[i][1] = input_matrix[(i+2)%4][1];
+    assign output_matrix[i][0] = input_matrix[(i+1)%4][0];
 end
 
 endmodule : shift_rows
