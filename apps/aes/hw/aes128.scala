@@ -1,30 +1,23 @@
-//> using scala "2.13.12"
-//> using dep "org.chipsalliance::chisel:6.5.0"
-//> using plugin "org.chipsalliance:::chisel-plugin:6.5.0"
-//> using options "-unchecked", "-deprecation", "-language:reflectiveCalls", "-feature", "-Xcheckinit", "-Xfatal-warnings", "-Ywarn-dead-code", "-Ywarn-unused", "-Ymacro-annotations"
-
-
 import chisel3._
 import chisel3.util._
-//import chisel3.util.HasBlackBoxResource // is this necessary?
-
+import _root_.circt.stage.ChiselStage
 
 class aes_block_encrypt extends BlackBox {
   val io = IO(new Bundle {
     val clk = Input(Clock())
-    val reset = Input(Bool())
+    val rst = Input(Bool())
     val valid_in = Input(Bool())
     val valid_out = Output(Bool())
     val ready_out = Input(Bool())
     val ready_in  = Output(Bool())
-    val expanded_key = Input(Vec(11, UInt(128.W)))
-    val plaintext = Input(Vec(16, UInt(8.W)))
-    val ciphertext = Output(Vec(16, UInt(8.W)))
+    val expanded_key = Input(UInt(1408.W))
+    val plaintext = Input(UInt(128.W))
+    val ciphertext = Output(UInt(128.W))
   })
-  addResource("aes_block_encrypt.sv") // is this necessary?
 }
 
 
+//class aes128(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
 class aes128(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
   val io = IO(new Bundle {
     val in_valid      = Input(Bool())
@@ -38,8 +31,6 @@ class aes128(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int
     val out_flag      = Output(UInt(ip_width.W))
     val out_bits      = Output(UInt(reg_width.W))
     val out_ready     = Input(Bool())
-
-    //val mem           = new gMemBundle
   })
  
   val block_cipher = Module(new aes_block_encrypt)
@@ -63,4 +54,16 @@ class aes128(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int
 
   io.out_bits := block_cipher.io.ciphertext.asUInt
 
+  // tie to 0
+  io.out_flag := 0.U
+}
+
+object aes128Driver extends App {
+  ChiselStage.emitSystemVerilogFile(new aes128(5, 1536, 4, 1, 1))
+}
+
+object Main extends App {
+  println(
+    ChiselStage.emitSystemVerilog(gen = new aes128(5, 1536, 4, 1, 1))
+  )
 }
