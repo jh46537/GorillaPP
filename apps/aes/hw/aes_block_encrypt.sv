@@ -13,18 +13,19 @@ module aes_block_encrypt #(parameter KEYLEN=128) (
 
   genvar i;
   localparam STD_ROUND_COUNT = KEYLEN/32+5;
+  localparam PIPESTAGES = STD_ROUND_COUNT*2+1;
 
-  logic [STD_ROUND_COUNT+1:0] ivalid;
+  logic [PIPESTAGES:0] ivalid;
   logic [STD_ROUND_COUNT+1:0][3:0][3:0][7:0] short_key;
-  logic [STD_ROUND_COUNT:0][3:0][3:0][7:0] round_interm, ri_preflop;
+  logic [STD_ROUND_COUNT:0][3:0][3:0][7:0] round_interm;
   
   //TODO: skid buffer? when does ready_out deassert
   assign ready_in = ready_out;
 
   // propagate a valid signal through the pipe
   assign ivalid[0] = valid_in;
-  assign valid_out = ivalid[STD_ROUND_COUNT+1];
-  for (i=0; i<STD_ROUND_COUNT+1; i++) begin : valid
+  assign valid_out = ivalid[PIPESTAGES];
+  for (i=0; i<PIPESTAGES; i++) begin : valid
     floper #(1) flop (clk, rst, ready_out, ivalid[i], ivalid[i+1]);
   end
 
@@ -37,12 +38,9 @@ module aes_block_encrypt #(parameter KEYLEN=128) (
   add_round_key ark1 (.state(plaintext), .key(short_key[0]), .new_state(round_interm[0]));
 
   for (i=0; i<STD_ROUND_COUNT; i++) begin : stdround
-    aes_standard_round aesrnd (.key(short_key[i+1]), .state(round_interm[i]), .new_state(ri_preflop[i]));
-    floper #(128) flop (clk, rst, ready_out, ri_preflop[i], round_interm[i+1]);
+    aes_standard_round aesrnd (.clk, .rst, .en(ready_out), .key(short_key[i+1]), .state(round_interm[i]), .new_state(round_interm[i+1]));
   end
 
-  aes_reduced_round aesrnd_short (.key(short_key[STD_ROUND_COUNT+1]),
-    .state(round_interm[STD_ROUND_COUNT]), .new_state(ri_preflop[STD_ROUND_COUNT]));
-  floper #(128) flop (clk, rst, ready_out, ri_preflop[STD_ROUND_COUNT], ciphertext);
+  aes_reduced_round aesrnd_short (.clk, .rst, .en(ready_out), .key(short_key[STD_ROUND_COUNT+1]), .state(round_interm[STD_ROUND_COUNT]), .new_state(ciphertext));
 
 endmodule : aes_block_encrypt
