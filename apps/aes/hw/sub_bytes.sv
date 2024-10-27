@@ -25,10 +25,7 @@ const logic [7:0] s_box [255 :0] = '{
     8'h8c, 8'ha1, 8'h89, 8'h0d, 8'hbf, 8'he6, 8'h42, 8'h68, 8'h41, 8'h99, 8'h2d, 8'h0f, 8'hb0, 8'h54, 8'hbb, 8'h16
 };
 
-logic [7:0] c;
-assign c = 8'h63;
-
-genvar i, j;
+genvar i;
 for (i = 0; i < 4; i++) begin
     always_comb begin
         bytes_out[i] = s_box[bytes_in[i]];
