@@ -35,12 +35,15 @@ module aes_block_encrypt #(parameter KEYLEN=128) (
     block_partition bp1 (.in(expanded_key[i]), .out(short_key[i]));
   end
 
+  // add first round key
   add_round_key ark1 (.state(plaintext), .key(short_key[0]), .new_state(round_interm[0]));
 
+  // perform standard rounds
   for (i=0; i<STD_ROUND_COUNT; i++) begin : stdround
     aes_standard_round aesrnd (.clk, .rst, .en(ready_out), .key(short_key[i+1]), .state(round_interm[i]), .new_state(round_interm[i+1]));
   end
 
+  // perform last reduced round
   aes_reduced_round aesrnd_short (.clk, .rst, .en(ready_out), .key(short_key[STD_ROUND_COUNT+1]), .state(round_interm[STD_ROUND_COUNT]), .new_state(ciphertext));
 
 endmodule : aes_block_encrypt
