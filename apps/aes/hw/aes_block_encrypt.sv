@@ -13,7 +13,7 @@ module aes_block_encrypt #(parameter KEYLEN=128) (
 
   genvar i;
   localparam STD_ROUND_COUNT = KEYLEN/32+5;
-  localparam PIPESTAGES = STD_ROUND_COUNT*2+1;
+  localparam PIPESTAGES = STD_ROUND_COUNT*4+1;
 
   logic [PIPESTAGES:0] ivalid;
   logic [STD_ROUND_COUNT+1:0][3:0][3:0][7:0] short_key;
