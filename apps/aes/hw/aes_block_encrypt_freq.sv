@@ -1,4 +1,4 @@
-module aes_block_encrypt #(parameter KEYLEN=128) (
+module aes_block_encrypt_freq #(parameter KEYLEN=128) (
     input  logic clk, rst,
     input  logic valid_in,
     output logic valid_out,
@@ -40,10 +40,10 @@ module aes_block_encrypt #(parameter KEYLEN=128) (
 
   // perform standard rounds
   for (i=0; i<STD_ROUND_COUNT; i++) begin : stdround
-    aes_standard_round aesrnd (.clk, .rst, .en(ready_out), .key(short_key[i+1]), .state(round_interm[i]), .new_state(round_interm[i+1]));
+    aes_standard_round_freq aesrnd (.clk, .rst, .en(ready_out), .key(short_key[i+1]), .state(round_interm[i]), .new_state(round_interm[i+1]));
   end
 
   // perform last reduced round
-  aes_reduced_round aesrnd_short (.clk, .rst, .en(ready_out), .key(short_key[STD_ROUND_COUNT+1]), .state(round_interm[STD_ROUND_COUNT]), .new_state(ciphertext));
+  aes_reduced_round_freq aesrnd_short (.clk, .rst, .en(ready_out), .key(short_key[STD_ROUND_COUNT+1]), .state(round_interm[STD_ROUND_COUNT]), .new_state(ciphertext));
 
 endmodule : aes_block_encrypt

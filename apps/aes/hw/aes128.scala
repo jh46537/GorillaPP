@@ -2,7 +2,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 
-class aes_block_encrypt extends BlackBox {
+class aes_block_encrypt_freq extends BlackBox {
   val io = IO(new Bundle {
     val clk = Input(Clock())
     val rst = Input(Bool())
@@ -17,7 +17,6 @@ class aes_block_encrypt extends BlackBox {
 }
 
 
-//class aes128(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
 class aes128(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
   val io = IO(new Bundle {
     val in_valid      = Input(Bool())
@@ -33,13 +32,13 @@ class aes128(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int
     val out_ready     = Input(Bool())
   })
  
-  val block_cipher = Module(new aes_block_encrypt)
+  val block_cipher = Module(new aes_block_encrypt_freq)
 
   // connect to implicit chisel clock, reset
   block_cipher.io.clk := clock
   block_cipher.io.rst := reset
 
-  // hopefully this works since only one thread. if not, send it thru pipeline
+  // TODO: pipeline this
   io.out_tag := io.in_tag
 
   // flow control
@@ -60,10 +59,4 @@ class aes128(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int
 
 object aes128Driver extends App {
   ChiselStage.emitSystemVerilogFile(new aes128(5, 1536, 4, 1, 1))
-}
-
-object Main extends App {
-  println(
-    ChiselStage.emitSystemVerilog(gen = new aes128(5, 1536, 4, 1, 1))
-  )
 }

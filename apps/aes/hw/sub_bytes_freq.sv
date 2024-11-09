@@ -3,7 +3,7 @@
 ////////////////////////////////////////////////////
 
 // optimized to use one level of altera 6LUT to hit 1GHz
-module sub_bytes(
+module sub_bytes_freq(
     input  logic clk, rst, en,
     input  logic [7:0] bytes_in,
     output logic [7:0] bytes_out
