@@ -31,7 +31,7 @@ __attribute__((always_inline)) unsigned int sub_word(unsigned int word) {
 	       (s_box[(word >> 24) & 0xff] << 24);
 }
 
-__attribute__((always_inline)) void key_exp(unsigned int *key, int keylen, unsigned int *W) {
+__attribute__((always_inline)) void key_exp(unsigned int *key, const int keylen, unsigned int *W) {
     const int r_con[16] = {
         0b0,
         0b1,
@@ -51,15 +51,15 @@ __attribute__((always_inline)) void key_exp(unsigned int *key, int keylen, unsig
         0b10011010
     };
 
-    unsigned int N = keylen / 32;  // number of 32 bit words in key
-    unsigned int R = 7 + N;        // number of rounds to perform
+    const unsigned int N = keylen / 32;  // number of 32 bit words in key
+    const unsigned int R = 7 + N;        // number of rounds to perform 
     //unsigned int W[44] = {0};     // array of 4*R 32 bit segments of the expanded key
     unsigned int K[N];             // 32 bit words of original key
     for (int i = 0; i < N; i++) {
         K[i] = key[i];
     }
 
-    for (int i = 0; i < 4*R; i++) {
+    for (int i = 0; i < R; i++) {
         if (i < N) {
             W[i] = K[i];
         } else if (i >= N && i%N == 0) {
@@ -72,8 +72,15 @@ __attribute__((always_inline)) void key_exp(unsigned int *key, int keylen, unsig
     }
 }
 
-struct input_t {
+struct key_input_t {
+    unsigned int key[4];
+};
+
+struct plaintext_input_t {
     unsigned int plaintext[4];
+};
+struct input_t {
+    plaintext_input_t plaintext;
     unsigned int exp_key[44];
 };
 
@@ -82,20 +89,16 @@ struct output_t {
 };
 
 
-#pragma primate blue aes128 1 1
-output_t aes128(input_t);
+#pragma primate blue aes128 input 1 1
+output_t aes128(input_t a);
 
 void primate_main() {
     // expand key
     // input data to dut
     input_t inctx;
-    unsigned int key[4] = {0x2b7e1516, 0x28aed2a6, 0xabf71588, 0x09cf4f3c};
-    key_exp(key, 128, inctx.exp_key);
-
-    inctx.plaintext[3] = 0x3243f6a8;
-    inctx.plaintext[2] = 0x885a308d;
-    inctx.plaintext[1] = 0x313198a2;
-    inctx.plaintext[0] = 0xe0370734;
+    key_input_t key = PRIMATE::input<key_input_t>();
+    key_exp(key.key, 128, inctx.exp_key);
+    inctx.plaintext = PRIMATE::input<plaintext_input_t>();
 
     // call BFU
     output_t outctx = aes128(inctx);

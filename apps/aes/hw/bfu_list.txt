@@ -1,4 +1,6 @@
-aes128
 {
-        io
+        "aes128": {
+                "HWInterface": ["io"],
+                "Instructions": ["input"]
+        }
 }

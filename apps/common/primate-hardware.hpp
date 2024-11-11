@@ -1,26 +1,19 @@
 #pragma once
 
 namespace PRIMATE {
+    using size_t = decltype(sizeof(char));
     // Add your code here
     template<typename T>
-    #pragma primate blue IO 1 1
-    __attribute__((always_inline)) T input() {
-      return *((T*)__primate_input(sizeof(T)));
-    }
+    #pragma primate blue IO input 1 1
+    T input(size_t size=sizeof(T));
 
     template<typename T>
-    #pragma primate blue IO 1 1
-    __attribute__((always_inline)) void output(T out) {
-      __primate_output((const void*)&out, sizeof(T));
-    }
+    #pragma primate blue IO output 1 1
+    void output(T out, size_t size=sizeof(T));
 
-    #pragma primate blue IO 1 1
-    __attribute__((always_inline)) void input_done() {
-      __primate_input_done();
-    }
+    #pragma primate blue IO input_done 1 1
+    void input_done();
 
-    #pragma primate blue IO 1 1
-    __attribute__((always_inline)) void output_done() {
-      __primate_output_done();
-    }
+    #pragma primate blue IO output_done 1 1
+    void output_done();
 }

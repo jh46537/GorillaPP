@@ -1,3 +1,7 @@
 project/
 target/
 test_run_dir/
+primate_pgm.bin
+input.txt
+memInit.txt
+primate.cfg

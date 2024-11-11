@@ -1,23 +1,12 @@
+import json
+
 bfulist = open("bfu_list.txt", "r")
 bfu_dict = {}
 
 state = 0
-for line in bfulist:
-	if state == 0:
-		# wait for bfu module name
-		bfu_name = line.strip()
-		bfu_dict[bfu_name] = []
-		state = 1
-	elif state == 1:
-		# wait for {
-		if (line[0] == '{'):
-			state = 2
-	elif state == 2:
-		#ports
-		if (line[0] == '}'):
-			state = 0
-		else:
-			bfu_dict[bfu_name].append(line.strip())
+full_bfu_dict = json.loads(bfulist.read())
+for bfu_name in full_bfu_dict.keys():
+	bfu_dict[bfu_name] = full_bfu_dict[bfu_name]["HWInterface"]
 bfu_dict["loadStoreUnit"] = ["io"]
 bfulist.close()
 
