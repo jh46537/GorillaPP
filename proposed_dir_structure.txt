@@ -1,0 +1,9 @@
+# put bad ideas here #
+
+# there is too much stuff in apps. move all the scripts necessary for the build/test flow into its own directory
+
+hw              : where are the hardware scala/sv files should live
+ - templates    : the main cpu core pipeline
+ - BFUs         : where all custom BFUs should be
+chisel          : some simulator stuff lives here. pull out the necessary stuff and nuke the rest
+apps            : put software for various apps here (NO BUILD INFRA (ex scripts, build.sh))
