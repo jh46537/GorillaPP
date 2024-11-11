@@ -2,6 +2,7 @@
 
 # there is too much stuff in apps. move all the scripts necessary for the build/test flow into its own directory
 
+scripts         : where all the build/test flow scripts should live
 hw              : where are the hardware scala/sv files should live
  - templates    : the main cpu core pipeline
  - BFUs         : where all custom BFUs should be
