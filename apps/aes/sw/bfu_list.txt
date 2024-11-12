@@ -1,6 +1,0 @@
-{
-        "aes128": {
-                "HWInterface": ["io"],
-                "Instructions": ["input"]
-        }
-}

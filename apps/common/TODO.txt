@@ -1,0 +1,3 @@
+What things in this directory (common) are still used?
+
+TODO: document every file if it is useful, delete otherwise
