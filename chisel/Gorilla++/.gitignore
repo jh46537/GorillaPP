@@ -5,3 +5,5 @@ primate_pgm.bin
 input.txt
 memInit.txt
 primate.cfg
+verilator_run.log
+.bsp

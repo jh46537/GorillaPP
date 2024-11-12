@@ -48,7 +48,15 @@ class Regfile(num: Int, width: Int, num_blocks: Int, block_widths: Array[Int]) e
 
 }
 
-class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: Int, num_blocks: Int, block_widths: Array[Int]) extends Module {
+class RegRead(conf: PrimateConfig) extends Module {
+  val threadnum    = conf.NUM_THREADS
+  val num_rd       = conf.NUM_RF_RD_PORTS
+  val num_wr       = conf.NUM_RF_WR_PORTS
+  val num_regs     = conf.NUM_REGS
+  val reg_w        = conf.REG_WIDTH
+  val num_blocks   = conf.NUM_REGBLOCKS
+  val block_widths = conf.REG_BLOCK_WIDTH
+
   val io = IO(new Bundle {
     val rdEn        = Input(Bool())
     val thread_rd   = Input(UInt(log2Up(threadnum).W))

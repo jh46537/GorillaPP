@@ -47,17 +47,17 @@ else
     echo "Tablegen files have not changed." 
 fi
 
-ninja -C ${COMPILER_DIR}/build
-${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i -O3 -mllvm -debug "${TARGET}.cpp" -o "${TARGET}.ll" 2> frontend.log
+# ninja -C ${COMPILER_DIR}/build
+#${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i -O3 -mllvm -debug "${TARGET}.cpp" -o "${TARGET}.ll" 2> frontend.log
 # crash on destruct. || true is just to keep moving.
-${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
-mv *.scala $CUR_DIR/hw
-cp primate.cfg $CUR_DIR/hw
-mv primate.cfg $CHISEL_SRC_DIR/main/scala/
-cp input.txt $UARCH_DIR/chisel/Gorilla++/
-mv primate_assembler.h $UARCH_DIR/apps/scripts/
-cd $UARCH_DIR/apps/scripts/
-make clean && make
+#${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
+#mv *.scala $CUR_DIR/hw
+# cp primate.cfg $CUR_DIR/hw
+# mv primate.cfg $CHISEL_SRC_DIR/main/scala/
+# cp input.txt $UARCH_DIR/chisel/Gorilla++/
+# mv primate_assembler.h $UARCH_DIR/apps/scripts/
+# cd $UARCH_DIR/apps/scripts/
+# make clean && make
 cd $CUR_DIR/sw
 
 echo "done with archgen..."
@@ -104,17 +104,17 @@ else
 fi
 
 # make compiler
-ninja -C ${COMPILER_DIR}/build
+# ninja -C ${COMPILER_DIR}/build
 # generate side files required
-${COMPILER_DIR}/build/bin/clang++ -O3 -mllvm -align-all-blocks=0 -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -fno-pic -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
-${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -dr primate_pgm.o > primate_pgm_text
-${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -t primate_pgm.o > primate_pgm_sym
-${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -s -j .rodata primate_pgm.o > primate_rodata
-${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ${CUR_DIR}/hw/primate.cfg ./primate_pgm.bin
-${COMPILER_DIR}/elf2meminit.py ./primate_rodata ./memInit.txt
+#${COMPILER_DIR}/build/bin/clang++ -O3 -mllvm -align-all-blocks=0 -mllvm -print-after-all -mllvm -debug --target=primate32-linux-gnu -march=pr32i -fno-pic -c ./${TARGET}.cpp -o primate_pgm.o 2> compiler.log
+#${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -dr primate_pgm.o > primate_pgm_text
+#${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -t primate_pgm.o > primate_pgm_sym
+#${COMPILER_DIR}/build/bin/llvm-objdump --triple=primate32-unknown-linux -s -j .rodata primate_pgm.o > primate_rodata
+#${COMPILER_DIR}/bin2asm.py ./primate_pgm_text ./primate_pgm_sym ${CUR_DIR}/hw/primate.cfg ./primate_pgm.bin
+#${COMPILER_DIR}/elf2meminit.py ./primate_rodata ./memInit.txt
 # $UARCH_DIR/apps/scripts/primate_assembler "${TARGET}.s" primate_pgm.bin
 
-mv primate_pgm.bin $UARCH_DIR/chisel/Gorilla++/
+#mv primate_pgm.bin $UARCH_DIR/chisel/Gorilla++/
 
 # ================================================
 # =       Create Primate.scala From Template     =
