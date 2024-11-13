@@ -11,9 +11,13 @@ CUR_DIR=$(pwd)
 PRIMATE_DIR=/primate
 COMPILER_DIR=$PRIMATE_DIR/primate-compiler
 UARCH_DIR=$PRIMATE_DIR/primate-uarch
-CHISEL_SRC_DIR=${CUR_DIR}/PrimateHW/src
+CHISEL_SRC_DIR=/primate/primate-uarch/chisel/Gorilla++/src
 
 make clean-hw -C ${CHISEL_SRC_DIR}/..
+
+cp $UARCH_DIR/apps/common/build/*.scala  ${CHISEL_SRC_DIR}/main/scala/
+cp $CHISEL_SRC_DIR/../Gorilla++/*.scala ${CHISEL_SRC_DIR}/main/scala/
+cp $UARCH_DIR/apps/lib/chiselUtilPP.scala ${CHISEL_SRC_DIR}/main/scala/
 # ================================================
 # =       Generate Primate Compiler              =
 # ================================================
@@ -29,8 +33,8 @@ touch ./primate-compiler-gen/PrimateRegisterOrdering.td
 touch ./primate-compiler-gen/PrimateInstrReconfigFormats.td
 touch ./primate-compiler-gen/PrimateInstrReconfigF.td
 
-ln -s ${CUR_DIR}/hw/primate.cfg . || true
-ln -s ${CUR_DIR}/hw/bfu_list.txt . || true
+cp ${CUR_DIR}/hw/primate.cfg . || true
+cp ${CUR_DIR}/hw/bfu_list.txt . || true
 
 oldPrimateCompilerGenHash=$(sha1sum ./primate-compiler-gen/* | sha1sum)
 
@@ -76,22 +80,22 @@ cp primate_pgm.bin $CHISEL_SRC_DIR/..
 # =       Create Primate.scala From Template     =
 # ================================================
 cd $CUR_DIR/hw
-ln -s ../sw/memInit.txt $CHISEL_SRC_DIR/..
-cp -s $UARCH_DIR/templates/primate.template ./
+cp ../sw/memInit.txt $CHISEL_SRC_DIR/..
+cp $UARCH_DIR/templates/primate.template ./
 python3 $UARCH_DIR/apps/scripts/scm.py
-ln -sf header.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf alu_bfu0.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf alu_bfu1.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf cache.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf inOutUnit.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf inputUnit.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf inputUnit_core.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf outputUnit_simple.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf primate.scala $CHISEL_SRC_DIR/main/scala/
-[[ -e *.v ]] && ln -sf *.v $CHISEL_SRC_DIR/main/resources/
-[[ -e *.sv ]] && ln -sf *.sv $CHISEL_SRC_DIR/main/resources/
+cp header.scala $CHISEL_SRC_DIR/main/scala/
+cp alu_bfu0.scala $CHISEL_SRC_DIR/main/scala/
+cp alu_bfu1.scala $CHISEL_SRC_DIR/main/scala/
+cp cache.scala $CHISEL_SRC_DIR/main/scala/
+cp inOutUnit.scala $CHISEL_SRC_DIR/main/scala/
+cp inputUnit.scala $CHISEL_SRC_DIR/main/scala/
+cp inputUnit_core.scala $CHISEL_SRC_DIR/main/scala/
+cp outputUnit_simple.scala $CHISEL_SRC_DIR/main/scala/
+cp primate.scala $CHISEL_SRC_DIR/main/scala/
+[[ -e *.v ]] && cp *.v $CHISEL_SRC_DIR/main/resources/
+[[ -e *.sv ]] && cp *.sv $CHISEL_SRC_DIR/main/resources/
 rm primate.template
 cd $UARCH_DIR/templates
-ln -sf *.scala $CHISEL_SRC_DIR/main/scala/
-ln -sf *.v $CHISEL_SRC_DIR/main/resources/
+cp *.scala $CHISEL_SRC_DIR/main/scala/
+cp *.v $CHISEL_SRC_DIR/main/resources/
 cd $CUR_DIR
