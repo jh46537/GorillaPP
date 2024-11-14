@@ -1,6 +1,18 @@
 import json
+import argparse
 
-bfulist = open("bfu_list.txt", "r")
+parser = argparse.ArgumentParser(
+                    prog='scm',
+                    description='used to instance the primate.template into a primate.scala file',
+                    epilog='Shout at kayvan/matthew if this fails :D')
+parser.add_argument('-t', '--template', type=str, help='Path to primate.template')
+parser.add_argument('-p', '--primate_cfg', type=str, help='Path to primate.cfg')
+parser.add_argument('-b', '--bfu_list_path', type=str, help='Path to bfu_list.txt')
+parser.add_argument('-o', '--output', type=str, help='Output path for primate.scala files', default='primate.scala')
+
+args = parser.parse_args()
+
+bfulist = open(args.bfu_list_path, "r")
 bfu_dict = {}
 
 state = 0
@@ -10,7 +22,7 @@ for bfu_name in full_bfu_dict.keys():
 bfu_dict["loadStoreUnit"] = ["io"]
 bfulist.close()
 
-primateCFG = open("primate.cfg", "r")
+primateCFG = open(args.primate_cfg, "r")
 num_alu = 0
 num_bfu = 0
 for line in primateCFG:
@@ -23,7 +35,7 @@ primateCFG.close()
 
 # print(bfu_dict)
 
-with open("primate.template") as f_old, open("primate.scala", "w") as f_new:
+with open(args.template) as f_old, open(args.output, "w") as f_new:
 	for line in f_old:
 		if '#ALUBFU_INSTANTIATE#' in line:
 			f_new.write("  val alu_bfuInst = Array(")
