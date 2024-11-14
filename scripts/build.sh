@@ -1,40 +1,52 @@
 #!/bin/bash
 
+## NOTES:
+# could this be converted to a makefile????
+# would allow building just hardware or just compiler
+# compiling the app should be a separate step from geneating the hardware and generating the compiler¿
+
 # ================================================
 # =          Set Up Some Useful Variables        =
 # ================================================
 set -o xtrace
 set -e
 
-TARGET=aes
-CUR_DIR=$(pwd)
-cd ../../../
 PRIMATE_DIR=/primate
 LLVM_DIR=$PRIMATE_DIR/primate-arch-gen
 COMPILER_DIR=$PRIMATE_DIR/primate-compiler
 UARCH_DIR=$PRIMATE_DIR/primate-uarch
-CHISEL_SRC_DIR=$UARCH_DIR/chisel/Gorilla++/src
+CHISEL_SRC_DIR=$UARCH_DIR/chisel/src
+BUILD_DIR=$UARCH_DIR/build
+
+# directory in /primate-uarch/sw that contains the code to build against
+# final compiled app will take the name of $TARGET
+TARGET=aes
+APP_DIR=$UARCH_DIR/sw/$TARGET
 
 ##### Hack alert. This just copies some files into their home
 ##### I could just find those files but time.
-cd $UARCH_DIR/compiler/engineCompiler/multiThread/
-make clean && make || true
-cd $UARCH_DIR/apps/common/build/
-make clean && make || true
+## TODO: move common to HW probably
+#cd $UARCH_DIR/sw/common/build/
+#make clean && make || true
+
+
+# generate build directory to contain all artifacts
+mkdir -p $BUILD_DIR
 
 # ================================================
 # =   Run Arch-gen to get primate parameters     =
 # ================================================
-# 
-cd $CUR_DIR/sw
+
+cd $BUILD_DIR
 mkdir -p ./primate-compiler-gen
 
 oldPrimateArchGenHash=$(sha1sum ./primate-compiler-gen/* | sha1sum)
-${COMPILER_DIR}/archgen2tablegen.py -b ${CUR_DIR}/hw/bfu_list.txt --FrontendOnly -p ${CUR_DIR}/hw/primate.cfg # generate frontend td files
+${COMPILER_DIR}/archgen2tablegen.py -b ${APP_DIR}/bfu_list.txt --FrontendOnly -p ${APP_DIR}/primate.cfg # generate frontend td files
 newPrimateArchGenHash=$(sha1sum ./primate-compiler-gen/* | sha1sum)
 
+# this is kinda hacky
 if [ "${newPrimateArchGenHash}" != "${oldPrimateArchGenHash}" ]; then
-    echo "Tablegen files have changed. Please update the compiler."
+    echo "Tablegen files have changed. Updating the compiler."
     cp ./primate-compiler-gen/IntrinsicsPrimateBFU.td ${COMPILER_DIR}/llvm/include/llvm/IR/IntrinsicsPrimateBFU.td
     cp ./primate-compiler-gen/PrimateInstrInfoBFU.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateInstrInfoBFU.td
     cp ./primate-compiler-gen/PrimateScheduleBFU.td ${COMPILER_DIR}/llvm/lib/Target/Primate/PrimateScheduleBFU.td
@@ -47,20 +59,26 @@ else
     echo "Tablegen files have not changed." 
 fi
 
+# What is this section doing? pls document
+# if not necessary to generate hardware, move it to a new section
+
 ninja -C ${COMPILER_DIR}/build
 ${COMPILER_DIR}/build/bin/clang++ -emit-llvm -S -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i -O3 -mllvm -debug "${TARGET}.cpp" -o "${TARGET}.ll" 2> frontend.log
 # crash on destruct. || true is just to keep moving.
 ${COMPILER_DIR}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log || true
-mv *.scala $CUR_DIR/hw
-cp primate.cfg $CUR_DIR/hw
-mv primate.cfg $CHISEL_SRC_DIR/main/scala/
-cp input.txt $UARCH_DIR/chisel/Gorilla++/
-mv primate_assembler.h $UARCH_DIR/apps/scripts/
-cd $UARCH_DIR/apps/scripts/
-make clean && make
-cd $CUR_DIR/sw
+
+#mv *.scala $CUR_DIR/hw
+#cp primate.cfg $CUR_DIR/hw
+#mv primate.cfg $CHISEL_SRC_DIR/main/scala/
+#cp input.txt $UARCH_DIR/chisel/Gorilla++/
+#mv primate_assembler.h $UARCH_DIR/apps/scripts/
+#cd $UARCH_DIR/apps/scripts/
+#make clean && make
+#cd $CUR_DIR/sw
 
 echo "done with archgen..."
+
+exit
 
 # ================================================
 # =       Generate Primate Compiler              =
@@ -116,9 +134,13 @@ ${COMPILER_DIR}/elf2meminit.py ./primate_rodata ./memInit.txt
 
 mv primate_pgm.bin $UARCH_DIR/chisel/Gorilla++/
 
+
+
+# TODO: move HW generation to separate flow????
 # ================================================
 # =       Create Primate.scala From Template     =
 # ================================================
+
 cd $CUR_DIR/hw
 cp ../sw/memInit.txt $CHISEL_SRC_DIR/..
 cp $UARCH_DIR/templates/primate.template ./
