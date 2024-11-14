@@ -1,3 +1,0 @@
-TODO: 
-separate the sv generation / emulation / implementation flows into discrete steps
-reorganize and delete this directory

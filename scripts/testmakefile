@@ -1,0 +1,7 @@
+SBT := sbt
+
+all:
+    basedir = $(shell pwd)
+    $(info current dir: $(basedir))
+
+    cd $(basedir); $(SBT) "test:runMain TopMain --backend-name verilator --full-stacktrace" | tee ./verilator_run.log
