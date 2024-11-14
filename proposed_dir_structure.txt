@@ -8,3 +8,17 @@ hw              : where are the hardware scala/sv files should live
  - BFUs         : where all custom BFUs should be
 chisel          : some simulator stuff lives here. pull out the necessary stuff and nuke the rest
 apps            : put software for various apps here (NO BUILD INFRA (ex scripts, build.sh))
+
+
+user code in CWD
+call /priamte/primate-uarch/scripts/make -c
+
+make archgen (run-archgen)
+make hardware : depends on archgen (primate.cfg)
+make compiler : depends on archgen
+make compile : depends on compiler
+make bitstream : depends on hardware
+make sim : depends on compile and hardware
+make wave : depoends on sim
+
+seperate targets that dont build deps

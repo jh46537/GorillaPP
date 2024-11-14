@@ -1,3 +1,5 @@
+#TODO: add sim/emulation target to main makefile, remove this makefile
+
 basedir = ..
 include $(basedir)/Makefrag
 #SBTARGS = --backend c --vcd --compile --test --targetDir ../emulator --genHarness
