@@ -1,17 +1,18 @@
 # put bad ideas here #
 
-# there is too much stuff in apps. move all the scripts necessary for the build/test flow into its own directory
+hw
+  - templates: the main template and all supporting scala
+  - BFUs: accelerators (scala)
+  - sim: the top file and any supporting infra needed to simulate the hardware
+sw: 
+  - user primate code and bfu_list.txt
+  (can also be located out of tree)
+testing:
+  - verilator test suites, automated testing scripts, etc
+scripts:
+  - all supporting buildflow scripts (build.sbt, scm.py, primate_assembler, etc)
 
-scripts         : where all the build/test flow scripts should live
-hw              : where are the hardware scala/sv files should live
- - templates    : the main cpu core pipeline
- - BFUs         : where all custom BFUs should be
-chisel          : some simulator stuff lives here. pull out the necessary stuff and nuke the rest
-apps            : put software for various apps here (NO BUILD INFRA (ex scripts, build.sh))
-
-
-user code in CWD
-call /priamte/primate-uarch/scripts/make -c
+call "make -f /priamte/primate-uarch/Makefile"
 
 make archgen (run-archgen)
 make hardware : depends on archgen (primate.cfg)

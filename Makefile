@@ -2,8 +2,12 @@
 # Top level makefile for the project
 ####################################################################
 
+#set PRIMATE_ROOT env var to the primate dir path
+PRIMATE_ROOT=/primate
+
 PRIMATE_COMPILER_ROOT=${PRIMATE_ROOT}/primate-compiler
 PRIMATE_UARCH_ROOT=${PRIMATE_ROOT}/primate-uarch
+PRIMATE_SCRIPTS=${PRIMATE_UARCH_ROOT}/scripts
 USER_DIR=$(shell pwd)
 
 BUILD_DIR=./build
@@ -99,10 +103,15 @@ ${CHISEL_DIR}:
 ${BUILD_DIR}:
 	@mkdir -p ${BUILD_DIR}
 
+# Put this under a scripts target if we add more compilable scripts
+primate_assembler: ${PRIMATE_SCRIPTS}/primate_assembler.cpp
+	g++ -std=c++11 -o ${PRIMATE_SCRIPTS}/$@ $<
+
 print-env: 
 	@echo ${USER_DIR}
 
 clean:
 	@rm -rf ${BUILD_DIR} primate_pgm.bin
+	@rm ${PRIMATE_SCRIPTS}/primate_assembler
 
 .PHONY: clean print-env primate-software primate-hardware
