@@ -26,7 +26,7 @@ SW_SOURCE_FILES := $(wildcard *.cpp)
 primate-hardware: ${HWGEN_DIR} | move-hardware
 	@echo "generating RTL"
 	@cp ${PRIMATE_SCRIPTS}/build.sbt ${HWGEN_DIR}
-	@cd ${HWGEN_DIR}; ${SBT} "runMain primate.Main"
+	@cd ${HWGEN_DIR}; ${SBT} "runMain TopMain"
 
 
 primate-software: ${BUILD_DIR}/primate_pgm.bin
