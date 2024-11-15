@@ -30,7 +30,7 @@ primate-hardware: ${HWGEN_DIR} | move-hardware
 
 
 primate-software: ${BUILD_DIR}/primate_pgm.bin
-#primate-hardware: ${HWGEN_DIR}/Primate.scala
+#primate-hardware: ${SBT_SCALA_DIR}/Primate.scala
 primate-sim: | move-software move-hardware
 	@echo "running RTL simulator"
 	@make -C /primate/primate-uarch/chisel/ waves
@@ -45,17 +45,19 @@ move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt $
 
 
 # rule to create the primate compiler. depends on the tablegen files
-move-hardware: ${HWGEN_DIR} ${HWGEN_DIR}/Primate.scala ${SBT_RESOURCES_DIR} ${BUILD_DIR}
+move-hardware: ${HWGEN_DIR} ${SBT_SCALA_DIR}/Primate.scala ${SBT_RESOURCES_DIR} ${BUILD_DIR}
 	@echo "Moving hardware files into ${HWGEN_DIR}"
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.scala' | xargs -i cp {} ${SBT_SCALA_DIR}
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.sv' | xargs -i cp {} ${SBT_RESOURCES_DIR}
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.v' | xargs -i cp {} ${SBT_RESOURCES_DIR}
 	@cp ${BUILD_DIR}/primate.cfg ${SBT_SCALA_DIR}
+	@cp ${USER_DIR}/input.txt ${HWGEN_DIR}
+	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}
 	@cp ${BUILD_DIR}/header.scala ${SBT_SCALA_DIR}
 
 
 # instance the primate scala file
-${HWGEN_DIR}/Primate.scala: ${BUILD_DIR}/primate.cfg ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template bfu_list.txt ${HWGEN_DIR} ${SBT_SCALA_DIR}
+${SBT_SCALA_DIR}/Primate.scala: ${BUILD_DIR}/primate.cfg ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template bfu_list.txt ${HWGEN_DIR} ${SBT_SCALA_DIR}
 	@echo "Generating Primate core chisel file"
 	@python3 ${PRIMATE_UARCH_ROOT}/scripts/scm.py -p ${BUILD_DIR}/primate.cfg -t ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template -o ${SBT_SCALA_DIR}/Primate.scala -b bfu_list.txt
 

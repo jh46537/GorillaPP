@@ -1,7 +1,14 @@
+// lsu.scala
+// IMPLEMENTS THE LOAD STORE UNIT. 
+// Supports 32-bit loads, and object loads
+// 
+// Wraps a scratchpad. The scratchpad is implemented as SRAM blocks. 
+
 import chisel3._
 import chisel3.util._
 import chisel3.util.Fill
 import scala.math._
+
 
 class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
   val io = IO(new Bundle{
@@ -24,6 +31,9 @@ class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threa
   val MEM_WIDTH = 256
   val NUM_BLOCKS = MEM_WIDTH >> 5
   val RATIO = (Math.floor(reg_width / MEM_WIDTH)).toInt
+  println("LSU inited with params: ")
+  println(" NUM_BLOCKS: " + NUM_BLOCKS)
+  println(" RATIO: " + RATIO)
   assert(RATIO * MEM_WIDTH == reg_width, "Register file width must be multiple of MEM_WIDTH")
  
   val MEM_SIZE = 512

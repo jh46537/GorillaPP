@@ -102,6 +102,16 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val AllOffloadsReady = Reg(Bool())
   val AllOffloadsValid  = Reg(Vec(NUM_THREADS, Bool()))
 
+  /////////////////////
+  // DUMP THE PARAMS //
+  /////////////////////
+  println("PRIMATE PARAMS DUMP")
+  println(" NUM_THREADS: " + NUM_THREADS)
+  println(" REG_WIDTH: " + REG_WIDTH)
+  println(" NUM_REGS: " + NUM_REGS)
+  println(" NUM_BFUS: " + NUM_BFUS)
+  println(" NUM_ALUS: " + NUM_ALUS)
+
   /*******************Thread states*********************************/
 
   // set up function units
