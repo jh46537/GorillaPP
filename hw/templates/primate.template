@@ -92,10 +92,8 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val INST_RAM_SIZE = 4096
   // FIXME
   val ALU_SRC_WIDTH = NUM_REGS_LG
-  // val ALU_INST_WIDTH = 7 + NUM_REGS_LG + NUM_DST_POS_LG + NUM_DST_MODES_LG + (3 + ALU_SRC_WIDTH + ALU_SRC_WIDTH.max(12)).max(20)
-  // val ALU_INST_WIDTH = 64
-  val ALU_INST_WIDTH = Math.ceil((7 + ALU_SRC_WIDTH * 3 + 3 + 7)/8) * 8
-  val INSTR_WIDTH = ALU_INST_WIDTH.toInt * (NUM_FUS + NUM_ALUS*3 + 1)
+  val SUBINSTR_WIDTH: Int = (Math.ceil((7 + ALU_SRC_WIDTH * 3 + 3 + 7)/8) * 8).toInt
+  val INSTR_WIDTH = SUBINSTR_WIDTH * (NUM_FUS + NUM_ALUS*3 + 1)
 
   val NONE_SELECTED = (NUM_THREADS).U((log2Up(NUM_THREADS+1)).W)
 
@@ -111,6 +109,9 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   println(" NUM_REGS: " + NUM_REGS)
   println(" NUM_BFUS: " + NUM_BFUS)
   println(" NUM_ALUS: " + NUM_ALUS)
+  println(" NUM_FUS : " + NUM_FUS)
+  println(" INSTR_WIDTH: " + INSTR_WIDTH)
+  println(" SUBINSTR_WIDTH: " + SUBINSTR_WIDTH)
 
   /*******************Thread states*********************************/
 
@@ -213,6 +214,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     threadStates(ioUnit.io.new_tag).ip := 0.U((IP_WIDTH+2).W)
     vThreadEncoder.io.valid := true.B
     vThreadEncoder.io.tag := ioUnit.io.new_tag
+    println("Primate core spawning new thread!")
   } .otherwise {
     vThreadEncoder.io.valid := false.B
     vThreadEncoder.io.tag := DontCare
@@ -220,11 +222,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
 
   /****************** Scheduler logic *********************************/
   // select valid thread
-  // val vThreadEncoder = Module(new RREncode(NUM_THREADS))
-  // val vThreadEncoder = Module(new Scheduler(NUM_THREADS, scala.math.pow(2, log2Up(NUM_ALUS)).toInt))
   val vThread = vThreadEncoder.io.chosen
-  // Range(0, NUM_THREADS, 1).map(i =>
-  //   vThreadEncoder.io.valid(i) := (threadStages(i) === ThreadStageEnum.fetch))
   Range(0, NUM_THREADS, 1).map(i =>
     vThreadEncoder.io.order_ready(i) := (threadStages(i) === ThreadStageEnum.order_fetch))
   Range(0, NUM_THREADS, 1).map(i =>
@@ -244,7 +242,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val decodeThread = RegInit(NONE_SELECTED)
   decodeThread := vThread
 
-  val decodeUnit = Module(new Decode(NUM_ALUS, NUM_BFUS, NUM_FUS, INSTR_WIDTH, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_DST_POS_LG, NUM_DST_MODES_LG))
+  val decodeUnit = Module(new Decode(NUM_ALUS, NUM_BFUS, NUM_FUS, SUBINSTR_WIDTH, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG, NUM_DST_POS_LG, NUM_DST_MODES_LG))
   val aluMicrocodes_in = Wire(new ALUMicrocodes(NUM_ALUS, ALU_SRC_WIDTH, NUM_SRC_POS_LG, NUM_SRC_MODES_LG))
   val bfuMicrocodes_in = Wire(new BFUMicrocodes(NUM_FUS-NUM_ALUS, ALU_SRC_WIDTH))
   val rdWrEn_in = Wire(Vec(NUM_FUS, Bool()))
@@ -278,6 +276,8 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     threadStates(decodeThread).invalid := false.B
     threadStates(decodeThread).execValids := VecInit(Seq.fill(NUM_BFUS)(false.B))
     decode_valid := true.B
+
+    println("Got a valid decode thread!")
 
     aluMicrocodes_in := decodeUnit.io.aluUcodes
     bfuMicrocodes_in := decodeUnit.io.bfuUcodes
