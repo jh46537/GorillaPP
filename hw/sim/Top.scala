@@ -20,5 +20,5 @@ class Top extends Module with GorillaUtil {
 }
 
 object Main extends App {
-  print(ChiselStage.emitSystemVerilog(new Top))
+  reflect.io.File("Top.sv").writeAll(ChiselStage.emitSystemVerilog(new Top))
 }
