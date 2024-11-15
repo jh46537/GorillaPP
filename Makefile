@@ -12,36 +12,44 @@ USER_DIR=$(shell pwd)
 
 BUILD_DIR=./build
 COMPILER_GEN_DIR=${BUILD_DIR}/primate-compiler-gen
-CHISEL_DIR=${BUILD_DIR}/chisel
+HWGEN_DIR=${BUILD_DIR}/hw-gen
+SBT_SCALA_DIR=${HWGEN_DIR}/src/main/scala/ # I cannot get chisel to build unless files are in this directory!!??
+SBT_RESOURCES_DIR=${HWGEN_DIR}/src/main/resources/
 
+SBT:=sbt
 TARGET=main
 LLVM_BUILD_TOOL=ninja
 
+primate-hardware: move-hardware
+	@echo "generating RTL"
+	@cp ${PRIMATE_SCRIPTS}/build.sbt ${HWGEN_DIR}
+	@cd ${HWGEN_DIR}; ${SBT} "runMain primate.Main"
+
 primate-software: ${BUILD_DIR}/primate_pgm.bin
-primate-hardware: ${CHISEL_DIR}/Primate.scala
+#primate-hardware: ${HWGEN_DIR}/Primate.scala
 primate-sim: | move-software move-hardware
 	@echo "running RTL simulator"
 	@make -C /primate/primate-uarch/chisel/ waves
 
 # rule to move primate-pgm to the simulator dir.
 move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt
-	@echo "Moving primate program binary into ${PRIMATE_UARCH_ROOT}/chisel"
-	@cp ${BUILD_DIR}/primate_pgm.bin ${PRIMATE_UARCH_ROOT}/chisel
-	@cp ${BUILD_DIR}/memInit.txt ${PRIMATE_UARCH_ROOT}/chisel
-	@cp input.txt ${PRIMATE_UARCH_ROOT}/chisel
+	@echo "Moving primate program binary into ${HWGEN_DIR}"
+	@cp ${BUILD_DIR}/primate_pgm.bin ${HWGEN_DIR}
+	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}
+	@cp input.txt ${HWGEN_DIR}
 
 # rule to create the primate compiler. depends on the tablegen files
-move-hardware: ${CHISEL_DIR}/Primate.scala
-	@echo "Moving hardware files into ${PRIMATE_UARCH_ROOT}/chisel/src/main/scala/"
-	@cp ${PRIMATE_UARCH_ROOT}/hw/templates/*.scala ${PRIMATE_UARCH_ROOT}/chisel/src/main/scala/
-	@cp ${PRIMATE_UARCH_ROOT}/hw/templates/*.v     ${PRIMATE_UARCH_ROOT}/chisel/src/main/resources/
+move-hardware: ${HWGEN_DIR}/Primate.scala ${SBT_RESOURCES_DIR}
+	@echo "Moving hardware files into ${HWGEN_DIR}"
+	# i dont like this, but sbt sucks and we have no choice
+	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.scala' | xargs -i cp {} ${SBT_SCALA_DIR}
+	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.sv' | xargs -i cp {} ${SBT_RESOURCES_DIR}
+	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.v' | xargs -i cp {} ${SBT_RESOURCES_DIR}
 
 # instance the primate scala file
-${CHISEL_DIR}/Primate.scala: primate.cfg ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template bfu_list.txt ${CHISEL_DIR}
-	@echo "Generating the chisel file"
-	@python3 ${PRIMATE_UARCH_ROOT}/scripts/scm.py -p primate.cfg -t ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template -o ${CHISEL_DIR}/Primate.scala -b bfu_list.txt
-	@cp ${PRIMATE_UARCH_ROOT}/hw/templates/*.v     ${CHISEL_DIR}
-	@cp ${PRIMATE_UARCH_ROOT}/hw/templates/*.scala ${CHISEL_DIR}
+${HWGEN_DIR}/Primate.scala: primate.cfg ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template bfu_list.txt ${HWGEN_DIR} ${SBT_SCALA_DIR}
+	@echo "Generating Primate core chisel file"
+	@python3 ${PRIMATE_UARCH_ROOT}/scripts/scm.py -p primate.cfg -t ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template -o ${SBT_SCALA_DIR}/Primate.scala -b bfu_list.txt
 
 # rule to create the binary for the primate program.
 # depends on the compiler generated binary and converts it into hex files that verilog can read
@@ -97,8 +105,14 @@ ${BUILD_DIR}/%.td: primate.cfg ${BUILD_DIR}
 	@cd ${BUILD_DIR} && \
 	${PRIMATE_COMPILER_ROOT}/archgen2tablegen.py -b ${USER_DIR}/bfu_list.txt -p ${USER_DIR}/primate.cfg
 
-${CHISEL_DIR}:
-	@mkdir -p ${CHISEL_DIR}
+${HWGEN_DIR}:
+	@mkdir -p ${HWGEN_DIR}
+
+${SBT_SCALA_DIR}:
+	@mkdir -p ${SBT_SCALA_DIR}
+
+${SBT_RESOURCES_DIR}:
+	@mkdir -p ${SBT_RESOURCES_DIR}
 
 ${BUILD_DIR}:
 	@mkdir -p ${BUILD_DIR}
