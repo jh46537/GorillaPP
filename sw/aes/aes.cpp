@@ -1,4 +1,4 @@
-#include "../../common/primate-hardware.hpp"
+#include "primate-hardware.hpp"
 
 
 __attribute__((always_inline)) unsigned int rot_word(unsigned int word, unsigned int shift) {
@@ -72,15 +72,15 @@ __attribute__((always_inline)) void key_exp(unsigned int *key, const int keylen,
     }
 }
 
-struct key_input_t {
+struct key_t {
     unsigned int key[4];
 };
 
-struct plaintext_input_t {
+struct plaintext_t {
     unsigned int plaintext[4];
 };
 struct input_t {
-    plaintext_input_t plaintext;
+    plaintext_t plaintext;
     unsigned int exp_key[44];
 };
 
@@ -96,9 +96,9 @@ void primate_main() {
     // expand key
     // input data to dut
     input_t inctx;
-    key_input_t key = PRIMATE::input<key_input_t>();
+    key_t key = PRIMATE::input<key_t>();
     key_exp(key.key, 128, inctx.exp_key);
-    inctx.plaintext = PRIMATE::input<plaintext_input_t>();
+    inctx.plaintext = PRIMATE::input<plaintext_t>();
 
     // call BFU
     output_t outctx = aes128(inctx);
