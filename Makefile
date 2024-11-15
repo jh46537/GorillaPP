@@ -26,7 +26,6 @@ SW_SOURCE_FILES := $(wildcard *.cpp)
 primate-sim: | primate-hardware primate-software
 	@echo "running RTL simulator"
 	@cd ${HWGEN_DIR} && ${SBT} "runMain TopMain --backend-name verilator --full-stacktrace"
-	@make -C /primate/primate-uarch/chisel/ waves
 
 primate-hardware: ${HWGEN_DIR} | move-hardware
 	@echo "generating RTL"
@@ -36,9 +35,6 @@ primate-hardware: ${HWGEN_DIR} | move-hardware
 
 primate-software: ${BUILD_DIR}/primate_pgm.bin
 #primate-hardware: ${SBT_SCALA_DIR}/Primate.scala
-primate-sim: | move-software move-hardware
-	@echo "running RTL simulator"
-	@make -C /primate/primate-uarch/chisel/ waves
 
 
 # rule to move primate-pgm to the simulator dir.
@@ -81,7 +77,7 @@ ${BUILD_DIR}/primate_pgm.bin: ${BUILD_DIR}/primate_pgm.o
 # call the compiler to create the primate program object file
 ${BUILD_DIR}/primate_pgm.o: ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ ${SW_SOURCE_FILES}
 	@echo "Building the primate program"
-	@${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -I${PRIMATE_UARCH_ROOT}/sw/common -O3 -mllvm -debug -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i "${TARGET}.cpp" -c -o ${BUILD_DIR}/primate_pgm.o 2> ${BUILD_DIR}/compile.log
+	@cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -I${PRIMATE_UARCH_ROOT}/sw/common -O3 -mllvm -debug -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i "${USER_DIR}/${TARGET}.cpp" -c -o primate_pgm.o 2> compile.log
 
 
 # rule to create the primate.cfg file. Requires that arch-gen is built
