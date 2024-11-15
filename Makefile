@@ -27,7 +27,7 @@ primate-sim: | primate-hardware primate-software
 	@echo "running RTL simulator"
 	@cd ${HWGEN_DIR} && ${SBT} "runMain TopMain --backend-name verilator --full-stacktrace"
 
-primate-hardware: ${HWGEN_DIR} | move-hardware
+primate-hardware: | ${HWGEN_DIR} move-hardware
 	@echo "generating RTL"
 	@cp ${PRIMATE_SCRIPTS}/build.sbt ${HWGEN_DIR}
 	@cd ${HWGEN_DIR}; ${SBT} "runMain Main"
@@ -38,7 +38,7 @@ primate-software: ${BUILD_DIR}/primate_pgm.bin
 
 
 # rule to move primate-pgm to the simulator dir.
-move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt ${HWGEN_DIR}
+move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt | ${HWGEN_DIR}
 	@echo "Moving primate program binary into ${HWGEN_DIR}"
 	@cp ${BUILD_DIR}/primate_pgm.bin ${HWGEN_DIR}/
 	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}/
@@ -46,7 +46,7 @@ move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt $
 
 
 # rule to create the primate compiler. depends on the tablegen files
-move-hardware: ${HWGEN_DIR} ${SBT_SCALA_DIR}/Primate.scala ${SBT_RESOURCES_DIR} ${BUILD_DIR}
+move-hardware: ${HWGEN_DIR} ${SBT_SCALA_DIR}/Primate.scala | ${SBT_RESOURCES_DIR} ${BUILD_DIR}
 	@echo "Moving hardware files into ${HWGEN_DIR}"
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.scala' | xargs -i cp {} ${SBT_SCALA_DIR}
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.sv' | xargs -i cp {} ${SBT_RESOURCES_DIR}
@@ -58,7 +58,7 @@ move-hardware: ${HWGEN_DIR} ${SBT_SCALA_DIR}/Primate.scala ${SBT_RESOURCES_DIR} 
 
 
 # instance the primate scala file
-${SBT_SCALA_DIR}/Primate.scala: ${BUILD_DIR}/primate.cfg ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template bfu_list.txt ${HWGEN_DIR} ${SBT_SCALA_DIR}
+${SBT_SCALA_DIR}/Primate.scala: ${BUILD_DIR}/primate.cfg ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template bfu_list.txt | ${HWGEN_DIR} ${SBT_SCALA_DIR}
 	@echo "Generating Primate core chisel file"
 	@python3 ${PRIMATE_UARCH_ROOT}/scripts/scm.py -p ${BUILD_DIR}/primate.cfg -t ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template -o ${SBT_SCALA_DIR}/Primate.scala -b bfu_list.txt
 
@@ -83,7 +83,7 @@ ${BUILD_DIR}/primate_pgm.o: ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ ${SW_SOUR
 # rule to create the primate.cfg file. Requires that arch-gen is built
 # archgen depends on the bfu_lists.txt. so I think that breaks any chains we may have
 # opt will crash on exit. || true is just to keep moving.
-${BUILD_DIR}/primate.cfg: ${PRIMATE_COMPILER_ROOT}/build/lib/libLLVMPrimateArchGen.a ${SW_SOURCE_FILES} ${BUILD_DIR}
+${BUILD_DIR}/primate.cfg: ${PRIMATE_COMPILER_ROOT}/build/lib/libLLVMPrimateArchGen.a ${SW_SOURCE_FILES} | ${BUILD_DIR}
 	@echo "Building the primate.cfg file"
 	@cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -I${PRIMATE_UARCH_ROOT}/sw/common -emit-llvm -S -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i -O3 -mllvm -debug "../${TARGET}.cpp" -o "${TARGET}.ll" 2> frontend.log
 	@-cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log 
@@ -112,14 +112,14 @@ ${PRIMATE_COMPILER_ROOT}/build/lib/libLLVMPrimateArchGen.a: ${COMPILER_GEN_DIR}/
 
 
 # intrinsics for the primate compiler. used for the primate instruction lowering
-${BUILD_DIR}/primate-compiler-gen/IntrinsicsPrimateBFU.td: ${PRIMATE_COMPILER_ROOT}/archgen2tablegen.py bfu_list.txt ${BUILD_DIR}
+${BUILD_DIR}/primate-compiler-gen/IntrinsicsPrimateBFU.td: ${PRIMATE_COMPILER_ROOT}/archgen2tablegen.py bfu_list.txt | ${BUILD_DIR}
 	@echo "Generating the tablegen files"
 	@cd ${BUILD_DIR} && \
 	${PRIMATE_COMPILER_ROOT}/archgen2tablegen.py -b ${USER_DIR}/bfu_list.txt --FrontendOnly
 
 
 # rule to create the other tablegen files for the primate compiler
-${BUILD_DIR}/%.td: ${BUILD_DIR}/primate.cfg ${BUILD_DIR}
+${BUILD_DIR}/%.td: ${BUILD_DIR}/primate.cfg | ${BUILD_DIR}
 	@cd ${BUILD_DIR} && \
 	${PRIMATE_COMPILER_ROOT}/archgen2tablegen.py -b ${USER_DIR}/bfu_list.txt -p ./primate.cfg
 
@@ -152,4 +152,4 @@ clean:
 	@-rm -rf ${BUILD_DIR}
 	@-rm ${PRIMATE_SCRIPTS}/primate_assembler
 
-.PHONY: clean print-env primate-software primate-hardware
+.PHONY: clean print-env primate-software primate-hardware move-software move-hardware primate-sim
