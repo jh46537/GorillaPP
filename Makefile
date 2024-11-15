@@ -50,6 +50,7 @@ move-hardware: ${HWGEN_DIR} ${HWGEN_DIR}/Primate.scala ${SBT_RESOURCES_DIR} ${BU
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.scala' | xargs -i cp {} ${SBT_SCALA_DIR}
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.sv' | xargs -i cp {} ${SBT_RESOURCES_DIR}
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.v' | xargs -i cp {} ${SBT_RESOURCES_DIR}
+	@cp ${BUILD_DIR}/primate.cfg ${SBT_SCALA_DIR}
 	@cp ${BUILD_DIR}/header.scala ${SBT_SCALA_DIR}
 
 

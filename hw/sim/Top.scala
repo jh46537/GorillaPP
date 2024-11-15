@@ -1,5 +1,6 @@
 import chisel3._
 import chisel3.util._
+import chisel3.stage.ChiselStage
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
@@ -16,4 +17,8 @@ class Top extends Module with GorillaUtil {
   val result = new gComponentGen(new primate("result"), new input_t, new output_t, ArrayBuffer(), "result")
   val generatedTop = Module(result())
   generatedTop.io <> io
+}
+
+object Main extends App {
+  print(ChiselStage.emitSystemVerilog(new Top))
 }
