@@ -18,7 +18,7 @@ SBT_SCALA_DIR=${HWGEN_DIR}/src/main/scala
 SBT_RESOURCES_DIR=${HWGEN_DIR}/src/main/resources/
 
 SBT:=sbt
-TARGET = $(shell find -type f -iname '*.cpp' -exec grep -iH 'primate_main' {} \; | awk -F ':' '{print $$1}' | awk -F '/' '{print $$2}' | awk -F '\.' '{print $$1}')
+TARGET:=$(shell find -type f -iname '*.cpp' -exec grep -iH 'primate_main' {} \; | awk -F ':' '{print $$1}' | awk -F '/' '{print $$2}' | awk -F '\.' '{print $$1}')
 LLVM_BUILD_TOOL=ninja
 
 SW_SOURCE_FILES := $(wildcard *.cpp)
