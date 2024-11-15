@@ -148,8 +148,11 @@ print-env:
 	@echo ${USER_DIR}
 	@echo ${TARGET}
 
+clean-sim:
+	@-rm -rf ${HWGEN_DIR}/test_run_dir
+
 clean:
 	@-rm -rf ${BUILD_DIR}
 	@-rm ${PRIMATE_SCRIPTS}/primate_assembler
 
-.PHONY: clean print-env primate-software primate-hardware move-software move-hardware primate-sim
+.PHONY: clean print-env primate-software primate-hardware move-software move-hardware primate-sim clean-sim
