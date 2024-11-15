@@ -60,7 +60,7 @@ class TopTests(c: Top) extends gTester[Top](c) {
 
   while(cycles < 250000 && (sourced < numOfInputs || sinked < numOfOutputs)) {
     // Read packets from file
-    val line = lines(sourcedIndex%numOfInputs).split(" ")
+    val line = lines(sourcedIndex % numOfInputs).split(" ")
     val data = BigInt(line(2), 16)
     val empty = BigInt(line(1), 16)
     val last = BigInt(line(0))
@@ -105,27 +105,15 @@ class TopTests(c: Top) extends gTester[Top](c) {
 
     if (peek(c.io.in.ready) == 1 && (sourced < numOfInputs)) {
       sourcedIndex += 1
-    //   println("sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
+      println("core read an input! sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
     }
     if (peek(c.io.in.ready) == 1 && peek(c.io.in.last) == 1 && (sourced < numOfInputs)) {
       sourced += 1
-    //   println("sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
+      println("core read an input! sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
     }
     if (peek(c.io.out.valid) == 1 && peek(c.io.out.last) == 1) {
-    //   //When multi-threading or replication is used order of outputs are not preserved.
-    //   //Otherwise, we can check the values
-    //   //allPassed = allPassed && (peek(c.io.out.bits) == (inputData(sinkedIndex) + 2))
-    //   // allPassed = allPassed && (peek(c.io.out.bits.a) == (inputData(sinkedIndex) + 2))
-
-    //   if (allPassed == false) {
-    //     // println("Test failed because output is " + peek(c.io.out.bits.a) +
-    //     //         " expected " + (inputData(sinkedIndex) + 2))
-    //     println("Sinked is " + sinked)
-    //   }
-    //     println("At " + cycles + " output " + peek(c.io.out.bits.pkt_flags) +
-    //             " sinked. sinked is " + sinked)
       sinked += 1
-    //   sinkedIndex = sinked % inputData.length
+      println("core wrote an output! sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
     }
     step(1)
     cycles += 1
