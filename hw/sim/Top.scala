@@ -13,5 +13,7 @@ import scala.collection.mutable.HashMap
 
 class Top extends Module with GorillaUtil {
   val io = IO(new gInOutOffBundle(new input_t, new output_t))
-  val result = MTEngine("primate.c", 16)
+  val result = new gComponentGen(new primate("result"), new input_t, new output_t, ArrayBuffer(), "result")
+  val generatedTop = Module(result())
+  generatedTop.io <> io
 }
