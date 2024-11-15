@@ -1,0 +1,11 @@
+*.ll
+*.log
+*.cfg
+*.o
+primate_pgm_sym
+primate_pgm_text
+primate_rodata
+primate_assembler*
+*.tmp
+memInit.txt
+primate-compiler-gen

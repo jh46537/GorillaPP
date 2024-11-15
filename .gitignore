@@ -1,0 +1,9 @@
+*~
+# build artifacts
+build
+*.bin
+
+# scala spam
+.bsp
+project
+target

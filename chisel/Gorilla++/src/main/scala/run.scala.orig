@@ -1,6 +1,0 @@
-import chisel3._
-import chisel3.util._
-
-object TopDriver extends App {
-  chisel3.Driver.execute(args, () => new Top)
-}
