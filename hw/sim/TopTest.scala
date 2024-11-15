@@ -49,9 +49,9 @@ class TopTests(c: Top) extends gTester[Top](c) {
   var sinkedIndex = 0
   var allPassed = true
   var cycles = 0
-  // val numOfInputs = lines.length
-  val numOfInputs = 512
-  val numOfOutputs = 512
+  val numOfInputs = lines.length
+  //val numOfInputs = 512
+  val numOfOutputs = numOfInputs
   val numThreads = 16
   var memReqBuf_time = new Array[Int](1024)
   var memReqBuf_addr = new Array[Int](1024)
@@ -60,7 +60,7 @@ class TopTests(c: Top) extends gTester[Top](c) {
 
   while(cycles < 250000 && (sourced < numOfInputs || sinked < numOfOutputs)) {
     // Read packets from file
-    val line = lines(sourcedIndex).split(" ")
+    val line = lines(sourcedIndex%numOfInputs).split(" ")
     val data = BigInt(line(2), 16)
     val empty = BigInt(line(1), 16)
     val last = BigInt(line(0))
