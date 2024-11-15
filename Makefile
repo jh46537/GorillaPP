@@ -32,14 +32,14 @@ primate-sim: | move-software move-hardware
 	@make -C /primate/primate-uarch/chisel/ waves
 
 # rule to move primate-pgm to the simulator dir.
-move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt
+move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt ${HWGEN_DIR}
 	@echo "Moving primate program binary into ${HWGEN_DIR}"
-	@cp ${BUILD_DIR}/primate_pgm.bin ${HWGEN_DIR}
-	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}
-	@cp input.txt ${HWGEN_DIR}
+	@cp ${BUILD_DIR}/primate_pgm.bin ${HWGEN_DIR}/
+	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}/
+	@cp input.txt ${HWGEN_DIR}/
 
 # rule to create the primate compiler. depends on the tablegen files
-move-hardware: ${HWGEN_DIR}/Primate.scala ${SBT_RESOURCES_DIR}
+move-hardware: ${HWGEN_DIR} ${HWGEN_DIR}/Primate.scala ${SBT_RESOURCES_DIR}
 	@echo "Moving hardware files into ${HWGEN_DIR}"
 	# i dont like this, but sbt sucks and we have no choice
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.scala' | xargs -i cp {} ${SBT_SCALA_DIR}
