@@ -7,7 +7,7 @@ ThisBuild / organization     := "FAST"
 lazy val root = (project in file("."))
   .settings(
     name := "Primate",
-    //Compile / scalaSource := baseDirectory.value / "rtl",
+    Compile / scalaSource := baseDirectory.value / "hw-gen",
     //libraryDependencies ++= Seq(
     //  "org.chipsalliance" %% "chisel" % chiselVersion,
     //  "org.scalatest" %% "scalatest" % "3.2.16" % "test",

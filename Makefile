@@ -13,13 +13,11 @@ USER_DIR=$(shell pwd)
 BUILD_DIR=./build
 COMPILER_GEN_DIR=${BUILD_DIR}/primate-compiler-gen
 HWGEN_DIR=${BUILD_DIR}/hw-gen
-# I cannot get chisel to build unless files are in src/main/scala!!??
-SBT_SCALA_DIR=${HWGEN_DIR}/src/main/scala
-SBT_RESOURCES_DIR=${HWGEN_DIR}/src/main/resources/
 
-SBT:=sbt
+# finds the basename of the file containing "primate_main"
 TARGET:=$(shell find -type f -iname '*.cpp' -exec grep -iH 'primate_main' {} \; | awk -F ':' '{print $$1}' | awk -F '/' '{print $$2}' | awk -F '\.' '{print $$1}')
 LLVM_BUILD_TOOL=ninja
+SBT:=sbt
 
 SW_SOURCE_FILES := $(wildcard *.cpp)
 
@@ -29,38 +27,33 @@ primate-sim: | primate-hardware primate-software
 
 primate-hardware: | ${HWGEN_DIR} move-hardware
 	@echo "generating RTL"
-	@cp ${PRIMATE_SCRIPTS}/build.sbt ${HWGEN_DIR}
-	@cd ${HWGEN_DIR}; ${SBT} "runMain Main"
+	@cp ${PRIMATE_SCRIPTS}/build.sbt ${BUILD_DIR}
+	@cd ${BUILD_DIR}; ${SBT} "runMain Main"
 
 
 primate-software: ${BUILD_DIR}/primate_pgm.bin
-#primate-hardware: ${SBT_SCALA_DIR}/Primate.scala
-
 
 # rule to move primate-pgm to the simulator dir.
 move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt | ${HWGEN_DIR}
 	@echo "Moving primate program binary into ${HWGEN_DIR}"
 	@cp ${BUILD_DIR}/primate_pgm.bin ${HWGEN_DIR}/
-	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}/
 	@cp input.txt ${HWGEN_DIR}/
 
 
 # rule to create the primate compiler. depends on the tablegen files
-move-hardware: ${HWGEN_DIR} ${SBT_SCALA_DIR}/Primate.scala | ${SBT_RESOURCES_DIR} ${BUILD_DIR}
+move-hardware: ${HWGEN_DIR} ${HWGEN_DIR}/Primate.scala | ${HWGEN_DIR} ${BUILD_DIR}
 	@echo "Moving hardware files into ${HWGEN_DIR}"
-	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.scala' | xargs -i cp {} ${SBT_SCALA_DIR}
-	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.sv' | xargs -i cp {} ${SBT_RESOURCES_DIR}
-	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.v' | xargs -i cp {} ${SBT_RESOURCES_DIR}
-	@cp ${BUILD_DIR}/primate.cfg ${SBT_SCALA_DIR}
+	#TODO: can we coax SBT/mill into compiling scala in place (search the hw dir) so we dont have to do this copy?
+	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.scala' | xargs -i cp {} ${HWGEN_DIR}
+	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.sv' | xargs -i cp {} ${HWGEN_DIR}
+	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.v' | xargs -i cp {} ${HWGEN_DIR}
 	@cp ${USER_DIR}/input.txt ${HWGEN_DIR}
-	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}
-	@cp ${BUILD_DIR}/header.scala ${SBT_SCALA_DIR}
 
 
 # instance the primate scala file
-${SBT_SCALA_DIR}/Primate.scala: ${BUILD_DIR}/primate.cfg ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template bfu_list.txt | ${HWGEN_DIR} ${SBT_SCALA_DIR}
+${HWGEN_DIR}/Primate.scala: ${BUILD_DIR}/primate.cfg ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template bfu_list.txt | ${HWGEN_DIR}
 	@echo "Generating Primate core chisel file"
-	@python3 ${PRIMATE_UARCH_ROOT}/scripts/scm.py -p ${BUILD_DIR}/primate.cfg -t ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template -o ${SBT_SCALA_DIR}/Primate.scala -b bfu_list.txt
+	@python3 ${PRIMATE_UARCH_ROOT}/scripts/scm.py -p ${BUILD_DIR}/primate.cfg -t ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template -o ${HWGEN_DIR}/Primate.scala -b bfu_list.txt
 
 
 # rule to create the binary for the primate program.
@@ -128,14 +121,6 @@ ${HWGEN_DIR}:
 	@echo "creating ${HWGEN_DIR}"
 	@mkdir -p ${HWGEN_DIR}
 
-${SBT_SCALA_DIR}:
-	@echo "creating ${SBT_SCALA_DIR}"
-	@mkdir -p ${SBT_SCALA_DIR}
-
-${SBT_RESOURCES_DIR}:
-	@echo "creating ${SBT_RESOURCES_DIR}"
-	@mkdir -p ${SBT_RESOURCES_DIR}
-
 ${BUILD_DIR}:
 	@echo "creating ${BUILD_DIR}"
 	@mkdir -p ${BUILD_DIR}
@@ -153,6 +138,6 @@ clean-sim:
 
 clean:
 	@-rm -rf ${BUILD_DIR}
-	@-rm ${PRIMATE_SCRIPTS}/primate_assembler
+	@-rm -f ${PRIMATE_SCRIPTS}/primate_assembler
 
 .PHONY: clean print-env primate-software primate-hardware move-software move-hardware primate-sim clean-sim
