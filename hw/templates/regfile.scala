@@ -177,6 +177,8 @@ class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: In
             wrData1 := io.wrData1
             wrData2 := io.wrData2
             state_wr := 1.U
+            printf("Writing to reg %x: %x\n", wrAddr1.asUInt, wrData1.asUInt)
+            printf("Writing to reg %x: %x\n", wrAddr2.asUInt, wrData2.asUInt)
           }
         } .otherwise {
           regfile(i).io.wrAddr1 := DontCare
@@ -216,6 +218,12 @@ class RegRead(threadnum: Int, num_rd: Int, num_wr: Int, num_regs: Int, reg_w: In
           regfile(i).io.wrEn2 := io.wrEn2(0)
           regfile(i).io.wrData1 := io.wrData1(0)
           regfile(i).io.wrData2 := io.wrData2(0)
+          when (regfile(i).io.wrEn1) {
+            printf("Writing to reg %x: %x\n", regfile(i).io.wrAddr1.asUInt, regfile(i).io.wrData1.asUInt)
+          }
+          when (regfile(i).io.wrEn2) {
+            printf("Writing to reg %x: %x\n", regfile(i).io.wrAddr2.asUInt, regfile(i).io.wrData2.asUInt)
+          }
         } .otherwise {
           regfile(i).io.wrAddr1 := DontCare
           regfile(i).io.wrAddr2 := DontCare

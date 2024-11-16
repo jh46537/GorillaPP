@@ -379,8 +379,8 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     bfuRdRspQ_enq_vec(i) := bfuRdRspQ_enq_vec(i+1)
   }
 
-  val srcA = Wire(Vec(NUM_FUS, UInt(REG_WIDTH.W)))
-  val srcB = Wire(Vec(NUM_FUS, UInt(REG_WIDTH.W)))
+  val srcA = Wire(Vec(NUM_FUS, UInt(REG_WIDTH.W))) // vector containing all the RS1s read from the regfile
+  val srcB = Wire(Vec(NUM_FUS, UInt(REG_WIDTH.W))) // vector containing all the RS2s read from the regfile
   srcA := regfile.io.rdData1
   srcB := regfile.io.rdData2
 
