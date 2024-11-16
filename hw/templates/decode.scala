@@ -419,6 +419,7 @@ class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, inst_width: Int, num_re
   val aluDecoders = Seq.fill(num_alus)(Module(new DecodeALUBFU(inst_width, num_regs_lg)))
   val bfuDecoders = Seq.fill(num_fus-num_alus)(Module(new DecodeBFU(inst_width, num_regs_lg)))
 
+  // offsets for ALU operations
   val ALU_PKT_WIDTH = 4*inst_width
   val EXTRACT0_LOW = 0
   val EXTRACT0_HIGH = EXTRACT0_LOW + inst_width - 1
@@ -479,12 +480,6 @@ class Decode(num_alus: Int, num_bfus: Int, num_fus: Int, inst_width: Int, num_re
     io.aluUcodes.catEn(i)     := aluDecoders(i).io.catEn
     io.aluUcodes.immSel(i)    := aluDecoders(i).io.immSel
     io.aluUcodes.imm(i)       := aluDecoders(i).io.imm
-    // io.mulEn(i)     := aluDecoders(i).io.mulEn
-    // io.mulH(i)      := aluDecoders(i).io.mulH
-    // io.divEn(i)     := aluDecoders(i).io.divEn
-    // io.remEn(i)     := aluDecoders(i).io.remEn
-    // io.rs1Signed(i) := aluDecoders(i).io.rs1Signed
-    // io.rs2Signed(i) := aluDecoders(i).io.rs2Signed
   }
 
   if (num_alus == num_bfus) {
