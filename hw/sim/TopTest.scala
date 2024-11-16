@@ -106,14 +106,17 @@ class TopTests(c: Top) extends gTester[Top](c) {
     if (peek(c.io.in.ready) == 1 && (sourced < numOfInputs)) {
       sourcedIndex += 1
       println("core read an input! sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
+      println("core read: " + peek(c.io.in.bits.data).toString(16))
     }
     if (peek(c.io.in.ready) == 1 && peek(c.io.in.last) == 1 && (sourced < numOfInputs)) {
       sourced += 1
       println("core read an input! sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
+      println("core read: " + peek(c.io.in.bits.data).toString(16))
     }
     if (peek(c.io.out.valid) == 1 && peek(c.io.out.last) == 1) {
       sinked += 1
       println("core wrote an output! sourced and sourcedIndex are " + sourced + " " + sourcedIndex + " sinked is " + sinked)
+      println("core returned: " + peek(c.io.out.bits.data).toString(16))
     }
     step(1)
     cycles += 1

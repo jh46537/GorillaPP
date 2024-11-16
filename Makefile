@@ -21,7 +21,7 @@ SBT:=sbt
 
 SW_SOURCE_FILES := $(wildcard *.cpp)
 
-primate-sim: | primate-hardware primate-software
+primate-sim: | primate-hardware primate-software move-software
 	@echo "running RTL simulator"
 	@cd ${HWGEN_DIR} && ${SBT} "runMain TopMain --backend-name verilator --full-stacktrace"
 
@@ -37,7 +37,6 @@ primate-software: ${BUILD_DIR}/primate_pgm.bin
 move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt | ${HWGEN_DIR}
 	@echo "Moving primate program binary into ${HWGEN_DIR}"
 	@cp ${BUILD_DIR}/primate_pgm.bin ${HWGEN_DIR}/
-	@cp input.txt ${HWGEN_DIR}/
 
 
 # rule to create the primate compiler. depends on the tablegen files
@@ -47,7 +46,6 @@ move-hardware: ${HWGEN_DIR} ${HWGEN_DIR}/Primate.scala | ${HWGEN_DIR} ${BUILD_DI
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.scala' | xargs -i cp {} ${HWGEN_DIR}
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.sv' | xargs -i cp {} ${HWGEN_DIR}
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.v' | xargs -i cp {} ${HWGEN_DIR}
-	@cp ${USER_DIR}/input.txt ${HWGEN_DIR}
 
 
 # instance the primate scala file

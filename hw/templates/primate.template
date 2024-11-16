@@ -33,14 +33,12 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int, inst_ram_size: Int) extends
 
   // FIXME: implement i$
 
-  // var mem_array = Array.fill[UInt](1 << ipWidth)(0.U(instrWidth.W))
+  println("fetch params: ")
+  println(" INSTR WIDTH: " + instrWidth)
+  println(" NUM_ISNTRS:  " + inst_ram_size)
 
   val mem = SyncReadMem(inst_ram_size, UInt(instrWidth.W))
   loadMemoryFromFileInline(mem, "./primate_pgm.bin")
-
-  // val mem = RegInit(VecInit(mem_array.toSeq))
-  //val mem = SyncReadMem(1 << ipWidth, UInt(instrWidth.W))
-  //loadMemoryFromFileInline(mem, "../assembler/npu.bin")
 
   io.instr := mem(io.ip)
 }
@@ -381,8 +379,8 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     bfuRdRspQ_enq_vec(i) := bfuRdRspQ_enq_vec(i+1)
   }
 
-  val srcA = Wire(Vec(NUM_FUS, UInt(REG_WIDTH.W)))
-  val srcB = Wire(Vec(NUM_FUS, UInt(REG_WIDTH.W)))
+  val srcA = Wire(Vec(NUM_FUS, UInt(REG_WIDTH.W))) // vector containing all the RS1s read from the regfile
+  val srcB = Wire(Vec(NUM_FUS, UInt(REG_WIDTH.W))) // vector containing all the RS2s read from the regfile
   srcA := regfile.io.rdData1
   srcB := regfile.io.rdData2
 
@@ -395,12 +393,12 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   val gather_srcA = Seq.fill(NUM_ALUS)(Module(new Gather(REG_WIDTH, NUM_SRC_POS, src_pos, MAX_FIELD_WIDTH, NUM_SRC_MODES, src_mode)))
   val gather_srcB = Seq.fill(NUM_ALUS)(Module(new Gather(REG_WIDTH, NUM_SRC_POS, src_pos, MAX_FIELD_WIDTH, NUM_SRC_MODES, src_mode)))
   for (i <- 0 until NUM_ALUS) {
-    gather_srcA(i).io.din := srcA(i)
+    gather_srcA(i).io.din   := srcA(i)
     gather_srcA(i).io.shift := aluMicrocodes_out.rs1_pos(i)
-    gather_srcA(i).io.mode := aluMicrocodes_out.rs1_mode(i)
-    gather_srcB(i).io.din := srcB(i)
+    gather_srcA(i).io.mode  := aluMicrocodes_out.rs1_mode(i)
+    gather_srcB(i).io.din   := srcB(i)
     gather_srcB(i).io.shift := aluMicrocodes_out.rs2_pos(i)
-    gather_srcB(i).io.mode := aluMicrocodes_out.rs2_mode(i)
+    gather_srcB(i).io.mode  := aluMicrocodes_out.rs2_mode(i)
   }
 
   val bfuRdRspQ_enq_valid = bfuRdRspQ_enq_vec(0)
