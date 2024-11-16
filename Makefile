@@ -23,7 +23,7 @@ LLVM_BUILD_TOOL=ninja
 
 SW_SOURCE_FILES := $(wildcard *.cpp)
 
-primate-sim: | primate-hardware primate-software
+primate-sim: | primate-hardware primate-software move-software
 	@echo "running RTL simulator"
 	@cd ${HWGEN_DIR} && ${SBT} "runMain TopMain --backend-name verilator --full-stacktrace"
 
