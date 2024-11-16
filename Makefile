@@ -42,7 +42,8 @@ move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt |
 	@echo "Moving primate program binary into ${HWGEN_DIR}"
 	@cp ${BUILD_DIR}/primate_pgm.bin ${HWGEN_DIR}/
 	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}/
-	@cp input.txt ${HWGEN_DIR}/
+	@cp ${USER_DIR}/input.txt ${HWGEN_DIR}
+	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}
 
 
 # rule to create the primate compiler. depends on the tablegen files
@@ -52,8 +53,6 @@ move-hardware: ${HWGEN_DIR} ${SBT_SCALA_DIR}/Primate.scala | ${SBT_RESOURCES_DIR
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.sv' | xargs -i cp {} ${SBT_RESOURCES_DIR}
 	@find ${PRIMATE_UARCH_ROOT}/hw -name '*.v' | xargs -i cp {} ${SBT_RESOURCES_DIR}
 	@cp ${BUILD_DIR}/primate.cfg ${SBT_SCALA_DIR}
-	@cp ${USER_DIR}/input.txt ${HWGEN_DIR}
-	@cp ${BUILD_DIR}/memInit.txt ${HWGEN_DIR}
 	@cp ${BUILD_DIR}/header.scala ${SBT_SCALA_DIR}
 
 
