@@ -3,7 +3,7 @@
 ####################################################################
 
 #set PRIMATE_ROOT env var to the primate dir path
-PRIMATE_ROOT ?= /primate
+PRIMATE_ROOT = /home/jiang2000/workspace/FPGA/primate
 
 PRIMATE_COMPILER_ROOT=${PRIMATE_ROOT}/primate-compiler
 PRIMATE_UARCH_ROOT=${PRIMATE_ROOT}/primate-uarch
