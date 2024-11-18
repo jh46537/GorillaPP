@@ -20,5 +20,10 @@ class Top extends Module with GorillaUtil {
 }
 
 object Main extends App {
-  reflect.io.File("Top.sv").writeAll(ChiselStage.emitSystemVerilog(new Top))
+  // TODO: change and test where the generated sv is written
+  // (do we also need to keep track of submodules?)
+  reflect.io.File("../testoutputdir/Top.sv").writeAll(ChiselStage.emitSystemVerilog(new Top))
+  
+  // chisel 6
+  //ChiselStage.emitSystemVerilogFile(new Top, Array("--target-dir", "../testoutputdir/"))
 }

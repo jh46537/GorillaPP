@@ -44,7 +44,7 @@ class Fetch(num: Int, ipWidth: Int, instrWidth: Int, inst_ram_size: Int) extends
 }
 
 class primate(extCompName: String) extends gComponentLeaf(new input_t, new output_t, ArrayBuffer(), extCompName + "__type__engine__MT__16__") {
-  val filename = "./src/main/scala/primate.cfg"
+  val filename = "./primate.cfg"
   val fileSource = Source.fromFile(filename)
   val lines = fileSource.getLines.toList
   var knobs:Map[String, String] = Map()
