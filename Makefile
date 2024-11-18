@@ -69,7 +69,7 @@ ${BUILD_DIR}/primate_pgm.bin: ${BUILD_DIR}/primate_pgm.o
 # call the compiler to create the primate program object file
 ${BUILD_DIR}/primate_pgm.o: ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ ${SW_SOURCE_FILES}
 	@echo "Building the primate program"
-	@cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -I${PRIMATE_UARCH_ROOT}/sw/common -O3 -mllvm -debug -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i "${USER_DIR}/${TARGET}.cpp" -c -o primate_pgm.o 2> compile.log
+	@cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -I${PRIMATE_UARCH_ROOT}/sw/common -O3 -mllvm -debug -mllvm -print-after-all --target=primate32-linux-gnu -fno-pic -march=pr32i "${USER_DIR}/${TARGET}.cpp" -c -o primate_pgm.o 2> compile.log
 
 
 # rule to create the primate.cfg file. Requires that arch-gen is built
