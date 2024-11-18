@@ -36,7 +36,8 @@ primate-software: ${BUILD_DIR}/primate_pgm.bin
 # rule to move primate-pgm to the simulator dir.
 move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt | ${HWGEN_DIR}
 	@echo "Moving primate program binary into ${HWGEN_DIR}"
-	@cp ${BUILD_DIR}/primate_pgm.bin ${HWGEN_DIR}/
+#	@cp ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/
+	@cp input.txt                    ${BUILD_DIR}/
 
 
 # rule to create the primate compiler. depends on the tablegen files
