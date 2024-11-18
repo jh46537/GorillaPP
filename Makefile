@@ -23,7 +23,7 @@ SW_SOURCE_FILES := $(wildcard *.cpp)
 
 primate-sim: | primate-hardware primate-software move-software
 	@echo "running RTL simulator"
-	@cd ${HWGEN_DIR} && ${SBT} "runMain TopMain --backend-name verilator --full-stacktrace"
+	@cd ${BUILD_DIR} && ${SBT} "runMain TopMain --backend-name verilator --full-stacktrace"
 
 primate-hardware: | ${HWGEN_DIR} move-hardware
 	@echo "generating RTL"
