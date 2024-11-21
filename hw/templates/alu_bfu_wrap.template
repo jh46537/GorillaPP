@@ -1,7 +1,14 @@
 import chisel3._
 import chisel3.util._
 
-class #aluSlot#(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
+class #aluSlot#(conf: PrimateConfig) extends Module {
+  // unpack params
+  val tag_width    = conf.TAGWIDTH
+  val reg_width    = conf.REG_WIDTH
+  val opcode_width = conf.OPCODE_WIDTH
+  val num_threads  = conf.NUM_THREADS
+  val ip_width     = conf.IP_WIDTH
+
   val io = IO(new Bundle {
     val in_valid      = Input(Bool())
     val in_alu_bfu    = Input(Bool())
