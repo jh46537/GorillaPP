@@ -21,6 +21,21 @@ SBT:=sbt
 
 SW_SOURCE_FILES := $(wildcard *.cpp)
 
+
+# untested
+primate-sim-new: | primate-hardware primate-software move-software
+	@echo "Verilating Top.sv"
+	@cd ${BUILD_DIR}; verilator -Wall -cc Top.sv
+	@cd obj_dir; make -f VTop.mk; cd ..
+	@echo "Running RTL sim"
+	@mkdir verilator; cd verilator
+	@cp ${PRIMATE_UARCH_ROOT}/hw/sim/primate_tb.cpp .
+	# TODO: copy verilated design to cwd
+	# TODO: run verilator
+	# TODO: generate waves
+	# TODO: run gtkwave
+
+
 primate-sim: | primate-hardware primate-software move-software
 	@echo "running RTL simulator"
 	@cd ${BUILD_DIR} && ${SBT} "runMain TopMain --backend-name verilator --full-stacktrace"
