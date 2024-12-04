@@ -98,6 +98,11 @@ class ALU(reg_width: Int) extends Module {
     res := Cat(0.U(14.W), opB_u, opA_u).asSInt
   }
 
-  io.dout := Cat(rs1_r(reg_width-1, 32), res.asUInt)
+  if (reg_width > 32) {
+     io.dout := Cat(rs1_r(reg_width-1, 32), res.asUInt)
+  }
+  else {
+     io.dout := res.asUInt
+  }
 
 }
