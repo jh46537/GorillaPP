@@ -31,13 +31,14 @@ primate-hardware: | ${HWGEN_DIR} move-hardware
 	@cd ${BUILD_DIR}; ${SBT} "runMain Main"
 
 
-primate-software: ${BUILD_DIR}/primate_pgm.bin
+primate-software: ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text
 
 # rule to move primate-pgm to the simulator dir.
-move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt | ${HWGEN_DIR}
+move-software: ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_mem input.txt | ${HWGEN_DIR}
 	@echo "Moving primate program binary into ${HWGEN_DIR}"
-#	@cp ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/
 	@cp input.txt                    ${BUILD_DIR}/
+	@cp ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text ${BUILD_DIR}/primate_pgm.bin
+	@cp ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_mem  ${BUILD_DIR}/memInit.txt
 
 
 # rule to create the primate compiler. depends on the tablegen files
@@ -54,16 +55,24 @@ ${HWGEN_DIR}/Primate.scala: ${BUILD_DIR}/primate.cfg ${PRIMATE_UARCH_ROOT}/hw/te
 	@echo "Generating Primate core chisel file"
 	@python3 ${PRIMATE_UARCH_ROOT}/scripts/scm.py -p ${BUILD_DIR}/primate.cfg -t ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template -o ${HWGEN_DIR}/Primate.scala -b bfu_list.txt
 
+# rule for creating the primate program instructions
+# in a simulator readable format
+${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_mem: ${BUILD_DIR}/primate_exe ${PRIMATE_COMPILER_ROOT}/primate-loader.py
+	@echo "Primate binary to simulator memory format"
+	@${PRIMATE_COMPILER_ROOT}/primate-loader.py -i ${BUILD_DIR}/primate_exe -o ${BUILD_DIR}/primate_sim_pgm_out -p ${BUILD_DIR}/primate.cfg
+
+# rule for creating the primate program instructions
+# in a simulator readable format
+${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text: ${BUILD_DIR}/primate_exe ${PRIMATE_COMPILER_ROOT}/primate-loader.py
+	@echo "Primate binary to simulator instruction format"
+	@${PRIMATE_COMPILER_ROOT}/primate-loader.py -i ${BUILD_DIR}/primate_exe -o ${BUILD_DIR}/primate_sim_pgm_out -p ${BUILD_DIR}/primate.cfg
 
 # rule to create the binary for the primate program.
 # depends on the compiler generated binary and converts it into hex files that verilog can read
-${BUILD_DIR}/primate_pgm.bin: ${BUILD_DIR}/primate_pgm.o
+${BUILD_DIR}/primate_exe: ${BUILD_DIR}/primate_pgm.o ${BUILD_DIR}/primate.cfg
 	@echo "Building the primate program binary"
-	@${PRIMATE_COMPILER_ROOT}/build/bin/llvm-objdump --triple=primate32-unknown-linux -dr ${BUILD_DIR}/primate_pgm.o > ${BUILD_DIR}/primate_pgm_text
-	@${PRIMATE_COMPILER_ROOT}/build/bin/llvm-objdump --triple=primate32-unknown-linux -t ${BUILD_DIR}/primate_pgm.o > ${BUILD_DIR}/primate_pgm_sym
-	@${PRIMATE_COMPILER_ROOT}/build/bin/llvm-objdump --triple=primate32-unknown-linux -s -j .rodata ${BUILD_DIR}/primate_pgm.o > ${BUILD_DIR}/primate_rodata
-	@${PRIMATE_COMPILER_ROOT}/bin2asm.py ${BUILD_DIR}/primate_pgm_text ${BUILD_DIR}/primate_pgm_sym ${BUILD_DIR}/primate.cfg ${BUILD_DIR}/primate_pgm.bin
-	@${PRIMATE_COMPILER_ROOT}/elf2meminit.py ${BUILD_DIR}/primate_rodata ${BUILD_DIR}/memInit.txt
+	@${PRIMATE_COMPILER_ROOT}/build/bin/ld.lld ${BUILD_DIR}/primate_pgm.o -o ${BUILD_DIR}/primate_exe
+
 
 
 # call the compiler to create the primate program object file
