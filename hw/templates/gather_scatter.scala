@@ -15,8 +15,8 @@ class Gather(reg_width: Int, num_src_pos: Int, src_pos: Array[Int],
   })
 
   // populate the ROM with the values from parameterized array
-  println("src_pos array: " + src_pos.mkString(" "))
-  println("src_mode array: " + src_mode.mkString(" "))
+  println("[GATHER] src_pos array: " + src_pos.mkString(" "))
+  println("[GATHER] src_mode array: " + src_mode.mkString(" "))
   val src_pos_rom  = VecInit(src_pos.toSeq.map{s => s.U})
   val src_mode_rom = VecInit(src_mode.toSeq.map{s => s.U})
 
@@ -40,23 +40,35 @@ class Gather(reg_width: Int, num_src_pos: Int, src_pos: Array[Int],
 
 }
 
+// II = 1; Latency = 1
+
 class Scatter(reg_width: Int, lg_num_rdBlocks: Int, lg_num_modes: Int, num_wrBlocks: Int,
   num_dst_pos: Int, dst_encode: Array[Long], dst_pos: Array[Long],
   num_wbens: Int, dst_en_encode: Array[(Int, Int)], wbens: Array[Long]) extends Module {
   val io = IO(new Bundle {
-    val din = Input(UInt(reg_width.W))
-    val shift = Input(UInt(lg_num_rdBlocks.W))
-    val mode = Input(UInt(lg_num_modes.W))
-    val wren = Output(UInt(num_wrBlocks.W))
-    val dout = Output(UInt(reg_width.W))
+    val din = Input(UInt(reg_width.W))           
+    val shift = Input(UInt(lg_num_rdBlocks.W)) // encoded version of the field start bit
+    val mode = Input(UInt(lg_num_modes.W))     // encoded version of the field size 
+    val wren = Output(UInt(num_wrBlocks.W))    // block write enables for the register file
+    val dout = Output(UInt(reg_width.W))       // shifted output. only defined for the blocks the regfile with write
   })
+
+  // HW ROM that holds the destination field starting positions
+  println("[SCATTER] dst_pos array: " + dst_pos.mkString(" "))	
+  val dst_pos_rom  = VecInit(dst_pos.toSeq.map{s => s.U})
+
+  // sugar over io.din
   val din_w = Wire(UInt(reg_width.W))
+
+  // flop outputs for timing
   val dout_r = Reg(UInt(reg_width.W))
   val wben_r = Reg(UInt(num_wrBlocks.W))
+  
   din_w := io.din
+  dout_r := din_w << dst_pos_rom(io.shift)
 
-  val cases = (0 until num_dst_pos).map(i => (io.shift === dst_encode(i).U) -> (din_w << dst_pos(i)))
-  dout_r := MuxCase(DontCare, cases)
+  // mux to pick the correct wr enables.
+  // dst_en_encode._1 is the start bit pos, dst_en_encode._2 is the field size. size == -1 means any size.
   val cases2 = (0 until num_wbens).map(i => ((io.shift === dst_en_encode(i)._1.U) && ((dst_en_encode(i)._2 == -1).B || (io.mode === dst_en_encode(i)._2.S.asUInt))) -> wbens(i).U)
   wben_r := MuxCase(0.U, cases2)
 
