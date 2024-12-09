@@ -123,7 +123,7 @@ class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threa
     }
   }
   mem_offset := mem_addr(log2Up(MEM_WIDTH)-4, 0)
-  mem_index := mem_addr(ADDR_WIDTH_B-1, log2Up(MEM_WIDTH))
+  mem_index := mem_addr(ADDR_WIDTH_B-1, 2)
 
   // Mem read/write
   val rd_data = Wire(Vec(NUM_BLOCKS, UInt(32.W)))
