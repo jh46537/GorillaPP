@@ -117,7 +117,7 @@ namespace PRIMATE {
         // endianess is a thing
         outfile << std::hex;
         for(int i = size-1; i >= 0; i--) {
-            outfile << (int)(raw_bytes[i] >> 4);
+            outfile << (int)((raw_bytes[i] >> 4) & 0xf);
             outfile << (int)(raw_bytes[i] & 0xf);
         }
         outfile << std::dec;
