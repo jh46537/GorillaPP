@@ -1,0 +1,47 @@
+SECTIONS
+{
+    /* Place .data, .rodata, and .bss at address 0 */
+    . = 0;
+
+    /* Data section */
+    .data ALIGN(1) : {
+        *(.data)
+        *(.data.*)
+    }
+
+    /* Read-only data section */
+    .rodata ALIGN(1) : {
+        *(.rodata)
+        *(.rodata.*)
+    }
+
+    /* BSS section */
+    .bss ALIGN(1) : {
+        *(.bss)
+        *(.bss.*)
+        *(COMMON)
+    }
+
+    /* Align the address after .bss to the next page boundary or word-aligned address */
+    . = ALIGN(4);
+
+    /* Place the remaining sections starting from the current location */
+    .text : {
+        *(.text)
+        *(.text.*)
+    }
+
+    /* Other sections */
+    .init : { *(.init) }
+    .fini : { *(.fini) }
+    .ctors : { *(.ctors) }
+    .dtors : { *(.dtors) }
+    .got : { *(.got) }
+    .plt : { *(.plt) }
+    .eh_frame : { *(.eh_frame) }
+    .comment : { *(.comment) }
+    .shstrtab : { *(.shstrtab) }
+
+    /* Catch-all for any other sections not explicitly mentioned */
+    /DISCARD/ : { *(*) }
+}

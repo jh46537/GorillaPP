@@ -89,7 +89,7 @@ ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text: ${BUILD_DIR}/primate_exe ${PR
 # depends on the compiler generated binary and converts it into hex files that verilog can read
 ${BUILD_DIR}/primate_exe: ${BUILD_DIR}/primate_pgm.o ${BUILD_DIR}/primate.cfg
 	@echo "Building the primate program binary"
-	@${PRIMATE_COMPILER_ROOT}/build/bin/ld.lld ${BUILD_DIR}/primate_pgm.o -o ${BUILD_DIR}/primate_exe
+	@${PRIMATE_COMPILER_ROOT}/build/bin/ld.lld -T /primate/primate-uarch/scripts/linker-script ${BUILD_DIR}/primate_pgm.o -o ${BUILD_DIR}/primate_exe
 
 
 
