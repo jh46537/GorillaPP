@@ -1,103 +1,75 @@
 import chisel3._
 import chisel3.util._
 
+// opcodes defined in include.scala
+import ALUOpCodes._
+
+// Basic ALU (Green Fuctional Unit) for Primate
+// supports RV32i R and I ops
+
 class ALU(reg_width: Int) extends Module {
   val io = IO(new Bundle {
     val rs1       = Input(UInt(reg_width.W))
     val rs2       = Input(UInt(32.W))
-    val addEn     = Input(Bool())
-    val subEn     = Input(Bool())
-    val sltEn     = Input(Bool())
-    val sltuEn    = Input(Bool())
-    val andEn     = Input(Bool())
-    val orEn      = Input(Bool())
-    val xorEn     = Input(Bool())
-    val sllEn     = Input(Bool())
-    val srEn      = Input(Bool())
-    val srMode    = Input(Bool())
-    val luiEn     = Input(Bool())
-    val catEn     = Input(Bool())
-    val immSel    = Input(Bool())
     val imm       = Input(SInt(32.W))
+    val immSel    = Input(Bool())
+    val opcode    = Input(ALUOpCodes())
     val dout      = Output(UInt(reg_width.W))
   })
 
-  val opA = Reg(SInt(32.W))
-  val opB = Reg(SInt(32.W))
-  val res = Wire(SInt(32.W))
-  val rs1_r = Reg(UInt(reg_width.W))
-  val addEn_r   = RegInit(false.B)
-  val subEn_r   = RegInit(false.B)
-  val sltEn_r   = RegInit(false.B)
-  val sltuEn_r  = RegInit(false.B)
-  val andEn_r   = RegInit(false.B)
-  val orEn_r    = RegInit(false.B)
-  val xorEn_r   = RegInit(false.B)
-  val sllEn_r   = RegInit(false.B)
-  val srEn_r    = RegInit(false.B)
-  val srMode_r  = RegInit(false.B)
-  val luiEn_r   = RegInit(false.B)
-  val catEn_r   = RegInit(false.B)
+  val opcode_r = Reg(ALUOpCodes())
+  val opA_r    = Reg(SInt(32.W))
+  val opB_r    = Reg(SInt(32.W))
+  val result   = Wire(SInt(32.W))
 
-  opA := io.rs1(31, 0).asSInt
-  opB := Mux(io.immSel, io.imm, io.rs2(31, 0).asSInt)
-  rs1_r := io.rs1
-  addEn_r  := io.addEn
-  subEn_r  := io.subEn
-  sltEn_r  := io.sltEn
-  sltuEn_r := io.sltuEn
-  andEn_r  := io.andEn
-  orEn_r   := io.orEn
-  xorEn_r  := io.xorEn
-  sllEn_r  := io.sllEn
-  srEn_r   := io.srEn
-  srMode_r := io.srMode
-  luiEn_r  := io.luiEn
-  res := DontCare
+  opcode_r  := io.opcode
+  opA_r     := io.rs1(31,0).asSInt
+  opB_r     := Mux(io.immSel, io.imm, io.rs2(31,0).asSInt)
+  val shamt := opB_r(4,0).asUInt
 
-  when (addEn_r) {
-    res := opA + opB
-  } .elsewhen (subEn_r) {
-    res := opA - opB
-  } .elsewhen (sltEn_r) {
-    when (opA < opB) {
-      res := 1.S
-    } .otherwise {
-      res := 0.S
+  switch (opcode_r) {
+    is (add) {
+      result := opA_r + opB_r
     }
-  } .elsewhen(sltuEn_r) {
-    val opA_u = opA.asUInt
-    val opB_u = opB.asUInt
-    when (opA_u < opB_u) {
-      res := 1.S
-    } .otherwise {
-      res := 0.S
+    is (sub) {
+      result := opA_r - opB_r
     }
-  } .elsewhen (andEn_r) {
-    res := opA & opB
-  } .elsewhen (orEn_r) {
-    res := opA | opB
-  } .elsewhen (xorEn_r) {
-    res := opA ^ opB
-  } .elsewhen (sllEn_r) {
-    val shamt = opB(4, 0).asUInt
-    res := opA << shamt
-  } .elsewhen (sllEn_r) {
-    val shamt = opB(4, 0).asUInt
-    when (srMode_r) {
-      res := opA >> shamt
-    } .otherwise {
-      val opA_u = opA.asUInt
-      res := (opA_u >> shamt).asSInt
+    is (xor) {
+      result := opA_r ^ opB_r
     }
-  } .elsewhen (luiEn_r) {
-    res := opB
-  } .elsewhen (catEn_r) {
-    val opA_u = opA(8, 0).asUInt
-    val opB_u = opB(8, 0).asUInt
-    res := Cat(0.U(14.W), opB_u, opA_u).asSInt
+    is (or) {
+      result := opA_r | opB_r
+    }
+    is (and) {
+      result := opA_r & opB_r
+    }
+    is (sll) {
+      result := opA_r << Mux(io.immSel, shamt, opB_r)
+    }
+    is (srl) {
+      result := opA_r >> Mux(io.immSel, shamt, opB_r)
+    }
+    is (sra) {
+      val opA_u = opA_r.asUInt
+      result := (opA_u >> Mux(io.immSel, shamt, opB_r)).asSInt
+    }
+    is (slt) {
+      result := Mux(opA_r < opB_r, 1.U, 0.U)
+    }
+    is (sltu) {
+      result := Mux(opA_r.asUInt < opB_r.asUInt, 1.U, 0.U)
+    }
+    is (lui) {
+      result := opB_r(31,12) ## 0.U(12.W)
+    }
+    is (cat) { // TODO: what is this for?
+      result := Cat(opB_r(8,0),opA_r(8,0)).asSInt
+    }
   }
 
-  io.dout := Cat(rs1_r(reg_width-1, 32), res.asUInt)
+  val rs1_r = Reg(UInt(reg_width.W))
+  rs1_r := io.rs1
 
+  // why does the alu pass the upper bits of rs1 through to the output?
+  io.dout := Cat(rs1_r(reg_width-1, 32), res.asUInt)
 }
