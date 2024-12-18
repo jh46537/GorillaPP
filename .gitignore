@@ -7,3 +7,7 @@ build
 .bsp
 project
 target
+
+# cocotb spam
+__pycache__
+results.xml
