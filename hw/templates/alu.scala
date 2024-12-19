@@ -57,7 +57,7 @@ class ALU(reg_width: Int) extends Module {
       result := (opA_r.asSInt >> sr2(4,0)).asUInt
     }
     is (slt) {
-      result := Mux(opA_r.asSInt < sr2.asSInt, 1.U(32.W), 0.U) // todo sign extend sr2
+      result := Mux(opA_r.asSInt < sr2.asSInt, 1.U(32.W), 0.U)
     }
     is (sltu) {
       result := Mux(opA_r.asUInt < sr2, 1.U(32.W), 0.U)

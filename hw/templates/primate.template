@@ -38,6 +38,8 @@ class Fetch(conf: PrimateConfig) extends Module {
 }
 
 class primate(extCompName: String) extends gComponentLeaf(new input_t, new output_t, ArrayBuffer(), extCompName + "__type__engine__MT__16__") {
+  // TODO: would `val currentConfig = PrimateConfig("./src/main/scala/primate.cfg")` work?
+  object DefaultPrimateConfig extends PrimateConfig("./src/main/scala/primate.cfg")
   val currentConfig = DefaultPrimateConfig
 
   val AllOffloadsReady = Reg(Bool())
