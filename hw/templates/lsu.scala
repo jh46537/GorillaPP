@@ -8,6 +8,9 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.Fill
 import scala.math._
+import chisel3.iotesters.PeekPokeTester
+import org.scalatest._
+import chisel3.util.experimental.loadMemoryFromFileInline
 
 
 class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int, ip_width: Int) extends Module {
@@ -28,19 +31,25 @@ class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threa
 
   })
 
-  val MEM_WIDTH = 256
+  val MEM_WIDTH = 32
   val NUM_BLOCKS = MEM_WIDTH >> 5
   val RATIO = (Math.floor(reg_width / MEM_WIDTH)).toInt
   println("LSU inited with params: ")
   println(" NUM_BLOCKS: " + NUM_BLOCKS)
   println(" RATIO: " + RATIO)
   assert(RATIO * MEM_WIDTH == reg_width, "Register file width must be multiple of MEM_WIDTH")
- 
+
+  // in rows
   val MEM_SIZE = 512
+  // in cols
+  val ROW_SIZE = 32
   val ADDR_WIDTH_B = log2Up(MEM_SIZE) + log2Up(MEM_WIDTH) - 3
   val ADDR_WIDTH_W = ADDR_WIDTH_B + 2
 
   val mem = Seq.fill(NUM_BLOCKS)(SyncReadMem(MEM_SIZE, UInt(MEM_WIDTH.W)))
+  for ( i <- 0 to NUM_BLOCKS-1 ) {
+    loadMemoryFromFileInline(mem(i), "./memInit.txt")
+  }
   val mem_addr = RegInit(0.U(ADDR_WIDTH_B.W))
   val mem_index = Wire(UInt(log2Up(MEM_SIZE).W))
   val mem_offset = Wire(UInt(log2Up(MEM_WIDTH).W))
@@ -112,10 +121,9 @@ class loadStoreUnit(tag_width: Int, reg_width: Int, opcode_width: Int, num_threa
         mem_state := 0.U
       }
     }
-
   }
-  mem_offset := mem_addr(log2Up(MEM_WIDTH)-4, 2)
-  mem_index := mem_addr(ADDR_WIDTH_B-1, log2Up(MEM_WIDTH)-3)
+  mem_offset := mem_addr(log2Up(MEM_WIDTH)-4, 0)
+  mem_index := mem_addr(ADDR_WIDTH_B-1, 2)
 
   // Mem read/write
   val rd_data = Wire(Vec(NUM_BLOCKS, UInt(32.W)))

@@ -3,6 +3,8 @@ import chisel3.util._
 import chisel3.util.Fill
 
 
+// II = 1; Latency = 3;
+// result is buffered internally to meet timing
 class Gather(reg_width: Int, num_src_pos: Int, src_pos: Array[Int],
    max_out_width: Int, num_modes:Int, src_mode: Array[Int]) extends Module {
   val io = IO(new Bundle {
@@ -12,87 +14,61 @@ class Gather(reg_width: Int, num_src_pos: Int, src_pos: Array[Int],
     val dout = Output(UInt(reg_width.W))
   })
 
-  val din_d0 = Reg(UInt(reg_width.W))
-  val shift_d0 = Reg(UInt(log2Up(num_src_pos).W))
-  val mode_d0 = Reg(UInt(log2Up(num_modes).W))
+  // populate the ROM with the values from parameterized array
+  println("[GATHER] src_pos array: " + src_pos.mkString(" "))
+  println("[GATHER] src_mode array: " + src_mode.mkString(" "))
+  val src_pos_rom  = VecInit(src_pos.toSeq.map{s => s.U})
+  val src_mode_rom = VecInit(src_mode.toSeq.map{s => s.U})
 
-  val num_muxes : Int = (num_src_pos+7)/8
-  val reg0 = Reg(Vec(num_muxes, UInt(max_out_width.W)))
-  val src_pos_i = src_pos ++ Array(0, 0, 0, 0, 0, 0, 0)
-  for (i <- 0 until num_muxes) {
-    switch(io.shift(2, 0)) {
-      is (0.U) {
-        reg0(i) := io.din((src_pos_i(i*8)+max_out_width-1).min(reg_width-1), src_pos_i(i*8))
-      }
-      is (1.U) {
-        reg0(i) := io.din((src_pos_i(i*8+1)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+1))
-      }
-      is (2.U) {
-        reg0(i) := io.din((src_pos_i(i*8+2)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+2))
-      }
-      is (3.U) {
-        reg0(i) := io.din((src_pos_i(i*8+3)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+3))
-      }
-      is (4.U) {
-        reg0(i) := io.din((src_pos_i(i*8+4)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+4))
-      }
-      is (5.U) {
-        reg0(i) := io.din((src_pos_i(i*8+5)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+5))
-      }
-      is (6.U) {
-        reg0(i) := io.din((src_pos_i(i*8+6)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+6))
-      }
-      is (7.U) {
-        reg0(i) := io.din((src_pos_i(i*8+7)+max_out_width-1).min(reg_width-1), src_pos_i(i*8+7))
-      }
-    }
-  }
+  // ports to the ROMs
+  val field_start = Wire(UInt(32.W))
+  val field_size  = Wire(UInt(32.W))
 
-  din_d0 := io.din
-  shift_d0 := (io.shift >> 3)
-  mode_d0 := io.mode
+  field_start := src_pos_rom(io.shift)
+  field_size  := src_mode_rom(io.mode)
 
-  val reg1 = Reg(UInt(max_out_width.W))
-  val din_d1 = Reg(UInt(reg_width.W))
-  val mode_d1 = Reg(UInt(log2Up(num_modes).W))
+  // required to match timing of original unit
+  val dout_flop0 = Reg(UInt(reg_width.W))
+  val dout_flop1 = Reg(UInt(reg_width.W))
+  val dout_flop2 = Reg(UInt(reg_width.W))
+  
+  dout_flop0 := (io.din >> field_start)
+  dout_flop1 := dout_flop0
+  dout_flop2 := dout_flop1
+  
+  io.dout := dout_flop2
 
-  din_d1 := din_d0
-  mode_d1 := mode_d0
-  val cases = (0 until num_muxes).map( x => x.U -> reg0(x))
-  reg1 := MuxLookup(shift_d0, DontCare, cases)
-
-  val reg2 = Reg(UInt(max_out_width.W))
-  val din_d2 = Reg(UInt(reg_width.W))
-  val mode_d2 = Reg(UInt(log2Up(num_modes).W))
-  din_d2 := din_d1
-  mode_d2 := mode_d1
-
-  val cases2 = (0 until num_modes).map( x => x.U -> reg1(src_mode(x)-1, 0))
-  reg2 := MuxLookup(mode_d1, DontCare, cases2)
-  if (max_out_width < reg_width) {
-    io.dout := Cat(din_d2(reg_width-1, max_out_width), reg2)
-  } else {
-    io.dout := reg2
-  }
 }
+
+// II = 1; Latency = 1
 
 class Scatter(reg_width: Int, lg_num_rdBlocks: Int, lg_num_modes: Int, num_wrBlocks: Int,
   num_dst_pos: Int, dst_encode: Array[Long], dst_pos: Array[Long],
   num_wbens: Int, dst_en_encode: Array[(Int, Int)], wbens: Array[Long]) extends Module {
   val io = IO(new Bundle {
-    val din = Input(UInt(reg_width.W))
-    val shift = Input(UInt(lg_num_rdBlocks.W))
-    val mode = Input(UInt(lg_num_modes.W))
-    val wren = Output(UInt(num_wrBlocks.W))
-    val dout = Output(UInt(reg_width.W))
+    val din = Input(UInt(reg_width.W))           
+    val shift = Input(UInt(lg_num_rdBlocks.W)) // encoded version of the field start bit
+    val mode = Input(UInt(lg_num_modes.W))     // encoded version of the field size 
+    val wren = Output(UInt(num_wrBlocks.W))    // block write enables for the register file
+    val dout = Output(UInt(reg_width.W))       // shifted output. only defined for the blocks the regfile with write
   })
+
+  // HW ROM that holds the destination field starting positions
+  println("[SCATTER] dst_pos array: " + dst_pos.mkString(" "))	
+  val dst_pos_rom  = VecInit(dst_pos.toSeq.map{s => s.U})
+
+  // sugar over io.din
   val din_w = Wire(UInt(reg_width.W))
+
+  // flop outputs for timing
   val dout_r = Reg(UInt(reg_width.W))
   val wben_r = Reg(UInt(num_wrBlocks.W))
+  
   din_w := io.din
+  dout_r := din_w << dst_pos_rom(io.shift)
 
-  val cases = (0 until num_dst_pos).map(i => (io.shift === dst_encode(i).U) -> (din_w << dst_pos(i)))
-  dout_r := MuxCase(DontCare, cases)
+  // mux to pick the correct wr enables.
+  // dst_en_encode._1 is the start bit pos, dst_en_encode._2 is the field size. size == -1 means any size.
   val cases2 = (0 until num_wbens).map(i => ((io.shift === dst_en_encode(i)._1.U) && ((dst_en_encode(i)._2 == -1).B || (io.mode === dst_en_encode(i)._2.S.asUInt))) -> wbens(i).U)
   wben_r := MuxCase(0.U, cases2)
 
