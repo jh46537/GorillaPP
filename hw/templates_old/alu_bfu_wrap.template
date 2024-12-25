@@ -1,0 +1,71 @@
+import chisel3._
+import chisel3.util._
+
+// TODOs:
+// need to connect first two reg ports to alu, connect all reg ports to BFU
+// connect all input to both ALU and BFU
+// use input valid signals to not push garbage into pipe
+// how do mux output? if BFU is pipelined, the ALU/BFU outputs might interfere in the same cycle
+
+class #aluSlot#(config: Primateconfig) extends Module {
+  // unpack params
+  val tag_width    = config.TAGWIDTH
+  val reg_width    = config.REG_WIDTH
+  val opcode_width = config.OPCODE_WIDTH
+  val num_threads  = config.NUM_THREADS
+  val ip_width     = config.IP_WIDTH
+
+  val io = IO(new Bundle {
+    val in_valid      = Input(Bool())
+    val in_alu_bfu    = Input(Bool())
+    val in_tag        = Input(UInt(tag_width.W))
+    val opcode        = Input(UInt(opcode_width.W))
+    val rs1           = Input(UInt(reg_width.W))
+    val rs2           = Input(UInt(32.W))
+    val opcode        = Input(ALUOpCodes())
+    val imm           = Input(SInt(32.W))
+    val immSel        = Input(Bool())
+    val in_ready      = Output(Bool())
+    val out_valid     = Output(Bool())
+    val out_ready     = Input(Bool())
+    val out_tag       = Output(UInt(tag_width.W))
+    val out_flag      = Output(UInt(32.W))
+    val out_bits      = Output(UInt(reg_width.W))
+  })
+
+  val aluInst = Module(new ALU(reg_width))
+  val bfuInst = Module(new #bfu_name#(config))
+  val alu_valid_d0 = RegInit(false.B)
+  
+  //todo remove
+  val alu_port = new ALU_IO(reg_width)
+
+  // connect IO (need to mux)
+  aluInst.io <> io
+  bfuInst.io <> io
+  // in_alu_bfu: 0: select alu; 1: select bfu
+  alu_valid_d0      := io.in_valid && (!io.in_alu_bfu)
+ 
+
+  when (io.in_alu_bfu) {
+    io.in_ready := bfuInst.io.in_ready
+  } .otherwise {
+    io.in_ready := true.B
+  }
+
+  // can only service output from one FU at a time
+  bfuInst.io.out_ready := !alu_valid_d0
+
+  when (alu_valid_d0) {
+    io <> aluInst.io
+    io.out_valid := true.B
+    io.out_flag := aluInst.io.dout
+    io.out_bits := aluInst.io.dout
+  } .otherwise {
+    io.out_valid := bfuInst.io.out_valid
+    io.out_tag := bfuInst.io.out_tag
+    io.out_flag := (bfuInst.io.out_flag << 2)
+    io.out_bits := bfuInst.io.out_bits
+  }
+
+}

@@ -25,7 +25,6 @@ class DynamicBundle extends Bundle {
     impl(obj.getClass)
   }
 
-  override def cloneType = DynamicBundle(_data).asInstanceOf[this.type]
 }
 
 object DynamicBundle {
@@ -179,7 +178,6 @@ class gFIFOIO[T <: Data](data: => T) extends Bundle with TagTrait {
 
   def fire(dummy: Int = 0) = ready && valid
 
-  override def cloneType = (new gFIFOIO(data)).asInstanceOf[this.type]
 }
 
 class gFIFOIOND[T <: Data](data: => T) extends Bundle with TagTrait {
@@ -190,7 +188,6 @@ class gFIFOIOND[T <: Data](data: => T) extends Bundle with TagTrait {
 
   def fire(dummy: Int = 0) = ready && valid
 
-  override def cloneType = (new gFIFOIOND(data)).asInstanceOf[this.type]
 }
 
 class gInOutBundle[inT <: Data, outT <: Data](
@@ -201,7 +198,6 @@ class gInOutBundle[inT <: Data, outT <: Data](
   val pcIn = Flipped(Valid(new PcBundle))
   val pcOut = Valid(new PcBundle)
 
-  override def cloneType = (new gInOutBundle(inData, outData)).asInstanceOf[this.type]
 }
 
 class gRWInOutBundle[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWriteT <: Data](
@@ -218,21 +214,18 @@ class gRWInOutBundle[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWri
   val pcIn = Flipped(Valid(new PcBundle))
   val pcOut = Valid(new PcBundle)
 
-  override def cloneType = (new gRWInOutBundle(inReadData, inWriteData, outReadData, outWriteData)).asInstanceOf[this.type]
 }
 
 class gOffBundle[inT <: Data, outT <: Data](reqData: => inT, repData: => outT) extends Bundle {
   val req = new gFIFOIO(reqData)
   val rep = Flipped(new gFIFOIO(repData))
 
-  override def cloneType = (new gOffBundle(reqData, repData)).asInstanceOf[this.type]
 }
 
 class gOffBundleND[inT <: Data, outT <: Data](reqData: => inT, repData: => outT) extends Bundle {
   val req = new gFIFOIOND(reqData)
   val rep = new gFIFOIOND(repData)
 
-  override def cloneType = (new gOffBundleND(reqData, repData)).asInstanceOf[this.type]
 }
 
 class gInOutOffBundle[inT <: Data, outT <: Data](
@@ -244,7 +237,6 @@ class gInOutOffBundle[inT <: Data, outT <: Data](
   val off = offBundle
   val mem = new gMemBundle
 
-  override def cloneType = (new gInOutOffBundle(inData, outData, offBundle)).asInstanceOf[this.type]
 }
 
 class gRWInOutOffBundle[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWriteT <: Data](
@@ -255,7 +247,6 @@ class gRWInOutOffBundle[inReadT <: Data, inWriteT <: Data, outReadT <: Data, out
 {
   val off = offBundle
 
-  override def cloneType = (new gRWInOutOffBundle(inReadData, inWriteData, outReadData, outWriteData, offBundle)).asInstanceOf[this.type]
 }
 
 class gMemBundle extends Bundle with MemTrait {
@@ -273,10 +264,7 @@ abstract class gComponentBase()
 //abstract class gComponentBase[inT <: Data, outT <: Data](inData: => inT, outData: => outT)
   extends Module with include
 {
-  //val io = IO(new gInOutBundle(inData, outData))
 
-  def cloneType: this.type
-  //override def cloneType = (new gComponentBase(inData, outData)).asInstanceOf[this.type]
 }
 
 class PcBundle extends Bundle {
@@ -292,7 +280,6 @@ class gComponentLeaf[inT <: Data, outT <: Data](
   offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
 ) extends gComponent(inData, outData, offloadData, extCompName)
 {
-  override def cloneType = (new gComponentLeaf(inData, outData, offloadData, extCompName)).asInstanceOf[this.type]
 
   if (compilerControl.pcEnable) {
     val pcOutValid = RegInit(false.B)
@@ -331,7 +318,6 @@ class gRWComponentLeaf[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outW
   offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
 ) extends gRWComponent(inReadData, inWriteData, outReadData, outWriteData, offloadData, extCompName)
 {
-  override def cloneType = (new gRWComponentLeaf(inReadData, inWriteData, outReadData, outWriteData, offloadData, extCompName)).asInstanceOf[this.type]
 
   if (compilerControl.pcEnable) {
     val pcOutValid = RegInit(false.B)
@@ -369,7 +355,6 @@ class gComponent[inT <: Data, outT <: Data](
   inData: => inT, outData: => outT, offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
 ) extends gComponentBase()
 {
-  override def cloneType = (new gComponent(inData, outData, offloadData, extCompName)).asInstanceOf[this.type]
 
   val offBundle = DynamicBundle(offloadData.map((d) => (d._1, { val dBundle = new gOffBundle(d._2, d._3); dBundle.suggestName(d._1); dBundle})))
   //offBundle.suggestName("off")
@@ -502,7 +487,6 @@ class gRWComponent[inReadT <: Data, inWriteT <: Data, outReadT <: Data, outWrite
   offloadData: ArrayBuffer[(String, Data, Data)], extCompName: String = ""
 ) extends gComponentBase()
 {
-  override def cloneType = (new gRWComponent(inReadData, inWriteData, outReadData, outWriteData, offloadData, extCompName)).asInstanceOf[this.type]
 
   val offBundle = DynamicBundle(offloadData.map((d) => (d._1, { val dBundle = new gOffBundle(d._2, d._3); dBundle.suggestName(d._1); dBundle})))
   val io = IO(new gRWInOutOffBundle(inReadData, inWriteData, outReadData, outWriteData, offBundle))

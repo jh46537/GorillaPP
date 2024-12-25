@@ -1,5 +1,6 @@
 import chisel3._
 import chisel3.util._
+import chisel3.util.experimental.MultiIOModule
 
 class pkt_buf_t(num_threads: Int) extends Bundle {
   val data = UInt(512.W)

@@ -12,11 +12,11 @@ class TopTests(c: Top) extends gTester[Top](c) {
 
   val filename = "input.txt"
   val fileSource = Source.fromFile(filename)
-  val lines = fileSource.getLines.toList
+  val lines = fileSource.getLines().toList
 
   val memFile = "memInit.txt"
   val memSource = Source.fromFile(memFile)
-  val mem = memSource.getLines.toList
+  val mem = memSource.getLines().toList
 
   //Spin for a while without any test input
   for (time <- 0 until 5) {

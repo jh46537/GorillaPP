@@ -21,6 +21,24 @@ SBT:=sbt
 
 SW_SOURCE_FILES := $(wildcard *.cpp)
 
+help: 
+	@echo "host-sim: Build an executable that simulates the primate program on the host machine"
+	@echo "		"
+	@echo "primate-sim: Build hardware and software and the finally run a verilator simulation"
+	@echo "		"
+# TODO: WRITE WHERE THE Top.sv FILE IS WRITTEN
+	@echo "primate-hardware: Build the primate hardware and emit a Top.sv file."
+	@echo "		"
+	@echo "primate-software: Compile the program into a primate executable"
+	@echo "		Location: ${BUILD_DIR}/primate_sim_pgm_out/**"
+
+# should probably do this better
+host-sim: ${SW_SOURCE_FILES}
+	@echo "Building the host simulator"
+	clang++ -fsanitize=address -std=c++17 -g3 -O3 -I${PRIMATE_UARCH_ROOT}/sw/common -DPRIMATE_HOST_SIM=1 ${SW_SOURCE_FILES} -o ${BUILD_DIR}/host-sim-user-code.o -c
+	clang++ -fsanitize=address -std=c++17 -g3 -O3 -I${PRIMATE_UARCH_ROOT}/sw/common -DPRIMATE_HOST_SIM=1 ${PRIMATE_UARCH_ROOT}/sw/common/primate-host-sim-main.cpp -o ${BUILD_DIR}/host-sim-main.o -c
+	clang++ -fsanitize=address -std=c++17 -g3 -O3 ${BUILD_DIR}/host-sim-user-code.o ${BUILD_DIR}/host-sim-main.o -o ${BUILD_DIR}/host-sim
+
 primate-sim: | primate-hardware primate-software move-software
 	@echo "running RTL simulator"
 	@cd ${BUILD_DIR} && ${SBT} "runMain TopMain --backend-name verilator --full-stacktrace"
@@ -31,13 +49,14 @@ primate-hardware: | ${HWGEN_DIR} move-hardware
 	@cd ${BUILD_DIR}; ${SBT} "runMain Main"
 
 
-primate-software: ${BUILD_DIR}/primate_pgm.bin
+primate-software: ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text
 
 # rule to move primate-pgm to the simulator dir.
-move-software: ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/memInit.txt input.txt | ${HWGEN_DIR}
+move-software: ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_mem input.txt | ${HWGEN_DIR}
 	@echo "Moving primate program binary into ${HWGEN_DIR}"
-#	@cp ${BUILD_DIR}/primate_pgm.bin ${BUILD_DIR}/
 	@cp input.txt                    ${BUILD_DIR}/
+	@cp ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text ${BUILD_DIR}/primate_pgm.bin
+	@cp ${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_mem  ${BUILD_DIR}/memInit.txt
 
 
 # rule to create the primate compiler. depends on the tablegen files
@@ -54,22 +73,30 @@ ${HWGEN_DIR}/Primate.scala: ${BUILD_DIR}/primate.cfg ${PRIMATE_UARCH_ROOT}/hw/te
 	@echo "Generating Primate core chisel file"
 	@python3 ${PRIMATE_UARCH_ROOT}/scripts/scm.py -p ${BUILD_DIR}/primate.cfg -t ${PRIMATE_UARCH_ROOT}/hw/templates/primate.template -o ${HWGEN_DIR}/Primate.scala -b bfu_list.txt
 
+# rule for creating the primate program instructions
+# in a simulator readable format
+${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_mem: ${BUILD_DIR}/primate_exe ${PRIMATE_COMPILER_ROOT}/primate-loader.py
+	@echo "Primate binary to simulator memory format"
+	@${PRIMATE_COMPILER_ROOT}/primate-loader.py -i ${BUILD_DIR}/primate_exe -o ${BUILD_DIR}/primate_sim_pgm_out -p ${BUILD_DIR}/primate.cfg
+
+# rule for creating the primate program instructions
+# in a simulator readable format
+${BUILD_DIR}/primate_sim_pgm_out/primate_pgm_text: ${BUILD_DIR}/primate_exe ${PRIMATE_COMPILER_ROOT}/primate-loader.py
+	@echo "Primate binary to simulator instruction format"
+	@${PRIMATE_COMPILER_ROOT}/primate-loader.py -i ${BUILD_DIR}/primate_exe -o ${BUILD_DIR}/primate_sim_pgm_out -p ${BUILD_DIR}/primate.cfg
 
 # rule to create the binary for the primate program.
 # depends on the compiler generated binary and converts it into hex files that verilog can read
-${BUILD_DIR}/primate_pgm.bin: ${BUILD_DIR}/primate_pgm.o
+${BUILD_DIR}/primate_exe: ${BUILD_DIR}/primate_pgm.o ${BUILD_DIR}/primate.cfg
 	@echo "Building the primate program binary"
-	@${PRIMATE_COMPILER_ROOT}/build/bin/llvm-objdump --triple=primate32-unknown-linux -dr ${BUILD_DIR}/primate_pgm.o > ${BUILD_DIR}/primate_pgm_text
-	@${PRIMATE_COMPILER_ROOT}/build/bin/llvm-objdump --triple=primate32-unknown-linux -t ${BUILD_DIR}/primate_pgm.o > ${BUILD_DIR}/primate_pgm_sym
-	@${PRIMATE_COMPILER_ROOT}/build/bin/llvm-objdump --triple=primate32-unknown-linux -s -j .rodata ${BUILD_DIR}/primate_pgm.o > ${BUILD_DIR}/primate_rodata
-	@${PRIMATE_COMPILER_ROOT}/bin2asm.py ${BUILD_DIR}/primate_pgm_text ${BUILD_DIR}/primate_pgm_sym ${BUILD_DIR}/primate.cfg ${BUILD_DIR}/primate_pgm.bin
-	@${PRIMATE_COMPILER_ROOT}/elf2meminit.py ${BUILD_DIR}/primate_rodata ${BUILD_DIR}/memInit.txt
+	@${PRIMATE_COMPILER_ROOT}/build/bin/ld.lld -T /primate/primate-uarch/scripts/linker-script ${BUILD_DIR}/primate_pgm.o -o ${BUILD_DIR}/primate_exe
+
 
 
 # call the compiler to create the primate program object file
 ${BUILD_DIR}/primate_pgm.o: ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ ${SW_SOURCE_FILES}
 	@echo "Building the primate program"
-	@cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -I${PRIMATE_UARCH_ROOT}/sw/common -O3 -mllvm -debug -mllvm -print-after-all --target=primate32-linux-gnu -fno-pic -march=pr32i "${USER_DIR}/${TARGET}.cpp" -c -o primate_pgm.o 2> compile.log
+	@cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -fpack-struct=1 -I${PRIMATE_UARCH_ROOT}/sw/common -O3 -mllvm -debug -mllvm -print-after-all --target=primate32-linux-gnu -fno-pic -march=pr32i "${USER_DIR}/${TARGET}.cpp" -c -o primate_pgm.o 2> compile.log
 
 
 # rule to create the primate.cfg file. Requires that arch-gen is built
@@ -77,7 +104,7 @@ ${BUILD_DIR}/primate_pgm.o: ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ ${SW_SOUR
 # opt will crash on exit. || true is just to keep moving.
 ${BUILD_DIR}/primate.cfg: ${PRIMATE_COMPILER_ROOT}/build/lib/libLLVMPrimateArchGen.a ${SW_SOURCE_FILES} | ${BUILD_DIR}
 	@echo "Building the primate.cfg file"
-	@cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -I${PRIMATE_UARCH_ROOT}/sw/common -emit-llvm -S -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i -O3 -mllvm -debug "../${TARGET}.cpp" -o "${TARGET}.ll" 2> frontend.log
+	@cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/clang++ -fpack-struct=1 -I${PRIMATE_UARCH_ROOT}/sw/common -emit-llvm -S -mllvm -print-after-all --target=primate32-linux-gnu -march=pr32i -O3 -mllvm -debug "../${TARGET}.cpp" -o "${TARGET}.ll" 2> frontend.log
 	@-cd ${BUILD_DIR} && ${PRIMATE_COMPILER_ROOT}/build/bin/opt -debug -passes=primate-arch-gen -debug < "${TARGET}.ll" > /dev/null 2> arch-gen.log 
 
 

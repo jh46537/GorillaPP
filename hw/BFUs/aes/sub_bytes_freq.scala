@@ -1,6 +1,5 @@
 import chisel3._
 import chisel3.util._
-import chisel3.stage.ChiselStage
 
 // systemverilog black box
 class sub_bytes_freq extends BlackBox {
@@ -67,6 +66,8 @@ class s_box (tag_width: Int, reg_width: Int, opcode_width: Int, num_threads: Int
   io.out_flag := 0.U
 }
 
+// TODO: should probably remove this
+import _root_.circt.stage.ChiselStage
 object s_boxDriver extends App {
   print(ChiselStage.emitSystemVerilog(new s_box(5, 16, 4, 1, 1)))
 }

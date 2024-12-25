@@ -5,17 +5,11 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.io.Source
 
-// TODO: delete
-trait include extends GorillaUtil {
-  val dummy = 0
-}
-
-
 // Parses config from primate.cfg and bundles all the knobs into a single object
 // to be accepted by all configurable HW classes
 class PrimateConfig(filename: String) {
     val fileSource = Source.fromFile(filename)
-    val lines = fileSource.getLines.toList
+    val lines = fileSource.getLines().toList
     var knobs:Map[String, String] = Map()
     for (line <- lines) {
         val Array(key, value) = line.split("=")
@@ -67,9 +61,28 @@ class PrimateConfig(filename: String) {
     val INSTR_WIDTH = ALU_INST_WIDTH.toInt * (NUM_FUS + NUM_ALUS*3 + 1)
 
     val NONE_SELECTED = (NUM_THREADS).U((log2Up(NUM_THREADS+1)).W)
+
+    // new signals
+    val NUM_SLOTS = 2 + NUM_BFUS // TODO: idrfk but we need two slots for BRu and LS + number of BFUS
 }
 
 
-object ALUOpCodes extends ChiselEnum {
-  val add, sub, xor, or, and, sll, srl, sra, slt, sltu, lui, cat = Value
+class BFU_IO(config: PrimateConfig) extends Bundle {
+    val in_valid      = Input(Bool())
+    val in_tag        = Input(UInt(config.TAGWIDTH.W))
+    val in_opcode     = Input(UInt(config.OPCODE_WIDTH.W))
+    val in_imm        = Input(UInt(12.W))
+    val in_bits       = Input(UInt(config.REG_WIDTH.W))
+    val in_ready      = Output(Bool())
+    val out_valid     = Output(Bool())
+    val out_tag       = Output(UInt(config.TAGWIDTH.W))
+    val out_flag      = Output(UInt(config.IP_WIDTH.W))
+    val out_bits      = Output(UInt(config.REG_WIDTH.W))
+    val out_ready     = Input(Bool())
+}
+
+
+object BFUOpCodes extends ChiselEnum {
+  // TODO: how to define these?????
+  val nop = Value
 }

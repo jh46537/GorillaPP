@@ -1,9 +1,11 @@
 import chisel3._
 import chisel3.util._
-import chisel3.util.Fill
-import chisel3.util.PriorityEncoder
-import chisel3.experimental.ChiselEnum
+//import chisel3.util.Fill
+//import chisel3.util.PriorityEncoder
 import chisel3.util.experimental.loadMemoryFromFileInline
+
+// from include.scala
+//import ThreadStages._
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
@@ -25,17 +27,6 @@ class BFU_regfile_rsp_t(reg_width: Int) extends Bundle {
   override def cloneType = (new BFU_regfile_rsp_t(reg_width).asInstanceOf[this.type])
 }
 
-class Fetch(conf: PrimateConfig) extends Module {
-  val io = IO(new Bundle {
-    val ip         = Input(UInt(conf.IP_WIDTH.W))
-    val instr      = Output(UInt(conf.INSTR_WIDTH.W))
-  })
-
-  val mem = SyncReadMem(conf.INST_RAM_SIZE, UInt(conf.INSTR_WIDTH.W))
-  loadMemoryFromFileInline(mem, "./primate_pgm.bin")
-
-  io.instr := mem(io.ip)
-}
 
 class primate(extCompName: String) extends gComponentLeaf(new input_t, new output_t, ArrayBuffer(), extCompName + "__type__engine__MT__16__") {
   // TODO: would `val currentConfig = PrimateConfig("./src/main/scala/primate.cfg")` work?
@@ -66,21 +57,9 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     alu_bfuInst(i).io.mem.readdata      := DontCare
   }
 
+  val threadStages = RegInit(VecInit(Seq.fill(currentConfig.NUM_THREADS)(ThreadStages.idle)))
 
-  object ThreadStageEnum extends ChiselEnum {
-    val idle   = Value
-    val order_fetch = Value
-    val fetch  = Value
-    val decode = Value
-    val read   = Value
-    val pre    = Value
-    val exec   = Value
-    //val post   = Value
-    val branch = Value
-  }
-  val threadStages = RegInit(VecInit(Seq.fill(currentConfig.NUM_THREADS)(ThreadStageEnum.idle)))
-
-  val ThreadStateT = new Bundle {
+/*  val ThreadStateT = new Bundle {
     val tag         = UInt((currentConfig.TAGWIDTH*2).W)
     val invalid     = Bool()
     // FIXME: input -> rf & rf -> output
@@ -92,17 +71,10 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     val execDone    = Bool()
     val finish      = Bool()
   }
-  val threadStates  = Reg(Vec(currentConfig.NUM_THREADS, ThreadStateT))
+  */
+  val threadStates  = Reg(Vec(currentConfig.NUM_THREADS, new ThreadState(currentConfig)))
 
   val regfile = Module(new RegRead(currentConfig))
-
-  class ThreadMemT extends Bundle {
-    val brUcodes   = new BRMicrocodes(currentConfig.NUM_ALUS, currentConfig.NUM_FUS)
-    val rdWrEn     = Vec(currentConfig.NUM_FUS, Bool())
-    val rd         = Vec(currentConfig.NUM_FUS, UInt(currentConfig.NUM_REGS_LG.W))
-    val rd_pos     = Vec(currentConfig.NUM_ALUS, UInt(currentConfig.NUM_DST_POS_LG.W))
-    val rd_mode    = Vec(currentConfig.NUM_ALUS, UInt(currentConfig.NUM_DST_MODES_LG.W))
-  }
 
   class DestMemT extends Bundle {
     val dstPC      = UInt(32.W)
@@ -110,7 +82,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     val dest       = UInt(currentConfig.REG_WIDTH.W)
   }
 
-  val threadMem = Module(new ram_simple2port(currentConfig.NUM_THREADS, (new ThreadMemT).getWidth))
+  val threadMem = Module(new ram_simple2port(currentConfig.NUM_THREADS, (new ThreadMem(currentConfig)).getWidth))
   val destMems = Seq.fill(currentConfig.NUM_WR)(Module(new ram_simple2port(currentConfig.NUM_THREADS, (new DestMemT).getWidth)))
   threadMem.io.clock := clock
   threadMem.io.rden := false.B
@@ -128,7 +100,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   // select idle thread
   val vThreadEncoder = Module(new Scheduler_order(currentConfig.NUM_THREADS, currentConfig.NUM_RD_BANKS))
   Range(0, currentConfig.NUM_THREADS, 1).map(i =>
-    ioUnit.io.idle_threads(i) := threadStages(i) === ThreadStageEnum.idle)
+    ioUnit.io.idle_threads(i) := threadStages(i) === ThreadStages.idle)
 
   ioUnit.io.in_valid := io.in.valid
   ioUnit.io.in_tag := io.in.tag
@@ -139,7 +111,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
 
   when (ioUnit.io.new_thread) {
     // spawn new thread
-    threadStages(ioUnit.io.new_tag) := ThreadStageEnum.order_fetch
+    threadStages(ioUnit.io.new_tag) := ThreadStages.order_fetch
     threadStates(ioUnit.io.new_tag).ip := 0.U((currentConfig.IP_WIDTH+2).W)
     vThreadEncoder.io.valid := true.B
     vThreadEncoder.io.tag := ioUnit.io.new_tag
@@ -151,9 +123,9 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   /****************** Scheduler logic *********************************/
   val vThread = vThreadEncoder.io.chosen
   Range(0, currentConfig.NUM_THREADS, 1).map(i =>
-    vThreadEncoder.io.order_ready(i) := (threadStages(i) === ThreadStageEnum.order_fetch))
+    vThreadEncoder.io.order_ready(i) := (threadStages(i) === ThreadStages.order_fetch))
   Range(0, currentConfig.NUM_THREADS, 1).map(i =>
-    vThreadEncoder.io.ready(i) := (threadStages(i) === ThreadStageEnum.fetch))
+    vThreadEncoder.io.ready(i) := (threadStages(i) === ThreadStages.fetch))
 
   /****************** Fetch logic *********************************/
   val fetchUnit = Module(new Fetch(currentConfig))
@@ -162,7 +134,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   instr := fetchUnit.io.instr
 
   when (vThread =/= currentConfig.NONE_SELECTED) {
-      threadStages(vThread) := ThreadStageEnum.decode
+      threadStages(vThread) := ThreadStages.decode
   }
 
   /****************** Decode logic *********************************/
@@ -209,7 +181,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     rdWrEn_in := decodeUnit.io.rdWrEn
     bfuValids_in := decodeUnit.io.bfuValids
 
-    val threadMem_in = Wire(new ThreadMemT)
+    val threadMem_in = Wire(new ThreadMem(currentConfig))
     threadMem_in.brUcodes  := decodeUnit.io.brUcodes
     threadMem_in.rdWrEn    := decodeUnit.io.rdWrEn
     threadMem_in.rd        := decodeUnit.io.rd
@@ -225,7 +197,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
       regfile.io.rdAddr2(i) := decodeUnit.io.rs2(i)
     }
 
-    threadStages(decodeThread) := ThreadStageEnum.read
+    threadStages(decodeThread) := ThreadStages.read
   }
   .otherwise {
     val initVec = RegInit(VecInit(Seq.fill(currentConfig.NUM_FUS)(false.B)))
@@ -500,7 +472,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   #BFU_INPUT#
 
   when (execThread_d0 =/= currentConfig.NONE_SELECTED) {
-    threadStages(execThread_d0) := ThreadStageEnum.exec
+    threadStages(execThread_d0) := ThreadStages.exec
   }
 
   // FUs output
@@ -538,10 +510,10 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   )
 
   Range(0, currentConfig.NUM_THREADS, 1).map(i =>
-    fThreadEncoder.io.valid(i) := (execDone(i) === true.B && threadStages(i) === ThreadStageEnum.exec))
+    fThreadEncoder.io.valid(i) := (execDone(i) === true.B && threadStages(i) === ThreadStages.exec))
 
   when (fThread =/= currentConfig.NONE_SELECTED) {
-    threadStages(fThread) := ThreadStageEnum.branch
+    threadStages(fThread) := ThreadStages.branch
     for (destMem <- destMems) {
       destMem.io.rden := true.B
       destMem.io.rdaddress := fThread
@@ -562,7 +534,7 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
     branchThread_vec(i) := branchThread_vec(i+1)
   }
 
-  val threadMem_out = Wire(new ThreadMemT)
+  val threadMem_out = Wire(new ThreadMem(currentConfig))
   val destMems_out = Wire(Vec(currentConfig.NUM_WR, (new DestMemT)))
   val destWbens_wb = RegInit(VecInit(Seq.fill(currentConfig.NUM_WR)(0.U(currentConfig.NUM_REGBLOCKS.W))))
   val dests_wb = Wire(Vec(currentConfig.NUM_WR, UInt(currentConfig.REG_WIDTH.W)))
@@ -703,12 +675,12 @@ class primate(extCompName: String) extends gComponentLeaf(new input_t, new outpu
   when (threadValid_s1) {
     threadStates(branchThread_vec(WB_DELAY-3)).ip := thread_new_pc
     when (thread_finish) {
-      threadStages(branchThread_vec(WB_DELAY-3)) := ThreadStageEnum.idle
+      threadStages(branchThread_vec(WB_DELAY-3)) := ThreadStages.idle
     } .otherwise {
-      threadStages(branchThread_vec(WB_DELAY-3)) := ThreadStageEnum.fetch
+      threadStages(branchThread_vec(WB_DELAY-3)) := ThreadStages.fetch
     }
   } .elsewhen (branchThread_vec(WB_DELAY-3) =/= currentConfig.NONE_SELECTED) {
-    threadStages(branchThread_vec(WB_DELAY-3)) := ThreadStageEnum.fetch
+    threadStages(branchThread_vec(WB_DELAY-3)) := ThreadStages.fetch
   }
 
   // Output
